@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f5f0">
+<meta name="description" content="ブラウザで遊べるスリザーリンク。必ず論理だけで解ける問題を自動生成します。">
+<title>スリザーリンク</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6f5e'/%3E%3Cpath d='M8 11h9v10h7' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="src/ui/styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>スリザーリンク</h1>
+    <div class="topbar-actions">
+      <button type="button" class="icon-btn" id="btn-rules" aria-label="遊び方">?</button>
+      <button type="button" class="icon-btn" id="btn-theme" aria-label="表示テーマを切り替え">◐</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <label class="field">
+      <span>大きさ</span>
+      <select id="sel-size">
+        <option value="5x5">5 × 5</option>
+        <option value="7x7" selected>7 × 7</option>
+        <option value="10x10">10 × 10</option>
+        <option value="12x12">12 × 12</option>
+        <option value="15x15">15 × 15</option>
+      </select>
+    </label>
+    <label class="field">
+      <span>むずかしさ</span>
+      <select id="sel-difficulty">
+        <option value="easy">やさしい</option>
+        <option value="normal" selected>ふつう</option>
+        <option value="hard">むずかしい</option>
+      </select>
+    </label>
+    <button type="button" class="primary" id="btn-new">新しい問題</button>
+  </div>
+
+  <main class="board-area">
+    <div class="board-wrap">
+      <svg id="board" xmlns="http://www.w3.org/2000/svg" role="application"
+           aria-label="スリザーリンクの盤面" tabindex="0"></svg>
+      <div class="board-overlay" id="overlay" hidden>
+        <div class="overlay-card" id="overlay-card"></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="status">
+    <span class="status-item" id="status-time">0:00</span>
+    <span class="status-sep" aria-hidden="true">·</span>
+    <span class="status-item" id="status-progress">数字 0 / 0</span>
+    <span class="status-sep" aria-hidden="true">·</span>
+    <span class="status-item" id="status-best">自己ベスト —</span>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="btn-undo" title="元に戻す (Ctrl+Z)"><span class="ico">↶</span>もどす</button>
+    <button type="button" id="btn-redo" title="やり直す (Ctrl+Shift+Z)"><span class="ico">↷</span>すすむ</button>
+    <button type="button" id="btn-hint" title="論理的に決まる場所を 1 つ教えます"><span class="ico">💡</span>ヒント</button>
+    <button type="button" id="btn-check" title="間違いがないか調べます"><span class="ico">✓</span>チェック</button>
+    <button type="button" id="btn-clear" title="書き込みをすべて消します"><span class="ico">⌫</span>ぜんぶ消す</button>
+  </div>
+
+  <div class="options">
+    <label><input type="checkbox" id="opt-autocross" checked> 数字が埋まったら自動で ×</label>
+    <label><input type="checkbox" id="opt-errors" checked> 明らかな矛盾を赤く表示</label>
+    <label><input type="checkbox" id="opt-fade" checked> 使い終わった数字を薄くする</label>
+  </div>
+
+  <p class="message" id="message" role="status" aria-live="polite"></p>
+
+  <footer class="footer">
+    <details>
+      <summary>問題コード（共有・読み込み）</summary>
+      <div class="code-row">
+        <input type="text" id="puzzle-code" spellcheck="false" autocomplete="off" aria-label="問題コード">
+        <button type="button" id="btn-copy">コピー</button>
+        <button type="button" id="btn-load">読み込む</button>
+      </div>
+      <p class="hint-text">同じコードからいつでも同じ問題を開けます。</p>
+    </details>
+  </footer>
+</div>
+
+<div class="modal" id="rules-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+    <h2 id="rules-title">遊び方</h2>
+    <ol class="rules">
+      <li>点と点のあいだに線を引き、<b>ひとつながりの輪をひとつだけ</b>作ります。</li>
+      <li>数字は、そのマスの<b>まわり 4 辺のうち何本に線が引かれるか</b>を表します。</li>
+      <li>数字のないマスには制限はありません。</li>
+      <li>輪は枝分かれしたり、交差したり、途中で途切れたりしてはいけません。</li>
+    </ol>
+    <h3>操作</h3>
+    <ul class="rules">
+      <li>辺をクリック／タップするたび <b>線 → × → 空白</b> と変わります。</li>
+      <li>そのままドラッグすると、続けて同じ印を引けます。</li>
+      <li>右クリック（長押し）で <b>×</b> を直接つけられます。</li>
+      <li>キーボードでも遊べます：<b>矢印キー</b>で移動、<b>スペース</b>で線、<b>X</b>で ×。</li>
+    </ul>
+    <p class="note">この中の問題はすべて、当てずっぽう無しで<b>論理だけで解ける</b>ことを確認してから出題しています。</p>
+    <button type="button" class="primary" id="btn-close-rules">とじる</button>
+  </div>
+</div>
+
+<script type="module" src="src/ui/app.js"></script>
+</body>
+</html>
