@@ -40,11 +40,10 @@ npm start          # http://localhost:8080/ で開く
 `.github/workflows/pages.yml` が、既定ブランチへの push でテストを走らせてから
 `index.html` と `src/` を Pages へ配信します。
 
-初回だけリポジトリ側の設定が必要です。
-
-1. リポジトリの **Settings → Pages** を開く
-2. **Source** を **GitHub Actions** にする
-3. 既定ブランチに push する（または Actions タブから `テストと GitHub Pages への公開` を手動実行する）
+ワークフローが Pages の有効化（`configure-pages` の `enablement: true`）まで行うので、
+既定ブランチに push すればそのまま公開されます。
+自動有効化が組織の設定などで拒否された場合だけ、**Settings → Pages → Source** を
+**GitHub Actions** に切り替えてから、Actions タブで再実行してください。
 
 公開先は `https://<ユーザー名>.github.io/<リポジトリ名>/` です。
 すべて相対パスなのでサブディレクトリ配信でもそのまま動きます。

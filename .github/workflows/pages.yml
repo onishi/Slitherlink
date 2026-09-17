@@ -41,6 +41,9 @@ jobs:
           cp -r src _site/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
+        # リポジトリ側で Pages が未設定なら、ここで有効化する
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
