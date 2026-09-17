@@ -33,7 +33,21 @@ npm start          # http://localhost:8080/ で開く
 ```
 
 `file://` で直接開くと Web Worker と ES Modules が動かないため、必ず HTTP で配信してください。
-静的ファイルだけなので、リポジトリをそのまま GitHub Pages などに置くだけでも動きます。
+
+## 公開（GitHub Pages）
+
+静的ファイルだけなので、そのまま GitHub Pages で公開できます。
+`.github/workflows/pages.yml` が、既定ブランチへの push でテストを走らせてから
+`index.html` と `src/` を Pages へ配信します。
+
+初回だけリポジトリ側の設定が必要です。
+
+1. リポジトリの **Settings → Pages** を開く
+2. **Source** を **GitHub Actions** にする
+3. 既定ブランチに push する（または Actions タブから `テストと GitHub Pages への公開` を手動実行する）
+
+公開先は `https://<ユーザー名>.github.io/<リポジトリ名>/` です。
+すべて相対パスなのでサブディレクトリ配信でもそのまま動きます。
 
 ## テスト
 
