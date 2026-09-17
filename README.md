@@ -34,22 +34,45 @@ npm start          # http://localhost:8080/ で開く
 
 `file://` で直接開くと Web Worker と ES Modules が動かないため、必ず HTTP で配信してください。
 
-## 公開（GitHub Pages）
+## 公開
 
-静的ファイルだけなので、そのまま GitHub Pages で公開できます。
-`.github/workflows/pages.yml` が、既定ブランチへの push でテストを走らせてから
-`index.html` と `src/` を Pages へ配信します。
+`npm run build:site` が、配信に必要な `index.html` と `src/` だけを `_site/` に集めます。
+テストや開発用ツールは含まれません。
 
-初回だけリポジトリ側の設定が必要です（Pages サイトの作成は Actions の
-`GITHUB_TOKEN` の権限では行えないため、ここは手作業になります）。
+### Cloudflare（既定）
 
-1. リポジトリの **Settings → Pages** を開く
-2. **Source** を **GitHub Actions** にする
-3. 既定ブランチに push する（または Actions タブから
-   `テストと GitHub Pages への公開` を手動実行する）
+`.github/workflows/cloudflare.yml` が、既定ブランチへの push でテストを走らせたあと
+`wrangler` で Cloudflare Workers（静的アセット配信）へデプロイします。
+設定は `wrangler.jsonc` の 1 ファイルだけです。
 
+必要なのはリポジトリのシークレット 2 つです。
+**Settings → Secrets and variables → Actions** に登録してください。
+
+| 名前 | 中身 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Workers のデプロイ権限を持つ API トークン |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare ダッシュボードのアカウント ID |
+
+API トークンは Cloudflare の **My Profile → API Tokens → Create Token** から、
+テンプレート **Edit Cloudflare Workers** で作れます。
+公開先は `https://slitherlink.<サブドメイン>.workers.dev` です。
+
+シークレットが未設定のあいだは、デプロイ手順だけを黙ってスキップします（CI は緑のまま）。
+
+ダッシュボードから Git 連携で Cloudflare Pages に繋ぐ方法でも動きます。
+その場合のビルド設定は次のとおりです。
+
+- ビルドコマンド: `npm run build:site`
+- ビルド出力ディレクトリ: `_site`
+
+### GitHub Pages（手動）
+
+`.github/workflows/pages.yml` を Actions タブから手動実行すると GitHub Pages へ配信します。
+初回だけ **Settings → Pages → Source** を **GitHub Actions** にしてください
+（Pages サイトの作成は Actions の `GITHUB_TOKEN` の権限では行えないため、ここは手作業になります）。
 公開先は `https://<ユーザー名>.github.io/<リポジトリ名>/` です。
-すべて相対パスなのでサブディレクトリ配信でもそのまま動きます。
+
+どちらの配信先でもすべて相対パスなので、サブディレクトリ配信のままで動きます。
 
 ## テスト
 
@@ -98,7 +121,8 @@ src/core/game.js       進行状況の判定・自動 ×・ヒント
 src/core/puzzle.js     問題コードの読み書き
 src/ui/                画面（盤面描画・入力・保存）
 src/worker/            作問ワーカー
-tools/                 開発用サーバと検証スクリプト
+tools/                 開発用サーバ・検証スクリプト・公開用ビルド
+wrangler.jsonc         Cloudflare への配信設定
 tests/                 単体テスト
 ```
 

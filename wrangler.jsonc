@@ -1,0 +1,9 @@
+{
+  // 静的ファイルだけの Worker (Cloudflare Workers Static Assets)。
+  // `npm run build:site` で作った _site/ をそのまま配信する。
+  "name": "slitherlink",
+  "compatibility_date": "2026-09-17",
+  "assets": {
+    "directory": "./_site"
+  }
+}
