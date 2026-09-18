@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f5f0">
+<meta name="description" content="スリザーリンクの定石一覧。こういう配置になったら、こういう理由でここが確定する、を図つきで。">
+<title>スリザーリンクの定石</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6f5e'/%3E%3Cpath d='M8 11h9v10h7' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="src/ui/styles.css">
+</head>
+<body>
+<div class="app doc">
+  <header class="topbar">
+    <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>定石一覧</h1>
+    <div class="topbar-actions">
+      <a class="icon-btn" href="index.html" aria-label="ゲームに戻る" title="ゲームに戻る">←</a>
+      <button type="button" class="icon-btn" id="btn-theme" aria-label="表示テーマを切り替え">◐</button>
+    </div>
+  </header>
+
+  <section class="doc-lead">
+    <p>スリザーリンクは、同じ形が何度も出てきます。ここにある形を覚えてしまえば、
+      一手ずつ考え込まなくても手が進むようになります。</p>
+    <p class="doc-note">このページの「確定する」はすべて、盤面を総当たりで調べて
+      <b>反例が 1 つも存在しないこと</b>を確かめたものだけを載せています。</p>
+  </section>
+
+  <section class="legend" aria-label="図の読み方">
+    <h2>図の読み方</h2>
+    <ul class="legend-list" id="legend"></ul>
+  </section>
+
+  <nav class="toc" aria-label="目次">
+    <ul id="toc"></ul>
+  </nav>
+
+  <main id="patterns"></main>
+
+  <section class="doc-lead doc-outro">
+    <h2>行き詰まったら</h2>
+    <ul class="rules">
+      <li>数字のまわりの × を数え直す。1 つ増えるだけで確定する形は多いです。</li>
+      <li>線の端（行き止まりになりかけの点）を探す。進める方向が 1 つなら確定です。</li>
+      <li>「ここを線にしたらどうなるか」を 2〜3 手だけ追ってみる。矛盾したら反対側が確定です。</li>
+      <li>ゲーム画面の<b>ヒント</b>は、次に決まる場所とその理由を教えてくれます。</li>
+    </ul>
+    <p class="doc-note">ここに無い形でも、突き詰めれば「数字の本数」「交点の線は 0 本か 2 本」
+      「輪はひとつだけ」の 3 つに行き着きます。</p>
+  </section>
+
+  <footer class="footer doc-footer">
+    <a class="back-link" href="index.html">← ゲームに戻る</a>
+  </footer>
+</div>
+
+<script type="module" src="src/ui/patterns-page.js"></script>
+</body>
+</html>

@@ -418,11 +418,20 @@ function frontierEdges(state) {
 }
 
 /**
- * 総当たり (バックトラック) で解の個数を数える。作問の検証用。
+ * 総当たり (バックトラック) で解の個数を数える。作問と定石の検証用。
+ * @param {Int8Array} [initial] 既知の辺。これを満たす解だけを数える。
  * @returns {number} 見つかった解の数 (limit で打ち切り)
  */
-export function countSolutions(grid, clues, limit = 2) {
+export function countSolutions(grid, clues, limit = 2, initial = null) {
   const root = new SolveState(grid, clues, false);
+  if (initial) {
+    for (let e = 0; e < grid.edgeCount; e++) {
+      const val = initial[e];
+      if (val === LINE || val === CROSS) {
+        if (!root.setEdge(e, val, 'given')) return 0;
+      }
+    }
+  }
   for (let cell = 0; cell < grid.cellCount; cell++) root.queueCells.push(cell);
   for (let v = 0; v < grid.vertexCount; v++) root.queueVertices.push(v);
   if (!root.propagate()) return 0;
