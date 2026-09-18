@@ -89,23 +89,51 @@ const cmp = (a, b) => String(a) < String(b) ? -1 : 1;
 const edgeOf = (grid, dir, r, c) => (dir === 'h' ? grid.h(r, c) : grid.v(r, c));
 const valueOf = (kind) => (kind === 'line' ? LINE : CROSS);
 
-/** その向きを置ける左上の位置を列挙する。 */
+/**
+ * 置ける位置の範囲を求める。
+ *
+ * 定義の rows/cols は図を見やすくするための枠であって、まわりの余白マスは
+ * 推論に使っていない。枠ごと盤に収まることを求めてしまうと、盤の端にある
+ * 0 などに当てはまらなくなる。そこで「実際に参照する数字と辺」だけが
+ * 盤の中に入る範囲を計算する。
+ */
+function offsetRange(variant, rows, cols) {
+  let minDr = -Infinity;
+  let maxDr = Infinity;
+  let minDc = -Infinity;
+  let maxDc = Infinity;
+  const clamp = (lowR, highR, lowC, highC) => {
+    minDr = Math.max(minDr, lowR);
+    maxDr = Math.min(maxDr, highR);
+    minDc = Math.max(minDc, lowC);
+    maxDc = Math.min(maxDc, highC);
+  };
+
+  for (const [r, c] of variant.clues) clamp(-r, rows - 1 - r, -c, cols - 1 - c);
+  for (const [dir, r, c] of [...variant.given, ...variant.conclude]) {
+    // h(r,c) は r が 0..rows、c が 0..cols-1。v(r,c) はその逆。
+    clamp(-r, (dir === 'h' ? rows : rows - 1) - r, -c, (dir === 'h' ? cols - 1 : cols) - c);
+  }
+  return { minDr, maxDr, minDc, maxDc };
+}
+
+/** その向きを置ける位置を列挙する。 */
 function placements(variant, rows, cols) {
-  const maxR = rows - variant.rows;
-  const maxC = cols - variant.cols;
-  if (maxR < 0 || maxC < 0) return [];
+  const { minDr, maxDr, minDc, maxDc } = offsetRange(variant, rows, cols);
+  if (minDr > maxDr || minDc > maxDc) return [];
 
   if (variant.anchor === 'corner') {
     // 角合わせ: もとの (0,0) のマスが盤の角に来る置き方だけ
     const [ar, ac] = variant.anchorCell;
-    const dr = ar === 0 ? 0 : maxR;
-    const dc = ac === 0 ? 0 : maxC;
+    const dr = ar === 0 ? 0 : rows - 1 - ar;
+    const dc = ac === 0 ? 0 : cols - 1 - ac;
+    if (dr < minDr || dr > maxDr || dc < minDc || dc > maxDc) return [];
     return [[dr, dc]];
   }
 
   const list = [];
-  for (let dr = 0; dr <= maxR; dr++) {
-    for (let dc = 0; dc <= maxC; dc++) list.push([dr, dc]);
+  for (let dr = minDr; dr <= maxDr; dr++) {
+    for (let dc = minDc; dc <= maxDc; dc++) list.push([dr, dc]);
   }
   return list;
 }

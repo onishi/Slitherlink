@@ -74,6 +74,91 @@ test('角の定石は 4 つの角すべてで当てはまる', () => {
   }
 });
 
+test('盤の端にある 0 にも当てはまる', () => {
+  // 定義は 3x3 の枠だが、まわりの余白は推論に使っていない。
+  // 枠ごと収まることを求めると端の 0 を取りこぼす（実際に起きた不具合）。
+  const grid = getGrid(7, 7);
+  const zero = PATTERNS.find((p) => p.id === 'zero');
+  const state = new Int8Array(grid.edgeCount);
+
+  const at = (r, c) => {
+    const clues = new Int8Array(49).fill(-1);
+    clues[r * 7 + c] = 0;
+    return findMatches(grid, clues, state, zero);
+  };
+  assert.equal(at(3, 3).places, 1, '盤の内側の 0');
+  assert.equal(at(3, 0).places, 1, '左端の 0');
+  assert.equal(at(0, 3).places, 1, '上端の 0');
+  assert.equal(at(6, 6).places, 1, '右下の角の 0');
+  assert.equal(at(0, 0).fills.length, 4, '角の 0 でも 4 辺すべてを埋める');
+
+  // 端と内側が混ざっていても全部数える
+  const clues = new Int8Array(49).fill(-1);
+  clues[3 * 7 + 0] = 0;
+  clues[4 * 7 + 1] = 0;
+  clues[4 * 7 + 2] = 0;
+  assert.equal(findMatches(grid, clues, state, zero).places, 3);
+});
+
+/**
+ * 端にかかる置き方でも結論が本当に確定するかを、総当たりで全部調べる。
+ * 余白ごと収まることを求めるのをやめたので、ここは実際に効く検査になる。
+ */
+test('盤の端にかかる置き方でも結論が確定する', () => {
+  const SIZE = 4;
+  const grid = getGrid(SIZE, SIZE);
+  const edgeOf = (dir, r, c) => (dir === 'h' ? grid.h(r, c) : grid.v(r, c));
+  const valueOf = (kind) => (kind === 'line' ? LINE : CROSS);
+  let checked = 0;
+
+  for (const pattern of PATTERNS) {
+    if (pattern.match === 'loop' || pattern.anchor !== 'interior') continue;
+    for (const variant of orientationsOf(pattern)) {
+      for (const [dr, dc] of placementsOf(variant, SIZE)) {
+        const clues = new Int8Array(SIZE * SIZE).fill(-1);
+        for (const [r, c, n] of variant.clues) clues[(r + dr) * SIZE + (c + dc)] = n;
+        const given = new Int8Array(grid.edgeCount);
+        for (const [dir, r, c, kind] of variant.given) {
+          given[edgeOf(dir, r + dr, c + dc)] = valueOf(kind);
+        }
+        // その置き方自体が成り立たない盤面は、当てはめようがないので飛ばす
+        if (countSolutions(grid, clues, 1, given) === 0) continue;
+
+        for (const [dir, r, c, kind] of variant.conclude) {
+          const probe = Int8Array.from(given);
+          probe[edgeOf(dir, r + dr, c + dc)] = valueOf(kind) === LINE ? CROSS : LINE;
+          checked++;
+          assert.equal(
+            countSolutions(grid, clues, 1, probe), 0,
+            `${pattern.id} 向き${variant.transform} 位置(${dr},${dc}) の ${dir}(${r + dr},${c + dc}) が確定しない`,
+          );
+        }
+      }
+    }
+  }
+  assert.ok(checked > 500, `検査した結論が ${checked} 件しかない`);
+});
+
+/** テスト側でも置ける位置を出す（pattern-match.js と同じ考え方）。 */
+function placementsOf(variant, size) {
+  let minDr = -Infinity, maxDr = Infinity, minDc = -Infinity, maxDc = Infinity;
+  const clamp = (lowR, highR, lowC, highC) => {
+    minDr = Math.max(minDr, lowR);
+    maxDr = Math.min(maxDr, highR);
+    minDc = Math.max(minDc, lowC);
+    maxDc = Math.min(maxDc, highC);
+  };
+  for (const [r, c] of variant.clues) clamp(-r, size - 1 - r, -c, size - 1 - c);
+  for (const [dir, r, c] of [...variant.given, ...variant.conclude]) {
+    clamp(-r, (dir === 'h' ? size : size - 1) - r, -c, (dir === 'h' ? size - 1 : size) - c);
+  }
+  const list = [];
+  for (let dr = minDr; dr <= maxDr; dr++) {
+    for (let dc = minDc; dc <= maxDc; dc++) list.push([dr, dc]);
+  }
+  return list;
+}
+
 /**
  * いちばん大事なテスト。実際に生成した問題へ全定石を当てはめ続け、
  * 埋めた辺が 1 本でも正解と食い違ったら落とす。
