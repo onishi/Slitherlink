@@ -187,6 +187,8 @@ function placements(variant, rows, cols) {
  */
 export function findMatches(grid, clues, state, pattern) {
   if (pattern.match === 'loop') return findLoopMatches(grid, clues, state);
+  if (pattern.match === 'vertex') return findVertexMatches(grid, state);
+  if (pattern.match === 'bridge') return findBridgeMatches(grid, state);
 
   const fills = new Map();
   let conflicts = 0;
@@ -248,6 +250,103 @@ function matchesHere(grid, clues, state, variant, dr, dc) {
     if (state[edgeOf(grid, dir, r + dr, c + dc)] !== valueOf(kind)) return false;
   }
   return true;
+}
+
+/**
+ * 「交点に集まる線は 0 本か 2 本」を盤面全体に当てはめる。
+ * 型の照合では拾えない向き（一直線に並ぶ 2 本、盤の角や縁の点）も含めて、
+ * ルールそのものを適用する。
+ */
+function findVertexMatches(grid, state) {
+  const fills = [];
+  let conflicts = 0;
+  let places = 0;
+
+  for (let v = 0; v < grid.vertexCount; v++) {
+    const edges = grid.vertexEdges[v];
+    let lines = 0;
+    const unknown = [];
+    for (const e of edges) {
+      if (state[e] === LINE) lines++;
+      else if (state[e] === UNKNOWN) unknown.push(e);
+    }
+    if (lines > 2) { conflicts++; continue; }
+    if (lines === 1 && unknown.length === 0) { conflicts++; continue; }
+    if (unknown.length === 0) continue;
+
+    let value = UNKNOWN;
+    if (lines === 2) value = CROSS;                       // 分かれ道は作れない
+    else if (lines === 1 && unknown.length === 1) value = LINE;  // 行き止まりにできない
+    else if (lines === 0 && unknown.length === 1) value = CROSS; // 1 本だけ出る形にできない
+    if (value === UNKNOWN) continue;
+
+    places++;
+    for (const e of unknown) fills.push({ edge: e, value });
+  }
+  return { fills: dedupe(fills), conflicts, places };
+}
+
+/**
+ * 「閉じ込められた場所には線を引けない」を盤面全体に当てはめる。
+ *
+ * 線は必ず輪の一部なので、どこかで循環していなければならない。× を取り除いた
+ * 図の中で、その辺を通らないと行き来できない辺（＝橋）は、どうやっても循環に
+ * 入れないので × で確定する。× で囲まれて閉じてしまった場所もこれで片づく。
+ */
+function findBridgeMatches(grid, state) {
+  const n = grid.vertexCount;
+  const adj = new Array(n);
+  for (let v = 0; v < n; v++) adj[v] = [];
+  for (let e = 0; e < grid.edgeCount; e++) {
+    if (state[e] === CROSS) continue;
+    const a = grid.edgeEnds[e * 2];
+    const b = grid.edgeEnds[e * 2 + 1];
+    adj[a].push([b, e]);
+    adj[b].push([a, e]);
+  }
+
+  // 深さ優先探索で橋を求める（再帰せずスタックで回す）
+  const disc = new Int32Array(n).fill(-1);
+  const low = new Int32Array(n);
+  const parentEdge = new Int32Array(n).fill(-1);
+  const iter = new Int32Array(n);
+  const fills = [];
+  let timer = 0;
+
+  for (let root = 0; root < n; root++) {
+    if (disc[root] !== -1 || adj[root].length === 0) continue;
+    disc[root] = low[root] = timer++;
+    const stack = [root];
+    while (stack.length) {
+      const v = stack[stack.length - 1];
+      if (iter[v] < adj[v].length) {
+        const [to, edge] = adj[v][iter[v]++];
+        if (edge === parentEdge[v]) continue;
+        if (disc[to] !== -1) {
+          if (disc[to] < low[v]) low[v] = disc[to];
+        } else {
+          parentEdge[to] = edge;
+          disc[to] = low[to] = timer++;
+          stack.push(to);
+        }
+      } else {
+        stack.pop();
+        const pe = parentEdge[v];
+        if (pe !== -1) {
+          const parent = grid.edgeEnds[pe * 2] === v ? grid.edgeEnds[pe * 2 + 1] : grid.edgeEnds[pe * 2];
+          if (low[v] < low[parent]) low[parent] = low[v];
+          if (low[v] > disc[parent] && state[pe] === UNKNOWN) fills.push({ edge: pe, value: CROSS });
+        }
+      }
+    }
+  }
+  return { fills, conflicts: 0, places: fills.length };
+}
+
+function dedupe(fills) {
+  const seen = new Map();
+  for (const f of fills) seen.set(f.edge, f);
+  return [...seen.values()];
 }
 
 /**

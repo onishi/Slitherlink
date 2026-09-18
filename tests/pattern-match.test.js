@@ -6,7 +6,7 @@ import { PATTERNS, buildPattern } from '../src/core/patterns.js';
 import { orientationsOf, findMatches, transformPattern } from '../src/core/pattern-match.js';
 import { generatePuzzle } from '../src/core/generator.js';
 
-const templates = PATTERNS.filter((p) => p.match !== 'loop');
+const templates = PATTERNS.filter((p) => !p.match); // 型で照合するものだけ
 
 test('回転・反転しても定石は成り立つ', () => {
   for (const pattern of templates) {
@@ -138,6 +138,86 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
   assert.ok(pairs > 0, 'となり合う 3-3 が 1 組も現れなかった');
 });
 
+test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
+  const rules = PATTERNS.filter((p) => p.match === 'vertex' || p.match === 'bridge');
+  assert.equal(rules.length, 2, 'ルール適用型の定石が 2 つでない');
+  let filled = 0;
+
+  for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
+    for (let i = 0; i < 4; i++) {
+      const puzzle = generatePuzzle({ rows, cols, difficulty, seed: 8100 + i * 41 + rows });
+      const grid = getGrid(rows, cols);
+      const state = new Int8Array(grid.edgeCount);
+
+      // 型の定石だけで進めた盤面を作り、その各段階で 2 つのルールを試す
+      for (let round = 0; round < 12; round++) {
+        for (const rule of rules) {
+          const { fills, conflicts } = findMatches(grid, puzzle.clues, state, rule);
+          assert.equal(conflicts, 0, `${rule.id}: 正しい盤面で矛盾を報告した`);
+          for (const { edge, value } of fills) {
+            assert.equal(value, puzzle.solution[edge], `${rule.id} が正解と違う辺を埋めた`);
+            filled++;
+          }
+        }
+        let moved = false;
+        for (const pattern of templates) {
+          const { fills } = findMatches(grid, puzzle.clues, state, pattern);
+          for (const { edge, value } of fills) { state[edge] = value; moved = true; }
+        }
+        if (!moved) break;
+      }
+    }
+  }
+  assert.ok(filled > 50, `ルール適用型がほとんど働いていない (${filled} 本)`);
+});
+
+test('点の次数ルールは、型では拾えない形も埋める', () => {
+  const rule = PATTERNS.find((p) => p.match === 'vertex');
+  const grid = getGrid(5, 6);
+  const clues = new Int8Array(30).fill(-1);
+
+  const cases = [
+    { label: '盤の角: 1 辺が線', marks: [['h', 0, 0, LINE]], want: [grid.v(0, 0), LINE] },
+    { label: '盤の角: 1 辺が ×', marks: [['h', 0, 0, CROSS]], want: [grid.v(0, 0), CROSS] },
+    { label: '縁: 線 1 + × 1', marks: [['h', 0, 2, LINE], ['v', 0, 3, CROSS]], want: [grid.h(0, 3), LINE] },
+    { label: '縁: 線が一直線に 2 本', marks: [['h', 0, 2, LINE], ['h', 0, 3, LINE]], want: [grid.v(0, 3), CROSS] },
+    { label: '内側: 線 1 + × 2 でまっすぐ進む', marks: [['h', 2, 1, LINE], ['v', 1, 2, CROSS], ['v', 2, 2, CROSS]], want: [grid.h(2, 2), LINE] },
+  ];
+
+  for (const { label, marks, want } of cases) {
+    const state = new Int8Array(grid.edgeCount);
+    for (const [dir, r, c, v] of marks) state[dir === 'h' ? grid.h(r, c) : grid.v(r, c)] = v;
+    const { fills } = findMatches(grid, clues, state, rule);
+    const hit = fills.find((f) => f.edge === want[0]);
+    assert.ok(hit, `${label}: 埋めてくれない`);
+    assert.equal(hit.value, want[1], `${label}: 値が違う`);
+  }
+});
+
+test('閉空間ルールは、交点の数え上げでは届かない辺を埋める', () => {
+  const rule = PATTERNS.find((p) => p.match === 'bridge');
+  const vertexRule = PATTERNS.find((p) => p.match === 'vertex');
+  const grid = getGrid(3, 3);
+  const clues = new Int8Array(9).fill(-1);
+  const state = new Int8Array(grid.edgeCount);
+  // まん中のマスのまわりだけが残り、外へ出る道が h(1,0) の 1 本だけの形
+  for (const [dir, r, c] of [['v',0,1],['h',1,2],['v',0,2],['h',2,0],['v',2,1],['h',2,2],['v',2,2]]) {
+    state[dir === 'h' ? grid.h(r, c) : grid.v(r, c)] = CROSS;
+  }
+  const target = grid.h(1, 0);
+
+  // 総当たりでも × で確定する
+  const asLine = Int8Array.from(state);
+  asLine[target] = LINE;
+  assert.equal(countSolutions(grid, clues, 1, asLine), 0, 'この辺は線にできてしまう');
+
+  // 交点の数え上げでは届かない
+  assert.equal(findMatches(grid, clues, state, vertexRule).fills.length, 0);
+  // 閉空間ルールなら届く
+  const hit = findMatches(grid, clues, state, rule).fills.find((f) => f.edge === target);
+  assert.ok(hit && hit.value === CROSS, '閉空間ルールが埋めてくれない');
+});
+
 test('盤の端にある 0 にも当てはまる', () => {
   // 定義は 3x3 の枠だが、まわりの余白は推論に使っていない。
   // 枠ごと収まることを求めると端の 0 を取りこぼす（実際に起きた不具合）。
@@ -176,7 +256,7 @@ test('盤の端にかかる置き方でも結論が確定する', () => {
   let checked = 0;
 
   for (const pattern of PATTERNS) {
-    if (pattern.match === 'loop' || pattern.anchor !== 'interior') continue;
+    if (pattern.match || pattern.anchor !== 'interior') continue;
     for (const variant of orientationsOf(pattern)) {
       for (const [dr, dc] of placementsOf(variant, SIZE)) {
         const clues = new Int8Array(SIZE * SIZE).fill(-1);
