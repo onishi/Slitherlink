@@ -32,6 +32,12 @@ export function transformPattern(pattern, transform) {
   const cols = transform.swap ? R : C;
   const vertex = (r, c) => transform.map(r, c, R, C);
 
+  const bare = ([dir, r, c]) => {
+    const [ar, ac] = vertex(r, c);
+    const [br, bc] = dir === 'h' ? vertex(r, c + 1) : vertex(r + 1, c);
+    return ar === br ? ['h', ar, Math.min(ac, bc)] : ['v', Math.min(ar, br), ac];
+  };
+
   const clues = pattern.clues.map(([r, c, n]) => {
     // マスは左上と右下の頂点で表し、変換後にその最小側を左上とする
     const [ar, ac] = vertex(r, c);
@@ -76,6 +82,8 @@ export function transformPattern(pattern, transform) {
     transform: transform.id,
     anchorCell,
     borderSide,
+    smallLoop: pattern.smallLoop ? pattern.smallLoop.map(bare) : null,
+    loopConclude: pattern.loopConclude ? pattern.loopConclude.map(mark) : null,
   };
 }
 
@@ -190,7 +198,10 @@ export function findMatches(grid, clues, state, pattern) {
 
       const found = [];
       let conflicted = false;
-      for (const [dir, r, c, kind] of variant.conclude) {
+      const rules = variant.loopConclude && canRuleOutSmallLoop(grid, clues, variant, dr, dc)
+        ? [...variant.conclude, ...variant.loopConclude]
+        : variant.conclude;
+      for (const [dir, r, c, kind] of rules) {
         // 盤からはみ出した結論は、その盤には存在しない辺なので読み飛ばす
         if (!insideBoard(grid, dir, r + dr, c + dc)) continue;
         const edge = edgeOf(grid, dir, r + dr, c + dc);
@@ -206,6 +217,27 @@ export function findMatches(grid, clues, state, pattern) {
     }
   }
   return { fills: [...fills.values()], conflicts, places };
+}
+
+/**
+ * その定石が想定する小さな輪が、この盤面の答えになりえないかを調べる。
+ * 数字をひとつでも満たせないなら、その輪は答えではありえないので、
+ * 「輪はひとつだけ」に頼る結論を使ってよい。
+ */
+function canRuleOutSmallLoop(grid, clues, variant, dr, dc) {
+  const loop = new Uint8Array(grid.edgeCount);
+  for (const [dir, r, c] of variant.smallLoop) {
+    if (!insideBoard(grid, dir, r + dr, c + dc)) return true; // 盤に収まらない輪は作れない
+    loop[edgeOf(grid, dir, r + dr, c + dc)] = 1;
+  }
+  for (let cell = 0; cell < grid.cellCount; cell++) {
+    const clue = clues[cell];
+    if (clue < 0) continue;
+    let lines = 0;
+    for (let k = 0; k < 4; k++) if (loop[grid.cellEdges[cell * 4 + k]]) lines++;
+    if (lines !== clue) return true;
+  }
+  return false;
 }
 
 function matchesHere(grid, clues, state, variant, dr, dc) {

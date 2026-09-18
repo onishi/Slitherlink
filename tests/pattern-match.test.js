@@ -74,6 +74,70 @@ test('角の定石は 4 つの角すべてで当てはまる', () => {
   }
 });
 
+test('「輪はひとつだけ」に頼る結論は、条件がそろったときだけ使う', () => {
+  const threeThree = PATTERNS.find((p) => p.id === 'three-three');
+  assert.ok(threeThree.loopConclude, 'three-three に loopConclude が無い');
+
+  const mid = (grid) => grid.v(1, 2);
+  const build = (rows, cols, extra = []) => {
+    const grid = getGrid(rows, cols);
+    const clues = new Int8Array(rows * cols).fill(-1);
+    clues[1 * cols + 1] = 3;
+    clues[1 * cols + 2] = 3;
+    for (const [r, c, n] of extra) clues[r * cols + c] = n;
+    return { grid, clues, state: new Int8Array(grid.edgeCount) };
+  };
+
+  // 3-3 しか数字が無い盤面: 2 マスを囲む長方形の輪が答えになりうるので、境目は決めない
+  {
+    const { grid, clues, state } = build(3, 4);
+    const { fills } = findMatches(grid, clues, state, threeThree);
+    assert.ok(!fills.some((f) => f.edge === mid(grid)), '長方形が答えになりうるのに境目を埋めた');
+  }
+  // ほかの数字が 0 だけでも、長方形の輪で 0 は満たせるので決めない
+  {
+    const { grid, clues, state } = build(4, 6, [[3, 5, 0]]);
+    const { fills } = findMatches(grid, clues, state, threeThree);
+    assert.ok(!fills.some((f) => f.edge === mid(grid)), '0 しか無いのに境目を埋めた');
+  }
+  // どこかに 1 / 2 / 3 があれば、長方形は答えになれないので境目は線
+  for (const n of [1, 2, 3]) {
+    const { grid, clues, state } = build(4, 6, [[3, 5, n]]);
+    const { fills } = findMatches(grid, clues, state, threeThree);
+    const hit = fills.find((f) => f.edge === mid(grid));
+    assert.ok(hit, `離れた場所に ${n} があるのに境目を埋めない`);
+    assert.equal(hit.value, LINE);
+  }
+});
+
+test('実際の問題では、となり合う 3-3 の境目が線として埋まる', () => {
+  const threeThree = PATTERNS.find((p) => p.id === 'three-three');
+  let pairs = 0;
+  for (const [rows, cols, difficulty] of [[7, 7, 'normal'], [10, 10, 'normal'], [12, 12, 'normal']]) {
+    for (let i = 0; i < 6; i++) {
+      const puzzle = generatePuzzle({ rows, cols, difficulty, seed: 3000 + i * 71 + rows });
+      const grid = getGrid(rows, cols);
+      const state = new Int8Array(grid.edgeCount);
+      const { fills } = findMatches(grid, puzzle.clues, state, threeThree);
+      for (const { edge, value } of fills) {
+        assert.equal(value, puzzle.solution[edge], 'となり合う 3-3 が正解と違う辺を埋めた');
+      }
+      // 境目が埋まっているか数える
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c + 1 < cols; c++) {
+          if (puzzle.clues[r * cols + c] !== 3 || puzzle.clues[r * cols + c + 1] !== 3) continue;
+          pairs++;
+          assert.ok(
+            fills.some((f) => f.edge === grid.v(r, c + 1) && f.value === LINE),
+            `(${r},${c}) の 3-3 で境目を埋めていない`,
+          );
+        }
+      }
+    }
+  }
+  assert.ok(pairs > 0, 'となり合う 3-3 が 1 組も現れなかった');
+});
+
 test('盤の端にある 0 にも当てはまる', () => {
   // 定義は 3x3 の枠だが、まわりの余白は推論に使っていない。
   // 枠ごと収まることを求めると端の 0 を取りこぼす（実際に起きた不具合）。

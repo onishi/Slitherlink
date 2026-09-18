@@ -13,12 +13,6 @@ const LEGEND = [
   { kind: 'new-cross', label: 'ここが × で確定する' },
 ];
 
-const HINTS = [
-  '数字のまわりの × を数え直す。1 つ増えるだけで確定する形は多いです。',
-  '線の端（行き止まりになりかけの点）を探す。進める方向が 1 つなら確定です。',
-  '「ここを線にしたらどうなるか」を 2〜3 手だけ追ってみる。矛盾したら反対側が確定です。',
-  'ゲーム画面のヒントは、次に決まる場所とその理由を教えてくれます。',
-];
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -44,7 +38,6 @@ export function renderPatternsInto(container, options = {}) {
     const items = PATTERNS.filter((p) => p.category === category.id);
     if (items.length) container.appendChild(section(category, items, options, actions));
   }
-  container.appendChild(outro());
 
   return {
     /** 定石 id → 当てはまる場所の数。ボタンの表示を更新する。 */
@@ -140,13 +133,4 @@ function applyButton(pattern, onApply, actions) {
     },
   });
   return button;
-}
-
-function outro() {
-  const box = el('section', 'doc-lead doc-outro');
-  box.appendChild(el('h2', null, '行き詰まったら'));
-  const list = el('ul', 'rules');
-  for (const hint of HINTS) list.appendChild(el('li', null, hint));
-  box.append(list, el('p', 'doc-note', 'ここに無い形でも、突き詰めれば「数字の本数」「交点の線は 0 本か 2 本」「輪はひとつだけ」の 3 つに行き着きます。'));
-  return box;
 }
