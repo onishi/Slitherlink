@@ -63,8 +63,10 @@ function init() {
   const prefs = store.prefs();
   if (prefs.size) el.size.value = prefs.size;
   if (prefs.difficulty) el.difficulty.value = prefs.difficulty;
-  el.autocross.checked = prefs.autocross !== false;
-  el.errors.checked = prefs.errors !== false;
+  // 既定は「自動 × なし・矛盾表示なし・使い終わった数字は薄く」。
+  // 一度でも触った設定は localStorage の値が優先される。
+  el.autocross.checked = prefs.autocross === true;
+  el.errors.checked = prefs.errors === true;
   el.fade.checked = prefs.fade !== false;
   if (prefs.theme) document.documentElement.dataset.theme = prefs.theme;
 
