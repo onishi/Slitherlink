@@ -30,25 +30,38 @@ const el = (tag, className, text) => {
 /**
  * 定石一覧をまるごと container の中に作る。
  * @param {HTMLElement} container
- * @param {{scroller?: HTMLElement}} [options] 目次を押したときにスクロールさせる要素
+ * @param {object} [options]
+ * @param {HTMLElement} [options.scroller] 目次を押したときにスクロールさせる要素
+ * @param {(pattern:object)=>void} [options.onApply] 「当てはめる」を押したときの処理
+ * @returns {{setCounts:(counts:Map<string,number>)=>void}} 件数バッジの更新口
  */
 export function renderPatternsInto(container, options = {}) {
   container.textContent = '';
+  const actions = new Map();
 
-  container.append(intro(), legend(), toc(container, options.scroller));
+  container.append(intro(Boolean(options.onApply)), legend(), toc(container, options.scroller));
   for (const category of CATEGORIES) {
     const items = PATTERNS.filter((p) => p.category === category.id);
-    if (items.length) container.appendChild(section(category, items));
+    if (items.length) container.appendChild(section(category, items, options, actions));
   }
   container.appendChild(outro());
-  return container;
+
+  return {
+    /** 定石 id → 当てはまる場所の数。ボタンの表示を更新する。 */
+    setCounts(counts) {
+      for (const [id, action] of actions) action.update(counts.get(id) ?? 0);
+    },
+  };
 }
 
-function intro() {
+function intro(interactive) {
   const box = el('section', 'doc-lead');
   box.append(
     el('p', null, 'スリザーリンクは、同じ形が何度も出てきます。ここにある形を覚えてしまえば、一手ずつ考え込まなくても手が進むようになります。'),
   );
+  if (interactive) {
+    box.appendChild(el('p', null, '「当てはめる」を押すと、いまの盤面からその定石が使える場所をすべて探して、決まる印を引きます。数字は当てはまる場所の数です。'));
+  }
   const note = el('p', 'doc-note');
   note.append(
     document.createTextNode('このページの「確定する」はすべて、盤面を総当たりで調べて '),
@@ -98,20 +111,24 @@ function toc(container, scroller) {
   return nav;
 }
 
-function section(category, items) {
+function section(category, items, options, actions) {
   const node = el('section', 'pat-section');
   node.id = category.id;
   node.append(el('h2', null, category.title), el('p', 'pat-lead', category.lead));
   const grid = el('div', 'pat-grid');
-  for (const pattern of items) grid.appendChild(card(pattern));
+  for (const pattern of items) grid.appendChild(card(pattern, options, actions));
   node.appendChild(grid);
   return node;
 }
 
-function card(pattern) {
+function card(pattern, options, actions) {
   const article = el('article', 'pat-card');
   article.id = `pattern-${pattern.id}`;
-  article.append(el('h3', null, pattern.title));
+
+  const head = el('div', 'pat-head');
+  head.appendChild(el('h3', null, pattern.title));
+  if (options.onApply) head.appendChild(applyButton(pattern, options.onApply, actions));
+  article.appendChild(head);
 
   const figure = el('div', 'pat-figure');
   figure.appendChild(renderPattern(pattern));
@@ -119,6 +136,28 @@ function card(pattern) {
 
   if (pattern.caution) article.appendChild(el('p', 'pat-caution', pattern.caution));
   return article;
+}
+
+function applyButton(pattern, onApply, actions) {
+  const button = el('button', 'pat-apply');
+  button.type = 'button';
+  const label = el('span', 'pat-apply-label', '当てはめる');
+  const badge = el('span', 'pat-apply-count', '0');
+  button.append(label, badge);
+  button.addEventListener('click', () => onApply(pattern));
+
+  actions.set(pattern.id, {
+    update(count) {
+      badge.textContent = String(count);
+      button.disabled = count === 0;
+      button.classList.toggle('is-ready', count > 0);
+      button.setAttribute('aria-label',
+        count > 0
+          ? `${pattern.title}を当てはめる（${count} か所）`
+          : `${pattern.title}は、いまの盤面に当てはまる場所がありません`);
+    },
+  });
+  return button;
 }
 
 function outro() {

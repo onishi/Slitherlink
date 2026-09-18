@@ -22,4 +22,5 @@ document.getElementById('btn-theme').addEventListener('click', () => {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* 無視 */ }
 });
 
+// 単独ページには盤面が無いので、当てはめボタンは出さない
 renderPatternsInto(document.getElementById('patterns'));

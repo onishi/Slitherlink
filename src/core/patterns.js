@@ -10,6 +10,13 @@
  *   given:    ['h' | 'v', 行, 列, 'line' | 'cross']   最初から分かっている印
  *   conclude: given と同じ形式。ここが「確定する」場所。
  *   辺の番号は grid.js と同じで、h(r,c) はマス (r,c) の上辺、v(r,c) は左辺。
+ *
+ * anchor は、この形を盤面のどこに当てはめてよいかを表す。
+ *   'interior' 盤上のどこでも（回転・反転あわせて 8 方向を試す）
+ *   'corner'   盤の角にぴったり合わせたときだけ
+ *   'none'     型として当てはめるものではない（match で別扱いにする）
+ * match は当てはめ方。既定は型の照合で、'loop' は「輪はひとつだけ」という
+ * ルールを盤面全体に適用する特別扱い。
  */
 
 import { getGrid, LINE, CROSS } from './grid.js';
@@ -28,7 +35,7 @@ export const PATTERNS = [
     id: 'zero',
     category: 'basic',
     title: '0 のまわりは全部 ×',
-    rows: 3, cols: 3, interior: true,
+    rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 0]],
     given: [],
     conclude: [
@@ -41,7 +48,7 @@ export const PATTERNS = [
     id: 'vertex-two',
     category: 'basic',
     title: '交点に線が 2 本集まったら、残りは ×',
-    rows: 2, cols: 2, interior: true,
+    rows: 2, cols: 2, anchor: 'interior',
     clues: [],
     given: [['h', 1, 0, 'line'], ['v', 0, 1, 'line']],
     conclude: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross']],
@@ -51,7 +58,7 @@ export const PATTERNS = [
     id: 'dead-end',
     category: 'basic',
     title: '線の端は、必ずもう 1 本つながる',
-    rows: 2, cols: 2, interior: true,
+    rows: 2, cols: 2, anchor: 'interior',
     clues: [],
     given: [['h', 1, 0, 'line'], ['v', 0, 1, 'cross'], ['h', 1, 1, 'cross']],
     conclude: [['v', 1, 1, 'line']],
@@ -63,7 +70,7 @@ export const PATTERNS = [
     id: 'corner-three',
     category: 'corner',
     title: '角の 3',
-    rows: 2, cols: 2, interior: false,
+    rows: 2, cols: 2, anchor: 'corner',
     clues: [[0, 0, 3]],
     given: [],
     conclude: [['h', 0, 0, 'line'], ['v', 0, 0, 'line']],
@@ -73,7 +80,7 @@ export const PATTERNS = [
     id: 'corner-one',
     category: 'corner',
     title: '角の 1',
-    rows: 2, cols: 2, interior: false,
+    rows: 2, cols: 2, anchor: 'corner',
     clues: [[0, 0, 1]],
     given: [],
     conclude: [['h', 0, 0, 'cross'], ['v', 0, 0, 'cross']],
@@ -83,7 +90,7 @@ export const PATTERNS = [
     id: 'corner-two',
     category: 'corner',
     title: '角の 2',
-    rows: 3, cols: 3, interior: false,
+    rows: 3, cols: 3, anchor: 'corner',
     clues: [[0, 0, 2]],
     given: [],
     conclude: [['h', 0, 1, 'line'], ['v', 1, 0, 'line']],
@@ -95,7 +102,7 @@ export const PATTERNS = [
     id: 'three-three',
     category: 'numbers',
     title: '3 と 3 がとなり合う',
-    rows: 3, cols: 4, interior: true,
+    rows: 3, cols: 4, anchor: 'interior',
     clues: [[1, 1, 3], [1, 2, 3]],
     given: [],
     conclude: [
@@ -109,7 +116,7 @@ export const PATTERNS = [
     id: 'three-three-diagonal',
     category: 'numbers',
     title: '3 と 3 が斜めに並ぶ',
-    rows: 4, cols: 4, interior: true,
+    rows: 4, cols: 4, anchor: 'interior',
     clues: [[1, 1, 3], [2, 2, 3]],
     given: [],
     conclude: [
@@ -122,7 +129,7 @@ export const PATTERNS = [
     id: 'zero-three',
     category: 'numbers',
     title: '0 のとなりの 3',
-    rows: 3, cols: 4, interior: true,
+    rows: 3, cols: 4, anchor: 'interior',
     clues: [[1, 1, 0], [1, 2, 3]],
     given: [],
     conclude: [
@@ -135,7 +142,7 @@ export const PATTERNS = [
     id: 'zero-three-diagonal',
     category: 'numbers',
     title: '0 と 3 が斜めに並ぶ',
-    rows: 4, cols: 4, interior: true,
+    rows: 4, cols: 4, anchor: 'interior',
     clues: [[1, 1, 0], [2, 2, 3]],
     given: [],
     conclude: [
@@ -150,7 +157,7 @@ export const PATTERNS = [
     id: 'line-into-three',
     category: 'incoming',
     title: '3 の角に線が入ってきた',
-    rows: 3, cols: 3, interior: true,
+    rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 3]],
     given: [['h', 1, 0, 'line']],
     conclude: [['h', 2, 1, 'line'], ['v', 1, 2, 'line']],
@@ -160,7 +167,7 @@ export const PATTERNS = [
     id: 'line-into-one',
     category: 'incoming',
     title: '1 の角に線が入ってきた',
-    rows: 3, cols: 3, interior: true,
+    rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 1]],
     given: [['h', 1, 0, 'line'], ['v', 0, 1, 'cross']],
     conclude: [['h', 2, 1, 'cross'], ['v', 1, 2, 'cross']],
@@ -170,7 +177,7 @@ export const PATTERNS = [
     id: 'three-one-cross',
     category: 'incoming',
     title: '3 の 1 辺が × と分かったら',
-    rows: 3, cols: 3, interior: true,
+    rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 3]],
     given: [['h', 1, 1, 'cross']],
     conclude: [
@@ -183,7 +190,7 @@ export const PATTERNS = [
     id: 'two-corner-crosses',
     category: 'incoming',
     title: '2 の角が × 2 つでふさがれた',
-    rows: 3, cols: 3, interior: true,
+    rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 2]],
     given: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross']],
     conclude: [['h', 2, 1, 'line'], ['v', 1, 2, 'line']],
@@ -195,7 +202,7 @@ export const PATTERNS = [
     id: 'no-small-loop',
     category: 'loop',
     title: '小さな輪を閉じてはいけない',
-    rows: 4, cols: 4, interior: false,
+    rows: 4, cols: 4, anchor: 'none', match: 'loop',
     clues: [[3, 3, 1]],
     given: [
       ['h', 1, 1, 'line'], ['v', 1, 1, 'line'], ['v', 1, 2, 'line'],

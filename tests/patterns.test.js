@@ -44,7 +44,7 @@ for (const pattern of PATTERNS) {
     });
   });
 
-  if (pattern.interior) {
+  if (pattern.anchor === 'interior') {
     // 余白付きの大きな盤は総当たりが重いので、論理ソルバで矛盾を示す。
     // 「矛盾する」と言えた時点で解が無いことは確定なので、証明として十分。
     test(`定石「${pattern.title}」は盤の端と関係なく成り立つ`, () => {

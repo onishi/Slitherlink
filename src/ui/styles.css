@@ -718,3 +718,51 @@ button.rules-link {
   width: 100%;
 }
 button.rules-link:hover { background: none; }
+
+/* ---------- 定石を当てはめるボタン ---------- */
+.pat-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.pat-head h3 { margin: 0; }
+
+.pat-apply {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: .76rem;
+  font-weight: 600;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.pat-apply.is-ready {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.pat-apply.is-ready:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+.pat-apply:disabled { opacity: .45; }
+
+.pat-apply-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  font-size: .7rem;
+  font-variant-numeric: tabular-nums;
+}
+.pat-apply.is-ready .pat-apply-count { background: rgba(255, 255, 255, .26); }
+
+.pat-card:has(.pat-apply.is-ready) { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }

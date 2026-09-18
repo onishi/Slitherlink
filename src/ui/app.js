@@ -4,6 +4,8 @@ import { decodePuzzle, encodePuzzle, solutionFor } from '../core/puzzle.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { Board } from './board.js';
 import { renderPatternsInto } from './patterns-view.js';
+import { findMatches } from '../core/pattern-match.js';
+import { PATTERNS } from '../core/patterns.js';
 import { PuzzleService } from './puzzle-service.js';
 import { store } from './storage.js';
 
@@ -183,7 +185,7 @@ function bindUI() {
 
 /* ---------------- 定石ドロワー ---------------- */
 
-let patternsBuilt = false;
+let patternsView = null;
 
 function isDrawerOpen() {
   return !el.drawer.hidden;
@@ -191,11 +193,14 @@ function isDrawerOpen() {
 
 function openDrawer() {
   if (isDrawerOpen()) return;
-  if (!patternsBuilt) {
+  if (!patternsView) {
     // 図の数が多いので、初めて開いたときにだけ作る
-    renderPatternsInto(el.drawerBody, { scroller: el.drawerBody });
-    patternsBuilt = true;
+    patternsView = renderPatternsInto(el.drawerBody, {
+      scroller: el.drawerBody,
+      onApply: applyPattern,
+    });
   }
+  updatePatternCounts();
   el.drawer.hidden = false;
   el.drawerScrim.hidden = false;
   document.body.classList.add('drawer-open');
@@ -221,6 +226,42 @@ function closeDrawer() {
 function toggleDrawer() {
   if (isDrawerOpen()) closeDrawer();
   else openDrawer();
+}
+
+/** 各定石が、いまの盤面で何か所に当てはまるかを数え直す。 */
+function updatePatternCounts() {
+  if (!patternsView || !game.grid) return;
+  const counts = new Map();
+  for (const pattern of PATTERNS) {
+    const { places } = findMatches(game.grid, game.puzzle.clues, game.state, pattern);
+    counts.set(pattern.id, places);
+  }
+  patternsView.setCounts(counts);
+}
+
+/** 定石を盤面じゅうに当てはめて、決まる印をまとめて引く。 */
+function applyPattern(pattern) {
+  if (game.solved) return;
+  const { fills, conflicts } = findMatches(game.grid, game.puzzle.clues, game.state, pattern);
+
+  if (fills.length === 0) {
+    say(conflicts > 0
+      ? `「${pattern.title}」に合わない印が盤面にあります。チェックを試してください`
+      : `いまの盤面に「${pattern.title}」を当てはめられる場所はありません`, conflicts > 0);
+    updatePatternCounts();
+    return;
+  }
+
+  board.clearHints();
+  startTimer();
+  for (const { edge, value } of fills) applyChange(edge, value);
+  commitStroke();
+  refreshAll();
+  board.setHints(fills.map((f) => f.edge));
+  setTimeout(() => board.clearHints(), 1600);
+
+  const suffix = conflicts > 0 ? '（合わない場所も見つかりました。チェックを試してください）' : '';
+  say(`「${pattern.title}」で ${fills.length} 本決まりました${suffix}`, conflicts > 0);
 }
 
 /** 文字入力中かどうか。入力欄ではショートカットを横取りしない。 */
@@ -490,6 +531,8 @@ function refreshAll() {
   const a = analyze(game.grid, game.puzzle.clues, game.state);
   el.progress.textContent = `数字 ${a.satisfied} / ${a.total}`;
   updateButtons();
+  // 全定石を数え直しても 1ms 未満なので、盤面が動くたびに更新してよい
+  if (isDrawerOpen()) updatePatternCounts();
   return a;
 }
 
