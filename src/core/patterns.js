@@ -14,6 +14,7 @@
  * anchor は、この形を盤面のどこに当てはめてよいかを表す。
  *   'interior' 盤上のどこでも（回転・反転あわせて 8 方向を試す）
  *   'corner'   盤の角にぴったり合わせたときだけ
+ *   'border'   盤の縁にぴったり付けて、縁に沿ってずらしたときだけ
  *   'none'     型として当てはめるものではない（match で別扱いにする）
  * match は当てはめ方。既定は型の照合で、'loop' は「輪はひとつだけ」という
  * ルールを盤面全体に適用する特別扱い。
@@ -22,18 +23,20 @@
 import { getGrid, LINE, CROSS } from './grid.js';
 
 export const CATEGORIES = [
-  { id: 'basic', title: 'まず覚える', lead: 'この 3 つが分かれば、あとは組み合わせです。' },
-  { id: 'corner', title: '盤の角と縁', lead: '外周には線を引けない方向があるので、角では数字が強く効きます。' },
+  { id: 'basic', title: 'まず覚える', lead: 'この 5 つが分かれば、あとは組み合わせです。' },
+  { id: 'corner', title: '盤の角と縁', lead: '外周には線を引けない方向があるので、角や縁では数字が強く効きます。' },
   { id: 'numbers', title: '数字どうしの関係', lead: '隣り合ったり斜めに並んだ数字は、それだけで形が決まります。' },
-  { id: 'incoming', title: '線が来たとき', lead: '引いた線の先で何が決まるか。ここが解き進めるエンジンです。' },
+  { id: 'incoming', title: '線や × が来たとき', lead: '引いた印の先で何が決まるか。ここが解き進めるエンジンです。' },
   { id: 'loop', title: '輪をつくるルール', lead: '「ひとつの輪」という条件そのものが手がかりになります。' },
 ];
 
+// level は目安のやさしさ。1 がいちばん易しく、5 がいちばん難しい。
+// 一覧はこの順（分類ごと、その中は level 順）に並べる。
 export const PATTERNS = [
   // ---------------- まず覚える ----------------
   {
     id: 'zero',
-    category: 'basic',
+    category: 'basic', level: 1,
     title: '0 のまわりは全部 ×',
     rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 0]],
@@ -45,8 +48,18 @@ export const PATTERNS = [
     why: '0 は「まわりの 4 辺に 1 本も線が通らない」という意味です。迷う余地がないので、盤面を開いたら真っ先に × で埋めてしまいましょう。',
   },
   {
+    id: 'clue-full',
+    category: 'basic', level: 1,
+    title: '数字の本数がそろったら、残りは ×',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 1]],
+    given: [['h', 1, 1, 'line']],
+    conclude: [['h', 2, 1, 'cross'], ['v', 1, 1, 'cross'], ['v', 1, 2, 'cross']],
+    why: '数字はそのマスの線の本数をぴったり表します。1 に線が 1 本引けたら、残り 3 辺はもう線を引けません。当たり前ですが、× を書き込んでおくと次の手がぐっと見えやすくなります。',
+  },
+  {
     id: 'vertex-two',
-    category: 'basic',
+    category: 'basic', level: 1,
     title: '交点に線が 2 本集まったら、残りは ×',
     rows: 2, cols: 2, anchor: 'interior',
     clues: [],
@@ -56,7 +69,7 @@ export const PATTERNS = [
   },
   {
     id: 'dead-end',
-    category: 'basic',
+    category: 'basic', level: 2,
     title: '線の端は、必ずもう 1 本つながる',
     rows: 2, cols: 2, anchor: 'interior',
     clues: [],
@@ -64,21 +77,24 @@ export const PATTERNS = [
     conclude: [['v', 1, 1, 'line']],
     why: '線の先が行き止まりになると輪が閉じません。端の交点で残る道が 1 本しかないなら、そこは線で確定です。',
   },
+  {
+    id: 'three-one-cross',
+    category: 'basic', level: 2,
+    title: '3 の 1 辺が × と分かったら',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 3]],
+    given: [['h', 1, 1, 'cross']],
+    conclude: [
+      ['h', 2, 1, 'line'], ['v', 1, 1, 'line'], ['v', 1, 2, 'line'],
+      ['h', 2, 0, 'cross'], ['h', 2, 2, 'cross'], ['v', 2, 1, 'cross'], ['v', 2, 2, 'cross'],
+    ],
+    why: '3 は 4 辺のうち 1 辺だけが × なので、× が 1 つ見つかった時点で残り 3 辺は線で確定します。さらに、線が集まった下の 2 つの交点はもう 2 本ずつ使っているので、そこから外へ伸びる辺はすべて × になります。1 つの発見が一気に 7 本に広がる、いちばん気持ちのいい形です。',
+  },
 
   // ---------------- 盤の角と縁 ----------------
   {
-    id: 'corner-three',
-    category: 'corner',
-    title: '角の 3',
-    rows: 2, cols: 2, anchor: 'corner',
-    clues: [[0, 0, 3]],
-    given: [],
-    conclude: [['h', 0, 0, 'line'], ['v', 0, 0, 'line']],
-    why: '外側の 2 辺のどちらかを × にすると、角の点に線が 1 本だけ入る形になり、行き止まりができてしまいます。だから外側の 2 辺は両方とも線です。',
-  },
-  {
     id: 'corner-one',
-    category: 'corner',
+    category: 'corner', level: 1,
     title: '角の 1',
     rows: 2, cols: 2, anchor: 'corner',
     clues: [[0, 0, 1]],
@@ -87,8 +103,31 @@ export const PATTERNS = [
     why: '外側の 2 辺のどちらかが線だと、角の点から線が 1 本だけ出て行き止まりになります。2 本とも線にすると今度は数字の 1 を超えてしまいます。よって外側は両方 × です。',
   },
   {
+    id: 'corner-three',
+    category: 'corner', level: 1,
+    title: '角の 3',
+    rows: 2, cols: 2, anchor: 'corner',
+    clues: [[0, 0, 3]],
+    given: [],
+    conclude: [['h', 0, 0, 'line'], ['v', 0, 0, 'line']],
+    why: '外側の 2 辺のどちらかを × にすると、角の点に線が 1 本だけ入る形になり、行き止まりができてしまいます。だから外側の 2 辺は両方とも線です。',
+  },
+  {
+    id: 'border-zero',
+    category: 'corner', level: 2,
+    title: '縁の 0',
+    rows: 2, cols: 3, anchor: 'border',
+    clues: [[0, 1, 0]],
+    given: [],
+    conclude: [
+      ['h', 0, 1, 'cross'], ['h', 1, 1, 'cross'], ['v', 0, 1, 'cross'], ['v', 0, 2, 'cross'],
+      ['h', 0, 0, 'cross'], ['h', 0, 2, 'cross'],
+    ],
+    why: '外周にある 0 は、自分の 4 辺だけでなく、盤の縁にそって左右に伸びる辺も × にします。縁の点には内側へ向かう道が 1 本しかないので、そこが × なら縁沿いの線も行き止まりになってしまうからです。',
+  },
+  {
     id: 'corner-two',
-    category: 'corner',
+    category: 'corner', level: 3,
     title: '角の 2',
     rows: 3, cols: 3, anchor: 'corner',
     clues: [[0, 0, 2]],
@@ -99,8 +138,49 @@ export const PATTERNS = [
 
   // ---------------- 数字どうしの関係 ----------------
   {
+    id: 'zero-three',
+    category: 'numbers', level: 2,
+    title: '0 のとなりの 3',
+    rows: 3, cols: 4, anchor: 'interior',
+    clues: [[1, 1, 0], [1, 2, 3]],
+    given: [],
+    conclude: [
+      ['h', 1, 1, 'cross'], ['h', 2, 1, 'cross'], ['v', 1, 1, 'cross'], ['v', 1, 2, 'cross'],
+      ['h', 1, 2, 'line'], ['h', 2, 2, 'line'], ['v', 1, 3, 'line'],
+      ['v', 0, 2, 'line'], ['v', 2, 2, 'line'],
+      ['h', 1, 3, 'cross'], ['h', 2, 3, 'cross'], ['v', 0, 3, 'cross'], ['v', 2, 3, 'cross'],
+    ],
+    why: '0 のまわりは全部 × なので、2 つのマスが共有する辺も × です。3 は残った 3 辺をすべて使うしかありません。さらに線の端が上下に 1 本ずつ伸び、右側の 2 つの交点はもう 2 本ずつ使ってしまうので、その先はすべて × になります。一度に 13 本が決まる強力な形です。',
+  },
+  {
+    id: 'zero-one-diagonal',
+    category: 'numbers', level: 2,
+    title: '0 の斜めの 1',
+    rows: 4, cols: 4, anchor: 'interior',
+    clues: [[1, 1, 0], [2, 2, 1]],
+    given: [],
+    conclude: [
+      ['h', 1, 1, 'cross'], ['h', 2, 1, 'cross'], ['v', 1, 1, 'cross'], ['v', 1, 2, 'cross'],
+      ['h', 2, 2, 'cross'], ['v', 2, 2, 'cross'],
+    ],
+    why: '0 のまわりが全部 × になると、2 つのマスが接する角の点には 0 側から線が来られません。そこを線が通るなら 1 のその角の 2 辺を両方使うことになり、1 本しか引けない 1 には多すぎます。だから 1 のその角の 2 辺は × です。',
+  },
+  {
+    id: 'zero-three-diagonal',
+    category: 'numbers', level: 2,
+    title: '0 と 3 が斜めに並ぶ',
+    rows: 4, cols: 4, anchor: 'interior',
+    clues: [[1, 1, 0], [2, 2, 3]],
+    given: [],
+    conclude: [
+      ['h', 2, 2, 'line'], ['v', 2, 2, 'line'],
+      ['h', 1, 1, 'cross'], ['h', 2, 1, 'cross'], ['v', 1, 1, 'cross'], ['v', 1, 2, 'cross'],
+    ],
+    why: '0 のまわりが全部 × になると、2 つのマスが接する角の点には 0 側から線が来られません。3 のその角にある 2 辺は、片方だけ線にすると行き止まりになるので、両方とも線になります。',
+  },
+  {
     id: 'three-three',
-    category: 'numbers',
+    category: 'numbers', level: 3,
     title: '3 と 3 がとなり合う',
     rows: 3, cols: 4, anchor: 'interior',
     clues: [[1, 1, 3], [1, 2, 3]],
@@ -114,7 +194,7 @@ export const PATTERNS = [
   },
   {
     id: 'three-three-diagonal',
-    category: 'numbers',
+    category: 'numbers', level: 3,
     title: '3 と 3 が斜めに並ぶ',
     rows: 4, cols: 4, anchor: 'interior',
     clues: [[1, 1, 3], [2, 2, 3]],
@@ -122,85 +202,118 @@ export const PATTERNS = [
     conclude: [
       ['h', 1, 1, 'line'], ['v', 1, 1, 'line'],
       ['h', 3, 2, 'line'], ['v', 2, 3, 'line'],
+      ['h', 1, 0, 'cross'], ['v', 0, 1, 'cross'],
+      ['h', 3, 3, 'cross'], ['v', 3, 3, 'cross'],
     ],
-    why: '2 つの 3 が接する角から見て、それぞれ「外側」にあたる 2 辺が線になります。内側を削ると必ずどちらかの 3 が足りなくなるためです。3 が斜めに続くときは、同じ形がそのまま連鎖します。',
+    why: '2 つの 3 が接する角から見て、それぞれ「外側」にあたる 2 辺が線になります。内側を削ると必ずどちらかの 3 が足りなくなるためです。その角はもう 2 本使っているので、さらに外へ伸びる辺は × になります。3 が斜めに続くときは、同じ形がそのまま連鎖します。',
   },
   {
-    id: 'zero-three',
-    category: 'numbers',
-    title: '0 のとなりの 3',
-    rows: 3, cols: 4, anchor: 'interior',
-    clues: [[1, 1, 0], [1, 2, 3]],
+    id: 'three-three-three',
+    category: 'numbers', level: 4,
+    title: '3 が 3 つ並ぶ',
+    rows: 3, cols: 5, anchor: 'interior',
+    clues: [[1, 1, 3], [1, 2, 3], [1, 3, 3]],
     given: [],
     conclude: [
-      ['h', 1, 2, 'line'], ['h', 2, 2, 'line'], ['v', 1, 3, 'line'],
-      ['v', 1, 2, 'cross'], ['h', 1, 1, 'cross'], ['h', 2, 1, 'cross'], ['v', 1, 1, 'cross'],
+      ['v', 1, 1, 'line'], ['v', 1, 2, 'line'], ['v', 1, 3, 'line'], ['v', 1, 4, 'line'],
+      ['v', 0, 2, 'cross'], ['v', 0, 3, 'cross'], ['v', 2, 2, 'cross'], ['v', 2, 3, 'cross'],
     ],
-    why: '0 のまわりは全部 × なので、2 つのマスが共有する辺も × です。3 は残った 3 辺をすべて使うしかありません。',
+    why: '3 がまっすぐ 3 つ並ぶと、縦の 4 辺がすべて線になります。となり合う 3 と 3 の形が重なった結果で、まん中 2 本は「どちらの 3 から見ても外側」になるため確定します。境目から上下へ伸びる辺はすべて × です。',
   },
   {
-    id: 'zero-three-diagonal',
-    category: 'numbers',
-    title: '0 と 3 が斜めに並ぶ',
-    rows: 4, cols: 4, anchor: 'interior',
-    clues: [[1, 1, 0], [2, 2, 3]],
+    id: 'three-zero-three',
+    category: 'numbers', level: 4,
+    title: '3 と 3 のあいだに 0',
+    rows: 3, cols: 5, anchor: 'interior',
+    clues: [[1, 1, 3], [1, 2, 0], [1, 3, 3]],
     given: [],
     conclude: [
-      ['h', 2, 2, 'line'], ['v', 2, 2, 'line'],
-      ['h', 1, 1, 'cross'], ['h', 2, 1, 'cross'], ['v', 1, 1, 'cross'], ['v', 1, 2, 'cross'],
+      ['h', 1, 1, 'line'], ['h', 2, 1, 'line'], ['v', 1, 1, 'line'],
+      ['h', 1, 3, 'line'], ['h', 2, 3, 'line'], ['v', 1, 4, 'line'],
+      ['v', 0, 2, 'line'], ['v', 2, 2, 'line'], ['v', 0, 3, 'line'], ['v', 2, 3, 'line'],
+      ['h', 1, 2, 'cross'], ['h', 2, 2, 'cross'], ['v', 1, 2, 'cross'], ['v', 1, 3, 'cross'],
+      ['h', 1, 0, 'cross'], ['h', 2, 0, 'cross'], ['v', 0, 1, 'cross'], ['v', 2, 1, 'cross'],
+      ['h', 1, 4, 'cross'], ['h', 2, 4, 'cross'], ['v', 0, 4, 'cross'], ['v', 2, 4, 'cross'],
     ],
-    why: '0 のまわりが全部 × になると、2 つのマスが接する角の点には 0 側から線が来られません。3 のその角にある 2 辺は、片方だけ線にすると行き止まりになるので、両方とも線になります。',
+    why: '0 のまわりが全部 × になるので、両側の 3 はそれぞれ残り 3 辺をすべて使います。するとコの字が向かい合う形になり、その先の交点も次々に埋まって、一度に 22 本が決まります。見つけたら最優先で処理したい形です。',
   },
 
-  // ---------------- 線が来たとき ----------------
+  // ---------------- 線や × が来たとき ----------------
+  {
+    id: 'corner-crosses-three',
+    category: 'incoming', level: 3,
+    title: '3 の角の外側が × 2 つ',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 3]],
+    given: [['h', 1, 0, 'cross'], ['v', 0, 1, 'cross']],
+    conclude: [['h', 1, 1, 'line'], ['v', 1, 1, 'line']],
+    why: 'その角に外から線が来られないので、角に集まる線はマス側の 2 辺だけ。交点の線は 0 本か 2 本なので、この 2 辺は「両方とも線」か「両方とも ×」です。両方 × にすると 3 が足りなくなるため、両方とも線で確定します。',
+  },
+  {
+    id: 'corner-crosses-one',
+    category: 'incoming', level: 3,
+    title: '1 の角の外側が × 2 つ',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 1]],
+    given: [['h', 1, 0, 'cross'], ['v', 0, 1, 'cross']],
+    conclude: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross']],
+    why: '3 のときと同じ理由で、この 2 辺は「両方とも線」か「両方とも ×」です。両方を線にすると 1 本しか引けない 1 を超えてしまうので、両方とも × で確定します。',
+  },
+  {
+    id: 'two-corner-crosses',
+    category: 'incoming', level: 3,
+    title: '2 の角が × 2 つでふさがれた',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 2]],
+    given: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross']],
+    conclude: [
+      ['h', 2, 1, 'line'], ['v', 1, 2, 'line'],
+      ['h', 2, 2, 'cross'], ['v', 2, 2, 'cross'],
+    ],
+    why: '2 本必要なのに 2 辺がふさがれたので、残った 2 辺を使うしかありません。その 2 本が出会う角はもう 2 本使っているので、そこから外へ伸びる辺は × になります。数字のまわりで × が増えてきたら、いつもこの形を探します。',
+  },
   {
     id: 'line-into-three',
-    category: 'incoming',
+    category: 'incoming', level: 4,
     title: '3 の角に線が入ってきた',
     rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 3]],
     given: [['h', 1, 0, 'line']],
-    conclude: [['h', 2, 1, 'line'], ['v', 1, 2, 'line']],
-    why: '入ってきた線はその角で必ず曲がるので、3 の 4 辺のうちその角に接する 2 辺は、どちらか一方だけが線になります。3 は 3 本必要なので、残る「遠い側」の 2 辺は両方とも線です。',
+    conclude: [
+      ['h', 2, 1, 'line'], ['v', 1, 2, 'line'],
+      ['v', 0, 1, 'cross'], ['h', 2, 2, 'cross'], ['v', 2, 2, 'cross'],
+    ],
+    why: '入ってきた線はその角で必ず曲がるので、3 の 4 辺のうちその角に接する 2 辺は、どちらか一方だけが線になります。3 は 3 本必要なので、残る「遠い側」の 2 辺は両方とも線です。入ってきた角はこれで 2 本使い切るため、そこから先へ伸びる辺は × になります。',
   },
   {
     id: 'line-into-one',
-    category: 'incoming',
+    category: 'incoming', level: 4,
     title: '1 の角に線が入ってきた',
     rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 1]],
     given: [['h', 1, 0, 'line'], ['v', 0, 1, 'cross']],
     conclude: [['h', 2, 1, 'cross'], ['v', 1, 2, 'cross']],
-    why: '入ってきた線の行き先が 1 のマスの 2 辺しか残っていないので、1 が使える 1 本はその角で消費されます。遠い側の 2 辺は × で確定です。',
+    why: '入ってきた線の行き先が 1 のマスの 2 辺しか残っていないので、1 が使える 1 本はその角で消費されます。遠い側の 2 辺は × で確定です。線が入ってきただけでは決まらず、反対側がふさがっていることがポイントです。',
   },
   {
-    id: 'three-one-cross',
-    category: 'incoming',
-    title: '3 の 1 辺が × と分かったら',
-    rows: 3, cols: 3, anchor: 'interior',
-    clues: [[1, 1, 3]],
-    given: [['h', 1, 1, 'cross']],
-    conclude: [
-      ['h', 2, 1, 'line'], ['v', 1, 1, 'line'], ['v', 1, 2, 'line'],
-      ['h', 2, 0, 'cross'], ['h', 2, 2, 'cross'], ['v', 2, 1, 'cross'], ['v', 2, 2, 'cross'],
-    ],
-    why: '3 は 4 辺のうち 1 辺だけが × なので、× が 1 つ見つかった時点で残り 3 辺は線で確定します。さらに、線が集まった下の 2 つの交点はもう 2 本ずつ使っているので、そこから外へ伸びる辺はすべて × になります。1 つの発見が一気に 7 本に広がる、いちばん気持ちのいい形です。',
-  },
-  {
-    id: 'two-corner-crosses',
-    category: 'incoming',
-    title: '2 の角が × 2 つでふさがれた',
+    id: 'lines-into-two',
+    category: 'incoming', level: 4,
+    title: '2 の角へ 2 方向から線が来た',
     rows: 3, cols: 3, anchor: 'interior',
     clues: [[1, 1, 2]],
-    given: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross']],
-    conclude: [['h', 2, 1, 'line'], ['v', 1, 2, 'line']],
-    why: '2 本必要なのに 2 辺がふさがれたので、残った 2 辺を使うしかありません。数字のまわりで × が増えてきたら、いつもこの形を探します。',
+    given: [['h', 1, 0, 'line'], ['v', 0, 1, 'line']],
+    conclude: [
+      ['h', 1, 1, 'cross'], ['v', 1, 1, 'cross'],
+      ['h', 2, 1, 'line'], ['v', 1, 2, 'line'],
+      ['h', 2, 2, 'cross'], ['v', 2, 2, 'cross'],
+    ],
+    why: 'その角はもう線が 2 本集まっているので、マス側の 2 辺は両方 × です。2 は 2 本必要なので、残った遠い側の 2 辺が線で確定します。さらにその 2 本が出会う角も 2 本使い切るため、先へ伸びる辺は × です。',
   },
 
   // ---------------- 輪をつくるルール ----------------
   {
     id: 'no-small-loop',
-    category: 'loop',
+    category: 'loop', level: 5,
     title: '小さな輪を閉じてはいけない',
     rows: 4, cols: 4, anchor: 'none', match: 'loop',
     clues: [[3, 3, 1]],

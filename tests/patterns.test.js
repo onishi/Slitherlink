@@ -79,6 +79,43 @@ test('すべての定石に説明文と正しい分類がある', () => {
   }
 });
 
+test('縁の定石は、盤の縁に置いても成り立つ', () => {
+  for (const pattern of PATTERNS) {
+    if (pattern.anchor !== 'border') continue;
+    // 縁に付けたまま、より大きな盤でも同じ結論になるか
+    const wide = {
+      ...pattern,
+      rows: pattern.rows + 3,
+      cols: pattern.cols + 4,
+      clues: pattern.clues.map(([r, c, n]) => [r, c + 2, n]),
+      given: pattern.given.map(([d, r, c, k]) => [d, r, c + 2, k]),
+      conclude: pattern.conclude.map(([d, r, c, k]) => [d, r, c + 2, k]),
+    };
+    const { grid, clues, given, conclude } = buildPattern(wide);
+    assert.ok(countSolutions(grid, clues, 1, given) > 0, `${pattern.id}: 広い盤で前提に解が無い`);
+    conclude.forEach((conclusion, i) => {
+      assert.equal(
+        countSolutions(grid, clues, 1, probeState(given, conclusion)), 0,
+        `${pattern.id}: 広い盤の縁では ${JSON.stringify(pattern.conclude[i])} が確定しない`,
+      );
+    });
+  }
+});
+
+test('定石はやさしい順に並んでいる', () => {
+  const order = CATEGORIES.map((c) => c.id);
+  let lastCategory = -1;
+  let lastLevel = 0;
+  for (const p of PATTERNS) {
+    assert.ok(typeof p.level === 'number' && p.level >= 1 && p.level <= 5, `${p.id}: level が無い`);
+    const index = order.indexOf(p.category);
+    assert.ok(index >= lastCategory, `${p.id}: 分類の並びが前後している`);
+    if (index > lastCategory) { lastCategory = index; lastLevel = 0; }
+    assert.ok(p.level >= lastLevel, `${p.id}: level ${p.level} が前の ${lastLevel} より易しい`);
+    lastLevel = p.level;
+  }
+});
+
 test('すべての分類に定石が 1 つ以上ある', () => {
   for (const c of CATEGORIES) {
     assert.ok(

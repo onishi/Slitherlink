@@ -55,6 +55,17 @@ export function transformPattern(pattern, transform) {
     anchorCell = [Math.min(ar, br), Math.min(ac, bc)];
   }
 
+  // 縁に沿わせる定石は、もとの上辺が変換後どの辺になったかを覚えておく
+  let borderSide = null;
+  if (pattern.anchor === 'border') {
+    const [ar, ac] = vertex(0, 0);
+    const [br, bc] = vertex(0, C);
+    if (ar === 0 && br === 0) borderSide = 'top';
+    else if (ar === rows && br === rows) borderSide = 'bottom';
+    else if (ac === 0 && bc === 0) borderSide = 'left';
+    else borderSide = 'right';
+  }
+
   return {
     ...pattern,
     rows,
@@ -64,6 +75,7 @@ export function transformPattern(pattern, transform) {
     conclude: pattern.conclude.map(mark),
     transform: transform.id,
     anchorCell,
+    borderSide,
   };
 }
 
@@ -132,8 +144,18 @@ function placements(variant, rows, cols) {
   }
 
   const list = [];
+  // 縁合わせ: 盤のその辺にぴったり付けたうえで、辺に沿ってずらす
+  const fixedDr = variant.borderSide === 'top' ? 0
+    : variant.borderSide === 'bottom' ? rows - variant.rows : null;
+  const fixedDc = variant.borderSide === 'left' ? 0
+    : variant.borderSide === 'right' ? cols - variant.cols : null;
+
   for (let dr = minDr; dr <= maxDr; dr++) {
-    for (let dc = minDc; dc <= maxDc; dc++) list.push([dr, dc]);
+    if (fixedDr !== null && dr !== fixedDr) continue;
+    for (let dc = minDc; dc <= maxDc; dc++) {
+      if (fixedDc !== null && dc !== fixedDc) continue;
+      list.push([dr, dc]);
+    }
   }
   return list;
 }
