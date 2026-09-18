@@ -27,6 +27,7 @@ export class Board {
     this.hintEdges = new Set();
     this.showErrors = true;
     this.fadeDone = true;
+    this.inputMode = 'line'; // 'line' か 'cross'。タップで最初に付く印が変わる
     this.cursor = -1;
     this._stroke = null;
     this._bindInput();
@@ -204,9 +205,11 @@ export class Board {
       ev.preventDefault();
       svg.setPointerCapture(ev.pointerId);
       const current = this.state[e];
+      // 右クリック (Ctrl+クリック) は、いまのモードで主役でない方の印を付け外しする
+      const secondary = this.inputMode === 'cross' ? LINE : CROSS;
       const value = (ev.button === 2 || ev.ctrlKey)
-        ? (current === CROSS ? UNKNOWN : CROSS)
-        : nextValue(current);
+        ? (current === secondary ? UNKNOWN : secondary)
+        : nextValue(current, this.inputMode);
       this._stroke = { value, touched: new Set([e]), pointerId: ev.pointerId };
       this.cursor = e;
       this.handlers.onPaint(e, value);
@@ -324,9 +327,16 @@ export class Board {
   }
 }
 
-function nextValue(v) {
-  if (v === UNKNOWN) return LINE;
-  if (v === LINE) return CROSS;
+/**
+ * タップするたびの値の移り変わり。
+ *   線モード: 空白 → 線 → × → 空白
+ *   ×モード : 空白 → × → 線 → 空白
+ */
+function nextValue(v, mode) {
+  const first = mode === 'cross' ? CROSS : LINE;
+  const second = mode === 'cross' ? LINE : CROSS;
+  if (v === UNKNOWN) return first;
+  if (v === first) return second;
   return UNKNOWN;
 }
 

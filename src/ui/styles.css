@@ -294,6 +294,69 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 }
 
 /* ---------- ステータス・操作 ---------- */
+/* ---------- 入力モード切り替え ---------- */
+.modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.modes button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 9px;
+}
+.modes button:hover:not([aria-checked="true"]) { background: var(--surface); }
+
+.modes button[aria-checked="true"] {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(35, 32, 28, .1);
+}
+
+.mode-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: .86rem;
+  font-weight: 600;
+}
+
+.mode-cycle {
+  font-size: .68rem;
+  color: var(--ink-faint);
+  letter-spacing: .02em;
+}
+
+.mode-ico {
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .88rem;
+  line-height: 1;
+}
+.ico-line::before {
+  content: "";
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink-faint);
+}
+.modes button[aria-checked="true"] .ico-line::before { background: var(--line); }
+.modes button[aria-checked="true"] .ico-cross { color: var(--ink); }
+
 .status {
   display: flex;
   align-items: center;

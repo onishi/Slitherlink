@@ -51,6 +51,17 @@
     </div>
   </main>
 
+  <div class="modes" role="radiogroup" aria-label="入力モード">
+    <button type="button" id="mode-line" role="radio" aria-checked="true" data-mode="line">
+      <span class="mode-name"><span class="mode-ico ico-line" aria-hidden="true"></span>線モード</span>
+      <span class="mode-cycle">線 → × → 空白</span>
+    </button>
+    <button type="button" id="mode-cross" role="radio" aria-checked="false" data-mode="cross">
+      <span class="mode-name"><span class="mode-ico ico-cross" aria-hidden="true">✕</span>×モード</span>
+      <span class="mode-cycle">× → 線 → 空白</span>
+    </button>
+  </div>
+
   <div class="status">
     <span class="status-item" id="status-time">0:00</span>
     <span class="status-sep" aria-hidden="true">·</span>
@@ -99,9 +110,11 @@
     </ol>
     <h3>操作</h3>
     <ul class="rules">
-      <li>辺をクリック／タップするたび <b>線 → × → 空白</b> と変わります。</li>
+      <li>辺をクリック／タップするたび印が変わります。順番は入力モードで決まります。
+        <b>線モード</b>なら 線 → × → 空白、<b>×モード</b>なら × → 線 → 空白。</li>
+      <li>モードは盤面の下のスイッチ、または <b>M</b> キーで切り替えられます。</li>
       <li>そのままドラッグすると、続けて同じ印を引けます。</li>
-      <li>右クリック（長押し）で <b>×</b> を直接つけられます。</li>
+      <li>右クリック（Ctrl+クリック）では、いまのモードで主役でない方の印が付きます。</li>
       <li>キーボードでも遊べます：<b>矢印キー</b>で移動、<b>スペース</b>で線、<b>X</b>で ×。</li>
     </ul>
     <p class="note">この中の問題はすべて、当てずっぽう無しで<b>論理だけで解ける</b>ことを確認してから出題しています。</p>

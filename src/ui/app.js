@@ -34,6 +34,8 @@ const el = {
   rulesBtn: $('btn-rules'),
   closeRules: $('btn-close-rules'),
   theme: $('btn-theme'),
+  modeLine: $('mode-line'),
+  modeCross: $('mode-cross'),
 };
 
 const service = new PuzzleService();
@@ -72,6 +74,7 @@ function init() {
   });
   board.showErrors = el.errors.checked;
   board.fadeDone = el.fade.checked;
+  setInputMode(prefs.inputMode === 'cross' ? 'cross' : 'line');
 
   bindUI();
 
@@ -119,6 +122,10 @@ function bindUI() {
     if (ev.key === 'Enter') { ev.preventDefault(); tryLoadCode(el.code.value, false); }
   });
 
+  for (const btn of [el.modeLine, el.modeCross]) {
+    btn.addEventListener('click', () => setInputMode(btn.dataset.mode));
+  }
+
   el.rulesBtn.addEventListener('click', () => { el.rulesModal.hidden = false; });
   el.closeRules.addEventListener('click', () => { el.rulesModal.hidden = true; });
   el.rulesModal.addEventListener('click', (ev) => {
@@ -135,8 +142,12 @@ function bindUI() {
     } else if (mod && (ev.key === 'y' || ev.key === 'Y')) {
       ev.preventDefault();
       redo();
-    } else if (!mod && (ev.key === 'h' || ev.key === 'H') && ev.target === document.body) {
+    } else if (!mod && !isTyping(ev.target) && (ev.key === 'h' || ev.key === 'H')) {
+      ev.preventDefault();
       showHint();
+    } else if (!mod && !isTyping(ev.target) && (ev.key === 'm' || ev.key === 'M')) {
+      ev.preventDefault();
+      setInputMode(board.inputMode === 'cross' ? 'line' : 'cross');
     }
   });
 
@@ -149,6 +160,22 @@ function bindUI() {
   setInterval(tickTimer, 1000);
 }
 
+/** 文字入力中かどうか。入力欄ではショートカットを横取りしない。 */
+function isTyping(target) {
+  if (!target || !target.tagName) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true;
+}
+
+/** タップしたときの印の付き方を切り替える。 */
+function setInputMode(mode) {
+  const next = mode === 'cross' ? 'cross' : 'line';
+  board.inputMode = next;
+  el.modeLine.setAttribute('aria-checked', String(next === 'line'));
+  el.modeCross.setAttribute('aria-checked', String(next === 'cross'));
+  savePrefs();
+}
+
 function savePrefs() {
   store.savePrefs({
     size: el.size.value,
@@ -156,6 +183,7 @@ function savePrefs() {
     autocross: el.autocross.checked,
     errors: el.errors.checked,
     fade: el.fade.checked,
+    inputMode: board ? board.inputMode : 'line',
     theme: document.documentElement.dataset.theme || '',
   });
 }
