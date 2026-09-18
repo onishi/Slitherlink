@@ -770,3 +770,78 @@ button.rules-link:hover { background: none; }
 /* 読み込み直後の復元では動かさない */
 body.no-anim .drawer,
 body.no-anim .app { transition: none !important; }
+
+/* ---------- ヒントの根拠表示 ---------- */
+.focus-cell {
+  fill: var(--line-hint);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease;
+}
+.focus-cell.on { opacity: .16; }
+
+.dot.focus { fill: var(--line-hint); }
+#board .edge.evidence { stroke: var(--line-hint); }
+#board .cross.evidence { stroke: var(--line-hint); opacity: .9; }
+
+/* ---------- ヒントパネル ---------- */
+.hint-panel {
+  background: var(--surface);
+  border: 1px solid var(--line-hint);
+  border-left: 4px solid var(--line-hint);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  animation: rise .22s cubic-bezier(.2, .8, .3, 1);
+}
+.hint-panel[hidden] { display: none; }
+.hint-panel.is-warn { border-color: var(--danger); border-left-color: var(--danger); }
+
+.hint-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 7px;
+}
+.hint-head h2 {
+  margin: 0;
+  font-size: .92rem;
+  flex: 1;
+  min-width: 0;
+}
+.hint-head .icon-btn {
+  width: 26px;
+  height: 26px;
+  font-size: .78rem;
+  flex: none;
+}
+
+.hint-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line-hint) 20%, transparent);
+  color: var(--ink);
+  font-size: .72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hint-panel.is-warn .hint-badge { background: color-mix(in srgb, var(--danger) 18%, transparent); }
+
+.hint-panel .hint-text {
+  margin: 0;
+  font-size: .85rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+
+.hint-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 11px;
+}
+.hint-actions:empty { display: none; }
+.hint-actions button { font-size: .82rem; padding: 8px 14px; }

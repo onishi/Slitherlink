@@ -85,6 +85,7 @@ export class SolveState {
     this.lineCount = 0;
     this.unknownCount = edgeCount;
     this.contradiction = false;
+    this.clash = null; // どこで矛盾したか（ヒントの説明に使う）
     this.loopRuleAt = -1; // 最後に R3 を走らせたときの線の本数
     this.queueCells = [];
     this.queueVertices = [];
@@ -106,6 +107,7 @@ export class SolveState {
     s.lineCount = this.lineCount;
     s.unknownCount = this.unknownCount;
     s.contradiction = this.contradiction;
+    s.clash = this.clash;
     s.loopRuleAt = this.loopRuleAt;
     s.queueCells = this.queueCells.slice();
     s.queueVertices = this.queueVertices.slice();
@@ -123,7 +125,9 @@ export class SolveState {
     const g = this.grid;
     this.edges[e] = value;
     this.unknownCount--;
-    if (this.reasons && reason && !this.reasons[e]) this.reasons[e] = reason;
+    if (this.reasons && reason && !this.reasons[e]) {
+      this.reasons[e] = typeof reason === 'string' ? { rule: reason } : reason;
+    }
 
     for (const cell of g.edgeCells[e]) {
       this.cellUnknown[cell]--;
@@ -154,6 +158,7 @@ export class SolveState {
       if (!this.dsu.union(a, b)) {
         // ループが閉じた。全体の完成でなければ矛盾。
         if (this.openEnds !== 0 || this.unsatisfied !== 0 || this.lineCount === 0) {
+          this.clash = { kind: 'loop' };
           this.contradiction = true;
           return false;
         }
@@ -174,16 +179,20 @@ export class SolveState {
           if (clue < 0) continue;
           const line = this.cellLine[cell];
           const unknown = this.cellUnknown[cell];
-          if (line > clue || line + unknown < clue) { this.contradiction = true; return false; }
+          if (line > clue || line + unknown < clue) {
+            this.clash = { kind: 'cell', index: cell, clue, line, unknown };
+            this.contradiction = true;
+            return false;
+          }
           if (unknown > 0 && line === clue) {
             for (let k = 0; k < 4; k++) {
               const e = g.cellEdges[cell * 4 + k];
-              if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, 'clue_full')) return false;
+              if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, { rule: 'clue_full', cell })) return false;
             }
           } else if (unknown > 0 && line + unknown === clue) {
             for (let k = 0; k < 4; k++) {
               const e = g.cellEdges[cell * 4 + k];
-              if (this.edges[e] === UNKNOWN && !this.setEdge(e, LINE, 'clue_rest')) return false;
+              if (this.edges[e] === UNKNOWN && !this.setEdge(e, LINE, { rule: 'clue_rest', cell })) return false;
             }
           }
           continue;
@@ -191,19 +200,27 @@ export class SolveState {
         const v = this.queueVertices.pop();
         const line = this.vertexLine[v];
         const unknown = this.vertexUnknown[v];
-        if (line > 2) { this.contradiction = true; return false; }
-        if (line === 1 && unknown === 0) { this.contradiction = true; return false; }
+        if (line > 2) {
+          this.clash = { kind: 'vertex', index: v, line };
+          this.contradiction = true;
+          return false;
+        }
+        if (line === 1 && unknown === 0) {
+          this.clash = { kind: 'vertex', index: v, line, dead: true };
+          this.contradiction = true;
+          return false;
+        }
         if (line === 2 && unknown > 0) {
           for (const e of g.vertexEdges[v]) {
-            if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, 'vertex_two')) return false;
+            if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, { rule: 'vertex_two', vertex: v })) return false;
           }
         } else if (line === 1 && unknown === 1) {
           for (const e of g.vertexEdges[v]) {
-            if (this.edges[e] === UNKNOWN && !this.setEdge(e, LINE, 'vertex_pair')) return false;
+            if (this.edges[e] === UNKNOWN && !this.setEdge(e, LINE, { rule: 'vertex_pair', vertex: v })) return false;
           }
         } else if (line === 0 && unknown === 1) {
           for (const e of g.vertexEdges[v]) {
-            if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, 'vertex_dead')) return false;
+            if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, { rule: 'vertex_dead', vertex: v })) return false;
           }
         }
       }
@@ -233,7 +250,7 @@ export class SolveState {
         this.vertexLine[b] === 1 &&
         this.wouldSatisfyAllClues(e);
       if (!closesAll) {
-        if (!this.setEdge(e, CROSS, 'loop_closed')) return false;
+        if (!this.setEdge(e, CROSS, { rule: 'loop_closed' })) return false;
       }
     }
     return true;
@@ -247,7 +264,7 @@ export class SolveState {
     if (this.unknownCount === 0) return true;
     if (this.lineCount === 0 || this.openEnds !== 0 || this.unsatisfied !== 0) return true;
     for (let e = 0; e < this.grid.edgeCount; e++) {
-      if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, 'loop_done')) return false;
+      if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, { rule: 'loop_done' })) return false;
     }
     return true;
   }
@@ -346,7 +363,7 @@ function trialPass(state, depth, budget) {
       lineOk = deepCheck(tryLine, depth - 1, budget);
     }
     if (!lineOk) {
-      if (!state.setEdge(e, CROSS, 'assume_line') || !state.propagate()) return true;
+      if (!state.setEdge(e, CROSS, { rule: 'assume_line', clash: tryLine.clash }) || !state.propagate()) return true;
       progressed = true;
       continue;
     }
@@ -358,7 +375,7 @@ function trialPass(state, depth, budget) {
       crossOk = deepCheck(tryCross, depth - 1, budget);
     }
     if (!crossOk) {
-      if (!state.setEdge(e, LINE, 'assume_cross') || !state.propagate()) return true;
+      if (!state.setEdge(e, LINE, { rule: 'assume_cross', clash: tryCross.clash }) || !state.propagate()) return true;
       progressed = true;
       continue;
     }
@@ -386,9 +403,9 @@ function deepCheck(state, depth, budget) {
     const bOk = b.setEdge(e, CROSS, 'trial') && b.propagate();
     if (!aOk && !bOk) return false;              // どちらでも矛盾 → 元の仮定が誤り
     if (!aOk) {
-      if (!state.setEdge(e, CROSS, 'assume_line') || !state.propagate()) return false;
+      if (!state.setEdge(e, CROSS, { rule: 'assume_line', clash: a.clash }) || !state.propagate()) return false;
     } else if (!bOk) {
-      if (!state.setEdge(e, LINE, 'assume_cross') || !state.propagate()) return false;
+      if (!state.setEdge(e, LINE, { rule: 'assume_cross', clash: b.clash }) || !state.propagate()) return false;
     }
   }
   return true;

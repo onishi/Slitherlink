@@ -37,6 +37,12 @@ const el = {
   rulesBtn: $('btn-rules'),
   closeRules: $('btn-close-rules'),
   theme: $('btn-theme'),
+  hintPanel: $('hint-panel'),
+  hintBadge: $('hint-badge'),
+  hintTitle: $('hint-title'),
+  hintText: $('hint-text'),
+  hintActions: $('hint-actions'),
+  hintClose: $('hint-close'),
   patternsBtn: $('btn-patterns'),
   rulesPatternsBtn: $('btn-rules-patterns'),
   drawer: $('patterns-drawer'),
@@ -146,6 +152,7 @@ function bindUI() {
     el.rulesModal.hidden = true;
     openDrawer();
   });
+  el.hintClose.addEventListener('click', () => hideHint());
   el.drawerClose.addEventListener('click', () => closeDrawer());
   el.drawerScrim.addEventListener('click', () => closeDrawer());
 
@@ -158,6 +165,7 @@ function bindUI() {
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
+      if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
       if (isDrawerOpen()) { closeDrawer(); return; }
       el.rulesModal.hidden = true;
       hideOverlay();
@@ -354,6 +362,7 @@ async function newPuzzle() {
 }
 
 function startPuzzle(puzzle, saved) {
+  hideHint();
   game.puzzle = puzzle;
   game.grid = getGrid(puzzle.rows, puzzle.cols);
   game.state = saved?.state ?? new Int8Array(game.grid.edgeCount);
@@ -465,6 +474,7 @@ function countClues(clues) {
 function paint(edge, value) {
   if (game.solved) return;
   if (game.state[edge] === value) return;
+  hideHint();
   board.clearHints();
   startTimer();
   applyChange(edge, value);
@@ -513,6 +523,7 @@ function redo() {
 }
 
 function afterHistory() {
+  hideHint();
   game.solved = false;
   board.setSolved(false);
   hideOverlay();
@@ -538,6 +549,7 @@ function clearBoard() {
   game.undoStack.push(entry);
   game.redoStack.length = 0;
   game.solved = false;
+  hideHint();
   board.setSolved(false);
   hideOverlay();
   refreshAll();
@@ -571,6 +583,7 @@ function checkSolved() {
   game.running = false;
   tickTimer();
   board.setSolved(true);
+  hideHint();
   board.clearHints();
   board.cursor = -1;
   board.showCursor = false;
@@ -639,43 +652,86 @@ function say(text, warn = false) {
 function showHint() {
   if (game.solved) return;
   const hint = findHint(game.grid, game.puzzle.clues, game.state, game.puzzle.solution);
-  if (hint.type === 'mistake' && hint.edge != null) {
-    board.setHints([hint.edge]);
-    board.cursor = hint.edge;
-    board.showCursor = true;
-    board._drawCursor();
-    say(hint.message, true);
+
+  if (hint.type === 'none') {
+    renderHint(hint, []);
+    board.clearHints();
     return;
   }
-  if (hint.type === 'move') {
-    board.setHints([hint.edge]);
-    board.cursor = hint.edge;
-    board.showCursor = true;
-    board._drawCursor();
-    // もう一度押すと、その手を実際に置く
-    if (lastHintEdge === hint.edge) {
-      board.clearHints();
-      startTimer();
-      applyChange(hint.edge, hint.value);
-      if (hint.value === LINE && el.autocross.checked) {
-        for (const e of autoCrossEdges(game.grid, game.puzzle.clues, game.state, [hint.edge])) {
-          applyChange(e, CROSS);
-        }
-      }
-      commitStroke();
-      refreshAll();
-      if (!game.solved) say(`${hint.message}（置きました）`);
-      lastHintEdge = -1;
-      return;
+
+  if (hint.type === 'mistake') {
+    if (hint.edge != null) {
+      board.setHints([hint.edge], hint.focus);
+      board.cursor = hint.edge;
+      board.showCursor = true;
+      board._drawCursor();
     }
-    lastHintEdge = hint.edge;
-    say(`${hint.message} — もう一度ヒントを押すとここに置きます`);
+    renderHint(hint, hint.edge == null ? [] : [
+      { label: 'ここを直す', primary: true, run: () => fixMistake(hint) },
+    ]);
     return;
   }
-  say(hint.message, hint.type === 'mistake');
+
+  board.setHints([hint.edge], hint.focus);
+  board.cursor = hint.edge;
+  board.showCursor = true;
+  board._drawCursor();
+  renderHint(hint, [
+    { label: `この${hint.value === LINE ? '線' : '×'}を置く`, primary: true, run: () => placeHint(hint) },
+    { label: '自分で考える', run: () => { hideHint(); board.clearHints(); } },
+  ]);
 }
 
-let lastHintEdge = -1;
+/** ヒントの内容をパネルに出す。 */
+function renderHint(hint, actions) {
+  const warn = hint.type === 'mistake';
+  el.hintPanel.hidden = false;
+  el.hintPanel.classList.toggle('is-warn', warn);
+  el.hintBadge.textContent = warn ? '⚠' : '💡';
+  el.hintTitle.textContent = hint.title;
+  el.hintText.textContent = hint.message;
+
+  el.hintActions.textContent = '';
+  for (const action of actions) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    if (action.primary) button.className = 'primary';
+    button.textContent = action.label;
+    button.addEventListener('click', action.run);
+    el.hintActions.appendChild(button);
+  }
+  say('');
+}
+
+function hideHint() {
+  el.hintPanel.hidden = true;
+  el.hintActions.textContent = '';
+}
+
+/** ヒントが示した一手を実際に置く。 */
+function placeHint(hint) {
+  hideHint();
+  board.clearHints();
+  startTimer();
+  applyChange(hint.edge, hint.value);
+  if (hint.value === LINE && el.autocross.checked) {
+    for (const e of autoCrossEdges(game.grid, game.puzzle.clues, game.state, [hint.edge])) {
+      applyChange(e, CROSS);
+    }
+  }
+  commitStroke();
+  refreshAll();
+}
+
+/** 間違っている印を、正しい状態に戻す。 */
+function fixMistake(hint) {
+  hideHint();
+  board.clearHints();
+  applyChange(hint.edge, UNKNOWN);
+  commitStroke();
+  refreshAll();
+  say('間違っていた印を消しました');
+}
 
 function check() {
   const a = analyze(game.grid, game.puzzle.clues, game.state);

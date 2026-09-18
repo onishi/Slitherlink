@@ -86,6 +86,16 @@
     <label><input type="checkbox" id="opt-fade" checked> 使い終わった数字を薄くする</label>
   </div>
 
+  <div class="hint-panel" id="hint-panel" role="status" aria-live="polite" hidden>
+    <div class="hint-head">
+      <span class="hint-badge" id="hint-badge"></span>
+      <h2 id="hint-title"></h2>
+      <button type="button" class="icon-btn" id="hint-close" aria-label="ヒントをとじる">✕</button>
+    </div>
+    <p class="hint-text" id="hint-text"></p>
+    <div class="hint-actions" id="hint-actions"></div>
+  </div>
+
   <p class="message" id="message" role="status" aria-live="polite"></p>
 
   <footer class="footer">

@@ -25,6 +25,10 @@ export class Board {
     this.clueEls = [];
     this.dotEls = [];
     this.hintEdges = new Set();
+    // ヒントの根拠（なぜそこが決まるのか）を示す場所
+    this.focusCells = new Set();
+    this.focusVertices = new Set();
+    this.focusEdges = new Set();
     // 点線のカーソルは、キーボードで操作しているときだけ出す
     this.showCursor = false;
     this.showErrors = true;
@@ -42,6 +46,9 @@ export class Board {
     this.state = state;
     this.rendered = new Int8Array(this.grid.edgeCount).fill(-1);
     this.hintEdges.clear();
+    this.focusCells.clear();
+    this.focusVertices.clear();
+    this.focusEdges.clear();
     this.cursor = -1;
     this.showCursor = false;
     this._build();
@@ -62,11 +69,28 @@ export class Board {
       svg.appendChild(el);
       return el;
     };
+    const focusLayer = layer('focus');
     const clueLayer = layer('clues');
     const crossLayer = layer('crosses');
     const dotLayer = layer('dots');
     const edgeLayer = layer('edges');
     const cursorLayer = layer('cursors');
+
+    // ヒントの根拠となるマスの下地
+    this.focusCellEls = new Array(g.cellCount);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const rect = document.createElementNS(SVG_NS, 'rect');
+        rect.setAttribute('class', 'focus-cell');
+        rect.setAttribute('x', c + 0.08);
+        rect.setAttribute('y', r + 0.08);
+        rect.setAttribute('width', 0.84);
+        rect.setAttribute('height', 0.84);
+        rect.setAttribute('rx', 0.14);
+        focusLayer.appendChild(rect);
+        this.focusCellEls[r * cols + c] = rect;
+      }
+    }
 
     // 数字
     this.clueEls = new Array(g.cellCount).fill(null);
@@ -139,14 +163,17 @@ export class Board {
     for (let e = 0; e < g.edgeCount; e++) {
       const want = st[e];
       const isHint = this.hintEdges.has(e);
-      const key = want + (isHint ? 8 : 0);
+      const key = want + (isHint ? 8 : 0) + (this.focusEdges.has(e) ? 16 : 0);
       if (this.rendered[e] === key) continue;
       this.rendered[e] = key;
       const ln = this.edgeEls[e];
+      const isEvidence = this.focusEdges.has(e);
       ln.classList.toggle('line', want === LINE);
       ln.classList.toggle('hint', isHint && want !== CROSS);
+      ln.classList.toggle('evidence', isEvidence && want === LINE);
       this.crossEls[e].classList.toggle('on', want === CROSS);
       this.crossEls[e].classList.toggle('hint', isHint && want === CROSS);
+      this.crossEls[e].classList.toggle('evidence', isEvidence && want === CROSS);
     }
 
     // 数字の状態 (達成 / 矛盾)
@@ -165,12 +192,18 @@ export class Board {
       el.classList.toggle('done', !bad && this.fadeDone && lines === clue && unknown === 0);
     }
 
+    // ヒントの根拠
+    for (let cell = 0; cell < g.cellCount; cell++) {
+      this.focusCellEls[cell].classList.toggle('on', this.focusCells.has(cell));
+    }
+
     // 交点 (線が 3 本以上なら矛盾)
     for (let v = 0; v < g.vertexCount; v++) {
       let lines = 0;
       for (const e of g.vertexEdges[v]) if (st[e] === LINE) lines++;
       const el = this.dotEls[v];
       el.classList.toggle('lit', lines > 0);
+      el.classList.toggle('focus', this.focusVertices.has(v));
       if (this.showErrors && lines > 2) el.setAttribute('fill', 'var(--danger)');
       else el.removeAttribute('fill');
     }
@@ -178,15 +211,21 @@ export class Board {
     this._drawCursor();
   }
 
-  setHints(edges) {
+  setHints(edges, focus) {
     this.hintEdges = new Set(edges);
+    this.focusCells = new Set(focus?.cells ?? []);
+    this.focusVertices = new Set(focus?.vertices ?? []);
+    this.focusEdges = new Set(focus?.edges ?? []);
     this.rendered.fill(-1);
     this.refresh();
   }
 
   clearHints() {
-    if (this.hintEdges.size === 0) return;
+    if (this.hintEdges.size === 0 && this.focusCells.size === 0 && this.focusVertices.size === 0) return;
     this.hintEdges.clear();
+    this.focusCells.clear();
+    this.focusVertices.clear();
+    this.focusEdges.clear();
     this.showCursor = false;
     this.rendered.fill(-1);
     this.refresh();
