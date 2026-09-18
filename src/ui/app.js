@@ -70,6 +70,8 @@ let messageTimer = 0;
 
 function init() {
   const prefs = store.prefs();
+  // savePrefs() がこの値を上書きする前に控えておく
+  const wantDrawerOpen = prefs.drawer === true;
   if (prefs.size) el.size.value = prefs.size;
   if (prefs.difficulty) el.difficulty.value = prefs.difficulty;
   // 既定は「自動 × なし・矛盾表示なし・使い終わった数字は薄く」。
@@ -88,6 +90,7 @@ function init() {
   setInputMode(prefs.inputMode === 'cross' ? 'cross' : 'line');
 
   bindUI();
+  if (wantDrawerOpen) openDrawer({ instant: true });
 
   const fromUrl = new URLSearchParams(location.search).get('p');
   if (fromUrl && tryLoadCode(fromUrl, true)) return;
@@ -138,6 +141,7 @@ function bindUI() {
   }
 
   el.patternsBtn.addEventListener('click', () => toggleDrawer());
+  // 盤面のほうを触りたいだけのときもあるので、開いたままでも遊べるようにしておく
   el.rulesPatternsBtn.addEventListener('click', () => {
     el.rulesModal.hidden = true;
     openDrawer();
@@ -186,13 +190,16 @@ function bindUI() {
 /* ---------------- 定石ドロワー ---------------- */
 
 let patternsView = null;
+// 閉じるアニメーションの途中でも正しく答えたいので、DOM ではなくこの変数で持つ
+let drawerOpen = false;
 
 function isDrawerOpen() {
-  return !el.drawer.hidden;
+  return drawerOpen;
 }
 
-function openDrawer() {
-  if (isDrawerOpen()) return;
+function openDrawer({ instant = false } = {}) {
+  if (drawerOpen) return;
+  drawerOpen = true;
   if (!patternsView) {
     // 図の数が多いので、初めて開いたときにだけ作る
     patternsView = renderPatternsInto(el.drawerBody, {
@@ -205,13 +212,25 @@ function openDrawer() {
   el.drawerScrim.hidden = false;
   document.body.classList.add('drawer-open');
   el.patternsBtn.setAttribute('aria-expanded', 'true');
-  // hidden を外した直後だと transition が効かないので 1 フレーム待つ
-  requestAnimationFrame(() => el.drawer.classList.add('is-open'));
-  el.drawerClose.focus();
+
+  if (instant) {
+    // 読み込み直後にスライドが走ると落ち着かないので、初回だけ動かさない
+    document.body.classList.add('no-anim');
+    el.drawer.classList.add('is-open');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => document.body.classList.remove('no-anim'));
+    });
+  } else {
+    // hidden を外した直後だと transition が効かないので 1 フレーム待つ
+    requestAnimationFrame(() => el.drawer.classList.add('is-open'));
+    el.drawerClose.focus();
+  }
+  savePrefs();
 }
 
 function closeDrawer() {
-  if (!isDrawerOpen()) return;
+  if (!drawerOpen) return;
+  drawerOpen = false;
   el.drawer.classList.remove('is-open');
   el.drawerScrim.hidden = true;
   document.body.classList.remove('drawer-open');
@@ -221,6 +240,7 @@ function closeDrawer() {
   const motion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (motion) done();
   else el.drawer.addEventListener('transitionend', done, { once: true });
+  savePrefs();
 }
 
 function toggleDrawer() {
@@ -288,6 +308,7 @@ function savePrefs() {
     errors: el.errors.checked,
     fade: el.fade.checked,
     inputMode: board ? board.inputMode : 'line',
+    drawer: isDrawerOpen(),
     theme: document.documentElement.dataset.theme || '',
   });
 }
