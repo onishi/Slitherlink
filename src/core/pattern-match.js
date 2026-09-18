@@ -121,12 +121,21 @@ function offsetRange(variant, rows, cols) {
     maxDc = Math.min(maxDc, highC);
   };
 
+  // 前提（数字と、すでに分かっている印）は盤に収まっている必要がある。
+  // 結論ははみ出してもよく、盤に残ったぶんだけを使う。
   for (const [r, c] of variant.clues) clamp(-r, rows - 1 - r, -c, cols - 1 - c);
-  for (const [dir, r, c] of [...variant.given, ...variant.conclude]) {
+  for (const [dir, r, c] of variant.given) {
     // h(r,c) は r が 0..rows、c が 0..cols-1。v(r,c) はその逆。
     clamp(-r, (dir === 'h' ? rows : rows - 1) - r, -c, (dir === 'h' ? cols - 1 : cols) - c);
   }
   return { minDr, maxDr, minDc, maxDc };
+}
+
+/** 盤の中に収まっている辺かどうか。 */
+function insideBoard(grid, dir, r, c) {
+  return dir === 'h'
+    ? r >= 0 && r <= grid.rows && c >= 0 && c < grid.cols
+    : r >= 0 && r < grid.rows && c >= 0 && c <= grid.cols;
 }
 
 /** その向きを置ける位置を列挙する。 */
@@ -182,6 +191,8 @@ export function findMatches(grid, clues, state, pattern) {
       const found = [];
       let conflicted = false;
       for (const [dir, r, c, kind] of variant.conclude) {
+        // 盤からはみ出した結論は、その盤には存在しない辺なので読み飛ばす
+        if (!insideBoard(grid, dir, r + dr, c + dc)) continue;
         const edge = edgeOf(grid, dir, r + dr, c + dc);
         const value = valueOf(kind);
         const current = state[edge];
