@@ -39,7 +39,7 @@ export function renderPatternsInto(container, options = {}) {
   container.textContent = '';
   const actions = new Map();
 
-  container.append(intro(Boolean(options.onApply)), legend(), toc(container, options.scroller));
+  container.append(legend(), toc(container, options.scroller));
   for (const category of CATEGORIES) {
     const items = PATTERNS.filter((p) => p.category === category.id);
     if (items.length) container.appendChild(section(category, items, options, actions));
@@ -52,24 +52,6 @@ export function renderPatternsInto(container, options = {}) {
       for (const [id, action] of actions) action.update(counts.get(id) ?? 0);
     },
   };
-}
-
-function intro(interactive) {
-  const box = el('section', 'doc-lead');
-  box.append(
-    el('p', null, 'スリザーリンクは、同じ形が何度も出てきます。ここにある形を覚えてしまえば、一手ずつ考え込まなくても手が進むようになります。'),
-  );
-  if (interactive) {
-    box.appendChild(el('p', null, '「当てはめる」を押すと、いまの盤面からその定石が使える場所をすべて探して、決まる印を引きます。数字は当てはまる場所の数です。'));
-  }
-  const note = el('p', 'doc-note');
-  note.append(
-    document.createTextNode('このページの「確定する」はすべて、盤面を総当たりで調べて '),
-    el('b', null, '反例が 1 つも存在しないこと'),
-    document.createTextNode(' を確かめたものだけを載せています。'),
-  );
-  box.appendChild(note);
-  return box;
 }
 
 function legend() {
