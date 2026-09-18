@@ -3,6 +3,7 @@ import { analyze, autoCrossEdges, findHint } from '../core/game.js';
 import { decodePuzzle, encodePuzzle, solutionFor } from '../core/puzzle.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { Board } from './board.js';
+import { renderPatternsInto } from './patterns-view.js';
 import { PuzzleService } from './puzzle-service.js';
 import { store } from './storage.js';
 
@@ -34,6 +35,12 @@ const el = {
   rulesBtn: $('btn-rules'),
   closeRules: $('btn-close-rules'),
   theme: $('btn-theme'),
+  patternsBtn: $('btn-patterns'),
+  rulesPatternsBtn: $('btn-rules-patterns'),
+  drawer: $('patterns-drawer'),
+  drawerBody: $('drawer-body'),
+  drawerScrim: $('drawer-scrim'),
+  drawerClose: $('btn-drawer-close'),
   modeLine: $('mode-line'),
   modeCross: $('mode-cross'),
 };
@@ -128,6 +135,14 @@ function bindUI() {
     btn.addEventListener('click', () => setInputMode(btn.dataset.mode));
   }
 
+  el.patternsBtn.addEventListener('click', () => toggleDrawer());
+  el.rulesPatternsBtn.addEventListener('click', () => {
+    el.rulesModal.hidden = true;
+    openDrawer();
+  });
+  el.drawerClose.addEventListener('click', () => closeDrawer());
+  el.drawerScrim.addEventListener('click', () => closeDrawer());
+
   el.rulesBtn.addEventListener('click', () => { el.rulesModal.hidden = false; });
   el.closeRules.addEventListener('click', () => { el.rulesModal.hidden = true; });
   el.rulesModal.addEventListener('click', (ev) => {
@@ -136,7 +151,11 @@ function bindUI() {
   el.theme.addEventListener('click', toggleTheme);
 
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') { el.rulesModal.hidden = true; hideOverlay(); }
+    if (ev.key === 'Escape') {
+      if (isDrawerOpen()) { closeDrawer(); return; }
+      el.rulesModal.hidden = true;
+      hideOverlay();
+    }
     const mod = ev.ctrlKey || ev.metaKey;
     if (mod && (ev.key === 'z' || ev.key === 'Z')) {
       ev.preventDefault();
@@ -160,6 +179,48 @@ function bindUI() {
   });
 
   setInterval(tickTimer, 1000);
+}
+
+/* ---------------- 定石ドロワー ---------------- */
+
+let patternsBuilt = false;
+
+function isDrawerOpen() {
+  return !el.drawer.hidden;
+}
+
+function openDrawer() {
+  if (isDrawerOpen()) return;
+  if (!patternsBuilt) {
+    // 図の数が多いので、初めて開いたときにだけ作る
+    renderPatternsInto(el.drawerBody, { scroller: el.drawerBody });
+    patternsBuilt = true;
+  }
+  el.drawer.hidden = false;
+  el.drawerScrim.hidden = false;
+  document.body.classList.add('drawer-open');
+  el.patternsBtn.setAttribute('aria-expanded', 'true');
+  // hidden を外した直後だと transition が効かないので 1 フレーム待つ
+  requestAnimationFrame(() => el.drawer.classList.add('is-open'));
+  el.drawerClose.focus();
+}
+
+function closeDrawer() {
+  if (!isDrawerOpen()) return;
+  el.drawer.classList.remove('is-open');
+  el.drawerScrim.hidden = true;
+  document.body.classList.remove('drawer-open');
+  el.patternsBtn.setAttribute('aria-expanded', 'false');
+  el.patternsBtn.focus();
+  const done = () => { el.drawer.hidden = true; };
+  const motion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (motion) done();
+  else el.drawer.addEventListener('transitionend', done, { once: true });
+}
+
+function toggleDrawer() {
+  if (isDrawerOpen()) closeDrawer();
+  else openDrawer();
 }
 
 /** 文字入力中かどうか。入力欄ではショートカットを横取りしない。 */
