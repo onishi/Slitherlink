@@ -25,6 +25,8 @@ export class Board {
     this.clueEls = [];
     this.dotEls = [];
     this.hintEdges = new Set();
+    // 点線のカーソルは、キーボードで操作しているときだけ出す
+    this.showCursor = false;
     this.showErrors = true;
     this.fadeDone = true;
     this.inputMode = 'line'; // 'line' か 'cross'。タップで最初に付く印が変わる
@@ -41,6 +43,7 @@ export class Board {
     this.rendered = new Int8Array(this.grid.edgeCount).fill(-1);
     this.hintEdges.clear();
     this.cursor = -1;
+    this.showCursor = false;
     this._build();
     this.refresh();
   }
@@ -184,6 +187,7 @@ export class Board {
   clearHints() {
     if (this.hintEdges.size === 0) return;
     this.hintEdges.clear();
+    this.showCursor = false;
     this.rendered.fill(-1);
     this.refresh();
   }
@@ -203,6 +207,9 @@ export class Board {
       const e = this._pick(ev);
       if (e < 0) return;
       ev.preventDefault();
+      // preventDefault でフォーカスが移らないので明示的に当てる。
+      // 盤面をクリックしたあと、そのまま矢印キーで操作できるようにするため。
+      svg.focus({ preventScroll: true });
       svg.setPointerCapture(ev.pointerId);
       const current = this.state[e];
       // 右クリック (Ctrl+クリック) は、いまのモードで主役でない方の印を付け外しする
@@ -211,7 +218,10 @@ export class Board {
         ? (current === secondary ? UNKNOWN : secondary)
         : nextValue(current, this.inputMode);
       this._stroke = { value, touched: new Set([e]), pointerId: ev.pointerId };
+      // 指やマウスで触ったときは点線を出さない（キーボード再開位置だけ覚える）
       this.cursor = e;
+      this.showCursor = false;
+      this._drawCursor();
       this.handlers.onPaint(e, value);
     });
 
@@ -236,6 +246,10 @@ export class Board {
     svg.addEventListener('pointercancel', end);
 
     svg.addEventListener('keydown', (ev) => this._onKey(ev));
+    svg.addEventListener('blur', () => {
+      this.showCursor = false;
+      this._drawCursor();
+    });
   }
 
   _onKey(ev) {
@@ -244,17 +258,20 @@ export class Board {
     if (dirs[ev.key]) {
       ev.preventDefault();
       this.cursor = this._moveCursor(dirs[ev.key]);
+      this.showCursor = true;
       this._drawCursor();
       return;
     }
     if (this.cursor < 0) return;
     if (ev.key === ' ' || ev.key === 'Enter') {
       ev.preventDefault();
+      this.showCursor = true;
       const cur = this.state[this.cursor];
       this.handlers.onPaint(this.cursor, cur === LINE ? UNKNOWN : LINE);
       this.handlers.onStrokeEnd();
     } else if (ev.key === 'x' || ev.key === 'X') {
       ev.preventDefault();
+      this.showCursor = true;
       const cur = this.state[this.cursor];
       this.handlers.onPaint(this.cursor, cur === CROSS ? UNKNOWN : CROSS);
       this.handlers.onStrokeEnd();
@@ -284,7 +301,7 @@ export class Board {
 
   _drawCursor() {
     if (!this.cursorEl) return;
-    if (this.cursor < 0) { this.cursorEl.classList.remove('on'); return; }
+    if (this.cursor < 0 || !this.showCursor) { this.cursorEl.classList.remove('on'); return; }
     const info = this.grid.edgeInfo[this.cursor];
     const p = centerOf(info);
     const w = info.dir === 'h' ? 0.86 : 0.34;

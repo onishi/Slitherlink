@@ -573,6 +573,7 @@ function checkSolved() {
   board.setSolved(true);
   board.clearHints();
   board.cursor = -1;
+  board.showCursor = false;
   board._drawCursor();
   updateButtons();
 
@@ -641,6 +642,7 @@ function showHint() {
   if (hint.type === 'mistake' && hint.edge != null) {
     board.setHints([hint.edge]);
     board.cursor = hint.edge;
+    board.showCursor = true;
     board._drawCursor();
     say(hint.message, true);
     return;
@@ -648,6 +650,7 @@ function showHint() {
   if (hint.type === 'move') {
     board.setHints([hint.edge]);
     board.cursor = hint.edge;
+    board.showCursor = true;
     board._drawCursor();
     // もう一度押すと、その手を実際に置く
     if (lastHintEdge === hint.edge) {
