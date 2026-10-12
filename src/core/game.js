@@ -3,7 +3,8 @@
  */
 
 import { UNKNOWN, LINE, CROSS } from './grid.js';
-import { solveLogical, RULE_LABELS } from './solver.js';
+import { solveLogical } from './solver.js';
+import { findProof } from './proof.js';
 
 /**
  * 盤面の今の状態を調べる。
@@ -106,10 +107,10 @@ export function autoCrossEdges(grid, clues, state, changedEdges) {
   return [...new Set(result)];
 }
 
-// ヒントとして提示したい推論の順番 (人にとって分かりやすい順)
+// 盤面だけで決まる手が複数あるとき、先に示したい順 (人にとって分かりやすい順)
 const RULE_PRIORITY = [
   'clue_full', 'clue_rest', 'vertex_two', 'vertex_pair', 'vertex_dead',
-  'loop_closed', 'loop_done', 'assume_line', 'assume_cross',
+  'loop_closed', 'loop_done',
 ];
 
 const RULE_TITLES = {
@@ -120,8 +121,6 @@ const RULE_TITLES = {
   vertex_dead: '行き止まりは作れない',
   loop_closed: '小さな輪は閉じられない',
   loop_done: '輪が完成している',
-  assume_line: '逆を試すと矛盾する',
-  assume_cross: '逆を試すと矛盾する',
 };
 
 /** マスや交点の位置を「上から◯番目・左から◯番目」と言い表す。 */
@@ -151,18 +150,6 @@ function cellCounts(grid, state, cell) {
   return { line, cross, unknown };
 }
 
-function vertexCounts(grid, state, vertex) {
-  let line = 0;
-  let cross = 0;
-  let unknown = 0;
-  for (const e of grid.vertexEdges[vertex]) {
-    if (state[e] === LINE) line++;
-    else if (state[e] === CROSS) cross++;
-    else unknown++;
-  }
-  return { line, cross, unknown };
-}
-
 /** 矛盾した場所を言葉にする (背理法の説明用)。 */
 function clashText(grid, clues, clash) {
   if (!clash) return 'ほかの場所でつじつまが合わなくなります';
@@ -182,13 +169,157 @@ function clashText(grid, clues, clash) {
   return '輪がひとつにまとまらなくなります';
 }
 
+/* ---------------- 証明を言葉にする ---------------- */
+
+/** 手順の中で使う短い呼び名。「3行2列のマス」のように行・列で言う。 */
+function cellShort(grid, cell) {
+  return `${Math.floor(cell / grid.cols) + 1}行${(cell % grid.cols) + 1}列のマス`;
+}
+
+function vertexShort(grid, v) {
+  return `${Math.floor(v / (grid.cols + 1)) + 1}行${(v % (grid.cols + 1)) + 1}列の点`;
+}
+
+/** 辺は、となりのマスの上下左右で言い表す。 */
+export function edgeName(grid, edge) {
+  const { dir, r, c } = grid.edgeInfo[edge];
+  if (dir === 'h') {
+    return r < grid.rows
+      ? `${r + 1}行${c + 1}列のマスの上の辺`
+      : `${r}行${c + 1}列のマスの下の辺`;
+  }
+  return c < grid.cols
+    ? `${r + 1}行${c + 1}列のマスの左の辺`
+    : `${r + 1}行${c}列のマスの右の辺`;
+}
+
+const markName = (value) => (value === LINE ? '線' : '×');
+
+/** 輪が答えになれない理由（輪の外の線か、合わない数字）。 */
+function witnessText(grid, clues, witness) {
+  if (!witness) return 'ほかに満たすべきものが残っています';
+  if (witness.edge != null) return `輪の外の${edgeName(grid, witness.edge)}にも線があります`;
+  return `${cellShort(grid, witness.cell)}の ${clues[witness.cell]} が満たせません（輪だけだと ${witness.count} 本）`;
+}
+
+/** 1 手（同じ理由でまとめて決まる手はひとまとめ）を 1 行にする。 */
+function stepLine(grid, clues, group) {
+  const step = group[0];
+  const n = group.length;
+  const target = n === 1 ? edgeName(grid, step.edge) : `残りの ${n} 辺`;
+  const mark = markName(step.value);
+  switch (step.rule) {
+    case 'clue_full':
+      return `${cellShort(grid, step.cell)}の ${clues[step.cell]} は線が ${clues[step.cell]} 本そろった → ${target}は ${mark}`;
+    case 'clue_rest':
+      return `${cellShort(grid, step.cell)}の ${clues[step.cell]} は × が ${4 - clues[step.cell]} 本 → ${target}は ${mark}`;
+    case 'vertex_two':
+      return `${vertexShort(grid, step.vertex)}に線が 2 本集まった → ${target}は ${mark}`;
+    case 'vertex_pair':
+      return `${vertexShort(grid, step.vertex)}は線の端で、ほかの道は × → ${target}は ${mark}`;
+    case 'vertex_dead':
+      return `${vertexShort(grid, step.vertex)}はほかの道がすべて ×（線を引くと行き止まり） → ${target}は ${mark}`;
+    case 'loop_closed':
+      return `${target}を線にすると輪が閉じるが、${witnessText(grid, clues, step.witness)} → ${target}は ${mark}`;
+    case 'loop_done':
+      return `輪が完成して数字もすべて満たされた → ${target}は ${mark}`;
+    default:
+      return `${target}は ${mark}`;
+  }
+}
+
+/** 矛盾を短く言う（手順の最後の行）。 */
+function clashLine(grid, clues, clash) {
+  if (clash.kind === 'cell') {
+    const clue = clues[clash.index];
+    return clash.line > clue
+      ? `${cellShort(grid, clash.index)}の ${clue} のまわりに線が ${clash.line} 本になる`
+      : `${cellShort(grid, clash.index)}の ${clue} のまわりに線を ${clash.line + clash.unknown} 本しか引けない`;
+  }
+  if (clash.kind === 'vertex') {
+    return clash.dead
+      ? `${vertexShort(grid, clash.index)}が行き止まりになる`
+      : `${vertexShort(grid, clash.index)}に線が ${clash.line} 本集まる`;
+  }
+  if (clash.kind === 'loop') return `輪が閉じてしまうが、${witnessText(grid, clues, clash.witness)}`;
+  if (clash.kind === 'conflict') {
+    return `${edgeName(grid, clash.edge)}が ${markName(opposite(clash.value))} なのに、${stepLine(grid, clues, [{ edge: clash.edge, value: clash.value, ...clash.reason }])}`;
+  }
+  return 'つじつまが合わなくなる';
+}
+
+const opposite = (value) => (value === LINE ? CROSS : LINE);
+
+/**
+ * 背理法の証明を、字下げつきの手順の列にする。
+ * @returns {{text:string, level:number, kind:string}[]}
+ */
+export function proofLines(grid, clues, proof, level = 0) {
+  const lines = [{
+    kind: 'assume',
+    level,
+    text: `${edgeName(grid, proof.edge)}を ${markName(proof.assume)} と仮定する`,
+  }];
+  let group = [];
+  const flush = () => {
+    if (group.length) lines.push({ kind: 'step', level, text: stepLine(grid, clues, group) });
+    group = [];
+  };
+  for (const step of proof.steps) {
+    if (step.rule === 'case') {
+      flush();
+      lines.push({
+        kind: 'case',
+        level,
+        text: `${edgeName(grid, step.edge)}は ${markName(step.value)}（逆を仮定すると矛盾する。理由は次のとおり）`,
+      });
+      lines.push(...proofLines(grid, clues, step.sub, level + 1));
+      continue;
+    }
+    const prev = group[0];
+    const same = prev && prev.rule === step.rule && prev.value === step.value
+      && prev.cell === step.cell && prev.vertex === step.vertex
+      && (step.rule.startsWith('clue') || step.rule.startsWith('vertex'));
+    if (!same) flush();
+    group.push(step);
+  }
+  flush();
+  lines.push({ kind: 'clash', level, text: `矛盾: ${clashLine(grid, clues, proof.clash)}` });
+  return lines;
+}
+
+/** 証明の中で根拠になっている場所（ハイライト用）を集める。 */
+function proofFocus(grid, proof, focus = { cells: [], vertices: [], edges: [], trial: [] }, top = true) {
+  if (top) focus.edges.push(...proof.uses);
+  focus.trial.push({ edge: proof.edge, value: proof.assume });
+  const addClash = (clash) => {
+    if (clash.kind === 'cell') focus.cells.push(clash.index);
+    if (clash.kind === 'vertex') focus.vertices.push(clash.index);
+    if (clash.kind === 'loop' && clash.witness?.cell != null) focus.cells.push(clash.witness.cell);
+  };
+  for (const step of proof.steps) {
+    if (step.rule === 'case') proofFocus(grid, step.sub, focus, false);
+    focus.trial.push({ edge: step.edge, value: step.value });
+  }
+  if (top) {
+    addClash(proof.clash);
+    // 同じ辺が入れ子の仮定で何度も出てくるときは、外側の値を残す
+    const seen = new Map();
+    for (const t of focus.trial) if (!seen.has(t.edge)) seen.set(t.edge, t);
+    seen.delete(proof.edge);
+    focus.trial = [...seen.values()];
+    focus.cells = [...new Set(focus.cells)];
+    focus.vertices = [...new Set(focus.vertices)];
+  }
+  return focus;
+}
+
 /**
  * その一手が決まる理由を、いまの盤面の数字や本数を使って説明する。
  * @returns {{title:string, text:string, focus:{cells:number[], vertices:number[], edges:number[]}}}
  */
 function explain(grid, clues, state, edge, value, reason) {
   const rule = reason.rule;
-  const mark = value === LINE ? '線' : '×';
   const focus = { cells: [], vertices: [], edges: [] };
   let text = 'ここは論理的に決まります。';
 
@@ -197,10 +328,7 @@ function explain(grid, clues, state, edge, value, reason) {
     const clue = clues[cell];
     const { line, unknown } = cellCounts(grid, state, cell);
     focus.cells.push(cell);
-    for (let k = 0; k < 4; k++) {
-      const e = grid.cellEdges[cell * 4 + k];
-      if (state[e] !== UNKNOWN) focus.edges.push(e);
-    }
+    focus.edges.push(...reason.premises);
     if (rule === 'clue_rest') {
       text = `${cellName(grid, cell)}の ${clue} は、いま線が ${line} 本、空いているのが ${unknown} 辺だけ。空いている辺を全部使わないと ${clue} 本に届きません。`;
     } else if (clue === 0) {
@@ -210,9 +338,8 @@ function explain(grid, clues, state, edge, value, reason) {
     }
   } else if (rule.startsWith('vertex') && reason.vertex != null) {
     const v = reason.vertex;
-    const { line, unknown } = vertexCounts(grid, state, v);
     focus.vertices.push(v);
-    for (const e of grid.vertexEdges[v]) if (state[e] !== UNKNOWN) focus.edges.push(e);
+    focus.edges.push(...reason.premises);
     if (rule === 'vertex_two') {
       text = `${vertexName(grid, v)}には、もう線が 2 本集まっています。交点の線は 0 本か 2 本なので、3 本目は引けません。`;
     } else if (rule === 'vertex_pair') {
@@ -221,63 +348,44 @@ function explain(grid, clues, state, edge, value, reason) {
       text = `${vertexName(grid, v)}は、この辺のほかがすべて ×。ここに線を引くと、その点から線が 1 本だけ出る行き止まりになってしまいます。`;
     }
   } else if (rule === 'loop_closed') {
-    text = 'ここに線を引くと輪が閉じてしまいますが、まだ満たしていない数字が残っています。答えはひとつながりの輪ひとつだけなので、ここは引けません。';
+    focus.edges.push(...reason.premises);
+    if (reason.witness?.cell != null) focus.cells.push(reason.witness.cell);
+    text = `ここに線を引くと、光っている線とつながって輪が閉じます。答えはひとつながりの輪ひとつだけなので、閉じた輪が答えそのものになるはずですが、${witnessText(grid, clues, reason.witness)}。だからここは引けません。`;
   } else if (rule === 'loop_done') {
-    text = 'すでに輪が完成し、数字もすべて満たされています。残りの辺はもう線にできません。';
-  } else if (rule === 'assume_line' || rule === 'assume_cross') {
-    const assumed = rule === 'assume_line' ? '線' : '×';
-    text = `ためしにここを${assumed}だとしてみると、${clashText(grid, clues, reason.clash)}。だからここは ${mark} で確定です。`;
-    if (reason.clash && reason.clash.kind === 'cell') focus.cells.push(reason.clash.index);
-    if (reason.clash && reason.clash.kind === 'vertex') focus.vertices.push(reason.clash.index);
+    focus.edges.push(...reason.premises);
+    text = 'すでに輪が完成し、数字もすべて満たされています。輪はひとつだけなので、残りの辺はもう線にできません。';
   }
 
   return { title: RULE_TITLES[rule] || 'ここが決まります', text, focus };
 }
 
-/**
- * その理由が「いま見えている盤面」だけで通るかを確かめる。
- * ソルバは途中で導いた情報を使って先へ進むので、そのまま説明すると
- * 盤面と数字が合わなくなる。ここで足切りして、その場で納得できる手だけを選ぶ。
- * @returns {object|null} 通るなら理由（背理法はその場で取り直した矛盾つき）、通らなければ null
- */
-function justifiedNow(grid, clues, state, edge, value, reason) {
-  const rule = reason.rule;
-
-  if (rule === 'clue_full' || rule === 'clue_rest') {
-    const cell = reason.cell;
-    if (cell == null) return null;
-    const clue = clues[cell];
-    const { line, unknown } = cellCounts(grid, state, cell);
-    if (unknown === 0) return null;
-    if (rule === 'clue_full') return line === clue ? reason : null;
-    return line + unknown === clue ? reason : null;
-  }
-
-  if (rule.startsWith('vertex')) {
-    const v = reason.vertex;
-    if (v == null) return null;
-    const { line, unknown } = vertexCounts(grid, state, v);
-    if (rule === 'vertex_two') return line === 2 && unknown > 0 ? reason : null;
-    if (rule === 'vertex_pair') return line === 1 && unknown === 1 ? reason : null;
-    return line === 0 && unknown === 1 ? reason : null;
-  }
-
-  // 輪まわりと背理法は、いまの盤面から実際に置き直して確かめる
-  const probe = Int8Array.from(state);
-  probe[edge] = value === LINE ? CROSS : LINE;
-  for (const depth of [0, 1]) {
-    const res = solveLogical(grid, clues, { maxDepth: depth, initial: probe });
-    if (res.status === 'contradiction') {
-      return { ...reason, clash: res.state.clash, depth };
-    }
-  }
-  return null;
+/** 背理法の証明の要約と見出し。 */
+function explainContradiction(grid, clues, proof) {
+  const assumed = markName(proof.assume);
+  const mark = markName(proof.value);
+  const nested = proof.steps.some((s) => s.rule === 'case');
+  const lines = proofLines(grid, clues, proof);
+  const count = lines.filter((l) => l.level === 0 && l.kind !== 'assume' && l.kind !== 'clash').length;
+  const text = `ためしにここを${assumed}だとしてみると、${count === 0 ? 'すぐに' : `${count} 手で`}つじつまが合わなくなります（${clashLine(grid, clues, proof.clash)}）。だからここは ${mark} で確定です。`;
+  return {
+    title: nested ? '仮定を重ねると矛盾する' : '逆を試すと矛盾する',
+    text,
+    lines,
+    focus: proofFocus(grid, proof),
+  };
 }
+
+const ruleRank = (proof) => {
+  const rank = RULE_PRIORITY.indexOf(proof.step.rule);
+  return rank < 0 ? RULE_PRIORITY.length : rank;
+};
 
 /**
  * 次の一手を探す。
+ * 出す手には必ず、いまの盤面から一歩ずつたどれる証明が付いていて、
+ * その証明は checkProof で検算済み。
  * @returns {{type:'mistake'|'move'|'none', edge?:number, value?:number,
- *            title:string, message:string, focus?:object}}
+ *            title:string, message:string, steps?:object[], proof?:object, focus?:object}}
  */
 export function findHint(grid, clues, state, solution) {
   if (solution) {
@@ -298,39 +406,31 @@ export function findHint(grid, clues, state, solution) {
     }
   }
 
-  for (const depth of [0, 1, 2]) {
-    const res = solveLogical(grid, clues, { maxDepth: depth, initial: state, trackReasons: true });
-    if (res.status === 'contradiction') {
-      return {
-        type: 'mistake',
-        title: '盤面が矛盾しています',
-        message: `いまの盤面では${clashText(grid, clues, res.state.clash)}。どこかに誤りがあります。チェックを使ってみてください。`,
-        focus: { cells: [], vertices: [], edges: [] },
-      };
-    }
-    // いまの盤面だけで説明できる手を集め、分かりやすい順に選ぶ
-    const candidates = [];
-    for (let e = 0; e < grid.edgeCount; e++) {
-      if (state[e] !== UNKNOWN) continue;
-      const decided = res.state.edges[e];
-      if (decided === UNKNOWN) continue;
-      const reason = res.state.reasons[e] || { rule: 'assume_line' };
-      const rank = RULE_PRIORITY.indexOf(reason.rule);
-      candidates.push({ edge: e, value: decided, reason, score: rank < 0 ? RULE_PRIORITY.length : rank });
-    }
-    candidates.sort((a, b) => a.score - b.score);
+  const check = solveLogical(grid, clues, { maxDepth: 0, initial: state });
+  if (check.status === 'contradiction') {
+    return {
+      type: 'mistake',
+      title: '盤面が矛盾しています',
+      message: `いまの盤面では${clashText(grid, clues, check.state.clash)}。どこかに誤りがあります。チェックを使ってみてください。`,
+      focus: { cells: [], vertices: [], edges: [] },
+    };
+  }
 
-    for (const c of candidates) {
-      const reason = justifiedNow(grid, clues, state, c.edge, c.value, c.reason);
-      if (!reason) continue;
-      const { title, text, focus } = explain(grid, clues, state, c.edge, c.value, reason);
-      return { type: 'move', edge: c.edge, value: c.value, title, message: text, focus };
+  const proof = findProof(grid, clues, state, { rank: ruleRank, solution });
+  if (proof) {
+    if (proof.kind === 'direct') {
+      const { title, text, focus } = explain(grid, clues, state, proof.edge, proof.value, proof.step);
+      return { type: 'move', edge: proof.edge, value: proof.value, title, message: text, steps: [], proof, focus };
     }
+    const { title, text, lines, focus } = explainContradiction(grid, clues, proof);
+    return { type: 'move', edge: proof.edge, value: proof.value, title, message: text, steps: lines, proof, focus };
   }
   return {
     type: 'none',
     title: 'ヒントはありません',
-    message: 'これ以上、いまの盤面から論理的に決まる場所はありません。もう完成しているかもしれません。',
+    message: state.includes(UNKNOWN)
+      ? 'いまの盤面から、根拠を示して決められる場所が見つかりませんでした。'
+      : 'もう全部の辺が埋まっています。',
     focus: { cells: [], vertices: [], edges: [] },
   };
 }

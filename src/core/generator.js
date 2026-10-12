@@ -5,10 +5,13 @@
  * 2. 輪からすべてのマスの数字を求める
  * 3. 数字をランダムな順に消し、消すたびに論理ソルバで解き直す。
  *    解けなくなる数字だけ残す → 「必ずロジカルに解ける」問題になる。
+ * 4. 仕上げに、空の盤面から「検算に通る証明つきの手」だけを積み重ねて
+ *    正解まで届くかを確かめる。ヒントが最後まで根拠を示せることの保証でもある。
  */
 
 import { getGrid, boundaryEdges, isSingleLoop, cluesFromEdges, LINE } from './grid.js';
 import { solveLogical } from './solver.js';
+import { solveWithProofs } from './proof.js';
 
 /** xorshift32 による決定的な乱数生成器。 */
 export function makeRng(seed) {
@@ -125,6 +128,10 @@ export function generatePuzzle(options = {}) {
       const easyTry = solveLogical(grid, clues, { maxDepth: conf.minDepth - 1 });
       if (easyTry.status === 'solved' && attempt < 12 && Date.now() < deadline) continue;
     }
+
+    // 証明つきの手だけで正解まで届くか。届かなければ作り直す
+    const proved = solveWithProofs(grid, clues, { maxDepth: conf.depth - 1, solution });
+    if (!proved.solved || proved.edges.some((v, e) => v !== solution[e])) continue;
 
     let clueCount = 0;
     for (let i = 0; i < clues.length; i++) if (clues[i] >= 0) clueCount++;

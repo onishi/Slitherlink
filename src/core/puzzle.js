@@ -7,6 +7,7 @@
 
 import { getGrid } from './grid.js';
 import { solveLogical } from './solver.js';
+import { solveWithProofs } from './proof.js';
 
 const DIFF_CODE = { easy: 'e', normal: 'n', hard: 'h' };
 const CODE_DIFF = { e: 'easy', n: 'normal', h: 'hard' };
@@ -51,14 +52,19 @@ export function decodePuzzle(text) {
 }
 
 /**
- * 問題コードから解を復元する。解が一意に定まらなければ null。
+ * 問題コードから解を復元する。
+ * 検算に通る証明つきの手だけで最後まで解けなければ null（当てずっぽうが要る問題は受け付けない）。
+ * 証明だけで決まった答えなので、解は自動的に一意になる。
  */
 export function solutionFor(puzzle) {
   const grid = getGrid(puzzle.rows, puzzle.cols);
+  // ソルバで答えの見当をつけ、証明を探す範囲を絞る（見当は証明の中身には使わない）
+  let guess;
   for (const depth of [0, 1, 2]) {
     const res = solveLogical(grid, puzzle.clues, { maxDepth: depth });
-    if (res.status === 'solved') return res.state.toEdgeArray();
     if (res.status === 'contradiction') return null;
+    if (res.status === 'solved') { guess = res.state.toEdgeArray(); break; }
   }
-  return null;
+  const proved = solveWithProofs(grid, puzzle.clues, { maxDepth: 1, solution: guess });
+  return proved.solved ? proved.edges : null;
 }

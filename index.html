@@ -93,6 +93,11 @@
       <button type="button" class="icon-btn" id="hint-close" aria-label="ヒントをとじる">✕</button>
     </div>
     <p class="hint-text" id="hint-text"></p>
+    <details class="hint-proof" id="hint-proof" hidden>
+      <summary>根拠を一手ずつたどる</summary>
+      <ol class="hint-steps" id="hint-steps"></ol>
+      <p class="hint-legend">盤面の点線と緑の × は、仮定したときに決まっていく印です（まだ置かれていません）。オレンジの印は、根拠にしたいまの盤面の印です。</p>
+    </details>
     <div class="hint-actions" id="hint-actions"></div>
   </div>
 

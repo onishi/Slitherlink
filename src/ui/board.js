@@ -25,10 +25,13 @@ export class Board {
     this.clueEls = [];
     this.dotEls = [];
     this.hintEdges = new Set();
+    this.hintValue = UNKNOWN; // ヒントが示す印（線か ×）。分からなければ位置だけ示す
     // ヒントの根拠（なぜそこが決まるのか）を示す場所
     this.focusCells = new Set();
     this.focusVertices = new Set();
     this.focusEdges = new Set();
+    // 背理法のヒントで「仮定するとこうなる」という印（盤面にはまだ無い）
+    this.trialMarks = new Map();
     // 点線のカーソルは、キーボードで操作しているときだけ出す
     this.showCursor = false;
     this.showErrors = true;
@@ -49,6 +52,7 @@ export class Board {
     this.focusCells.clear();
     this.focusVertices.clear();
     this.focusEdges.clear();
+    this.trialMarks.clear();
     this.cursor = -1;
     this.showCursor = false;
     this._build();
@@ -163,17 +167,21 @@ export class Board {
     for (let e = 0; e < g.edgeCount; e++) {
       const want = st[e];
       const isHint = this.hintEdges.has(e);
-      const key = want + (isHint ? 8 : 0) + (this.focusEdges.has(e) ? 16 : 0);
+      const trial = want === UNKNOWN && !isHint ? (this.trialMarks.get(e) ?? UNKNOWN) : UNKNOWN;
+      const key = want + (isHint ? 8 : 0) + (this.focusEdges.has(e) ? 16 : 0) + trial * 32;
       if (this.rendered[e] === key) continue;
       this.rendered[e] = key;
       const ln = this.edgeEls[e];
       const isEvidence = this.focusEdges.has(e);
       ln.classList.toggle('line', want === LINE);
-      ln.classList.toggle('hint', isHint && want !== CROSS);
+      const hintMark = want !== UNKNOWN ? want : this.hintValue;
+      ln.classList.toggle('hint', isHint && hintMark !== CROSS);
       ln.classList.toggle('evidence', isEvidence && want === LINE);
+      ln.classList.toggle('trial', trial === LINE);
       this.crossEls[e].classList.toggle('on', want === CROSS);
-      this.crossEls[e].classList.toggle('hint', isHint && want === CROSS);
+      this.crossEls[e].classList.toggle('hint', isHint && hintMark === CROSS);
       this.crossEls[e].classList.toggle('evidence', isEvidence && want === CROSS);
+      this.crossEls[e].classList.toggle('trial', trial === CROSS);
     }
 
     // 数字の状態 (達成 / 矛盾)
@@ -211,11 +219,13 @@ export class Board {
     this._drawCursor();
   }
 
-  setHints(edges, focus) {
+  setHints(edges, focus, value = UNKNOWN) {
     this.hintEdges = new Set(edges);
+    this.hintValue = value;
     this.focusCells = new Set(focus?.cells ?? []);
     this.focusVertices = new Set(focus?.vertices ?? []);
     this.focusEdges = new Set(focus?.edges ?? []);
+    this.trialMarks = new Map((focus?.trial ?? []).map((t) => [t.edge, t.value]));
     this.rendered.fill(-1);
     this.refresh();
   }
@@ -226,6 +236,7 @@ export class Board {
     this.focusCells.clear();
     this.focusVertices.clear();
     this.focusEdges.clear();
+    this.trialMarks.clear();
     this.showCursor = false;
     this.rendered.fill(-1);
     this.refresh();

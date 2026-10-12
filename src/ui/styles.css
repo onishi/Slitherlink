@@ -783,6 +783,9 @@ body.no-anim .app { transition: none !important; }
 .dot.focus { fill: var(--line-hint); }
 #board .edge.evidence { stroke: var(--line-hint); }
 #board .cross.evidence { stroke: var(--line-hint); opacity: .9; }
+/* 背理法で「仮定するとこうなる」印。盤面にはまだ無いので点線で薄く出す */
+#board .edge.trial { stroke: var(--accent); stroke-dasharray: .14 .1; stroke-linecap: butt; opacity: .8; }
+#board .cross.trial { stroke: var(--accent); opacity: .85; stroke-width: .06; }
 
 /* ---------- ヒントパネル ---------- */
 .hint-panel {
@@ -837,6 +840,24 @@ body.no-anim .app { transition: none !important; }
   line-height: 1.8;
   color: var(--ink-soft);
 }
+
+.hint-proof { margin-top: 8px; font-size: .78rem; color: var(--ink-soft); }
+.hint-proof[hidden] { display: none; }
+.hint-proof summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+.hint-steps {
+  margin: 6px 0 0;
+  padding: 0 0 0 1.6em;
+  line-height: 1.7;
+  max-height: 14em;
+  overflow-y: auto;
+}
+.hint-steps li { padding-left: 2px; }
+.hint-steps li.lv1 { margin-left: 1.2em; }
+.hint-steps li.lv2 { margin-left: 2.4em; }
+.hint-steps li.assume { color: var(--ink); }
+.hint-steps li.clash { color: var(--danger); }
+.hint-steps li.lv1, .hint-steps li.lv2 { list-style-type: circle; }
+.hint-legend { margin: 6px 0 0; font-size: .72rem; color: var(--ink-faint); }
 
 .hint-actions {
   display: flex;

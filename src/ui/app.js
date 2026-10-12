@@ -42,6 +42,8 @@ const el = {
   hintTitle: $('hint-title'),
   hintText: $('hint-text'),
   hintActions: $('hint-actions'),
+  hintProof: $('hint-proof'),
+  hintSteps: $('hint-steps'),
   hintClose: $('hint-close'),
   patternsBtn: $('btn-patterns'),
   rulesPatternsBtn: $('btn-rules-patterns'),
@@ -672,7 +674,7 @@ function showHint() {
     return;
   }
 
-  board.setHints([hint.edge], hint.focus);
+  board.setHints([hint.edge], hint.focus, hint.value);
   board.cursor = hint.edge;
   board.showCursor = true;
   board._drawCursor();
@@ -690,6 +692,18 @@ function renderHint(hint, actions) {
   el.hintBadge.textContent = warn ? '⚠' : '💡';
   el.hintTitle.textContent = hint.title;
   el.hintText.textContent = hint.message;
+
+  // 背理法のときは、矛盾までの手順を一手ずつ並べる
+  const steps = hint.steps ?? [];
+  el.hintSteps.textContent = '';
+  for (const step of steps) {
+    const li = document.createElement('li');
+    li.className = `${step.kind} lv${Math.min(step.level, 2)}`;
+    li.textContent = step.text;
+    el.hintSteps.appendChild(li);
+  }
+  el.hintProof.hidden = steps.length === 0;
+  el.hintProof.open = steps.length > 0 && steps.length <= 6;
 
   el.hintActions.textContent = '';
   for (const action of actions) {
