@@ -55,8 +55,7 @@ const el = {
   menuModal: $('menu-modal'),
   menuBtn: $('btn-menu'),
   closeMenu: $('btn-close-menu'),
-  puzzleSettings: $('puzzle-settings'),
-  puzzleSummary: $('puzzle-summary'),
+  puzzleInfo: $('status-puzzle'),
   modeCross: $('mode-cross'),
 };
 
@@ -88,7 +87,6 @@ function init() {
   patternsOnlyUsable = prefs.patternsOnlyUsable === true;
   if (prefs.size) el.size.value = prefs.size;
   if (prefs.difficulty) el.difficulty.value = prefs.difficulty;
-  updatePuzzleSummary();
   // 既定は「自動 × なし・矛盾表示なし・使い終わった数字は薄く」。
   // 一度でも触った設定は localStorage の値が優先される。
   el.autocross.checked = prefs.autocross === true;
@@ -114,13 +112,14 @@ function init() {
 }
 
 function bindUI() {
-  el.newBtn.addEventListener('click', () => newPuzzle());
+  el.newBtn.addEventListener('click', () => { closeMenu(); newPuzzle(); });
   for (const select of [el.size, el.difficulty]) {
-    select.addEventListener('change', () => { updatePuzzleSummary(); savePrefs(); prefetchCurrent(); });
+    select.addEventListener('change', () => { savePrefs(); prefetchCurrent(); });
   }
-  // 大きさ・むずかしさの小窓は、外側を触ったら閉じる
-  document.addEventListener('pointerdown', (ev) => {
-    if (el.puzzleSettings.open && !el.puzzleSettings.contains(ev.target)) el.puzzleSettings.open = false;
+
+  // 完成後に「盤面を見る」で結果を閉じても、盤面をタップすればまた出せるようにする
+  el.board.addEventListener('click', () => {
+    if (game.solved && el.overlay.hidden) showOverlay(game.solvedBest);
   });
 
   el.undo.addEventListener('click', undo);
@@ -190,7 +189,6 @@ function bindUI() {
       if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
       if (isDrawerOpen()) { closeDrawer(); return; }
       if (!el.menuModal.hidden) { closeMenu(); return; }
-      if (el.puzzleSettings.open) { el.puzzleSettings.open = false; return; }
       el.rulesModal.hidden = true;
       hideOverlay();
     }
@@ -232,11 +230,11 @@ function closeMenu() {
   el.menuBtn.focus();
 }
 
-/** 「7 × 7 ・ ふつう」のように、いま選んでいる大きさとむずかしさを出す。 */
-function updatePuzzleSummary() {
-  const size = el.size.selectedOptions[0]?.textContent ?? '';
-  const diff = el.difficulty.selectedOptions[0]?.textContent ?? '';
-  el.puzzleSummary.textContent = `${size} ・ ${diff}`;
+/** 「7 × 7 ・ ふつう」のように、いま解いている問題の大きさとむずかしさを出す。 */
+function updatePuzzleInfo() {
+  const p = game.puzzle;
+  if (!p) return;
+  el.puzzleInfo.textContent = `${p.rows} × ${p.cols} ・ ${DIFFICULTIES[p.difficulty]?.label ?? ''}`;
 }
 
 /* ---------------- 定石ドロワー ---------------- */
@@ -428,6 +426,7 @@ function startPuzzle(puzzle, saved) {
   hideOverlay();
   el.code.value = puzzle.code || encodePuzzle(puzzle);
   updateBest();
+  updatePuzzleInfo();
   refreshAll();
   persist();
 }
@@ -463,8 +462,7 @@ function restoreSaved() {
     ensureSizeOption(`${decoded.rows}x${decoded.cols}`);
     el.size.value = `${decoded.rows}x${decoded.cols}`;
     el.difficulty.value = decoded.difficulty;
-    updatePuzzleSummary();
-    startPuzzle({
+      startPuzzle({
       ...decoded,
       solution,
       code: saved.code,
@@ -488,8 +486,7 @@ function tryLoadCode(code, fromUrl) {
     ensureSizeOption(`${decoded.rows}x${decoded.cols}`);
     el.size.value = `${decoded.rows}x${decoded.cols}`;
     el.difficulty.value = decoded.difficulty;
-    updatePuzzleSummary();
-    startPuzzle({
+      startPuzzle({
       ...decoded,
       solution,
       code: encodePuzzle(decoded),
@@ -642,6 +639,7 @@ function checkSolved() {
 
   const key = `${game.puzzle.rows}x${game.puzzle.cols}:${game.puzzle.difficulty}`;
   const isBest = store.saveRecord(key, game.elapsed);
+  game.solvedBest = isBest; // 「盤面を見る」のあと、結果を出し直すときに使う
   updateBest();
   store.clearGame();
   say('');
@@ -673,7 +671,10 @@ function showOverlay(isBest) {
   again.addEventListener('click', () => { hideOverlay(); newPuzzle(); });
   const look = document.createElement('button');
   look.textContent = '盤面を見る';
-  look.addEventListener('click', hideOverlay);
+  look.addEventListener('click', () => {
+    hideOverlay();
+    say('盤面をタップすると、結果をもう一度出せます');
+  });
   row.append(again, look);
   el.overlayCard.appendChild(row);
   el.overlay.hidden = false;

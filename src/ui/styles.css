@@ -279,52 +279,12 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 }
 
 
-/* ---------- 問題の選択（1 問に 1 回） ---------- */
-.puzzle-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.puzzle-settings { position: relative; }
-.puzzle-settings > summary {
-  list-style: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  font-size: .85rem;
-  color: var(--ink-soft);
-  cursor: pointer;
-  user-select: none;
-}
-.puzzle-settings > summary::-webkit-details-marker { display: none; }
-.puzzle-settings > summary::after { content: '▾'; font-size: .7rem; color: var(--ink-faint); }
-.puzzle-settings[open] > summary { border-color: var(--accent); color: var(--ink); }
-
-.puzzle-settings-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 10;
-  width: min(300px, calc(100vw - 32px));
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  animation: rise .16s ease;
-}
+/* ---------- メニューの中の「新しい問題」 ---------- */
+.new-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .field > span { font-size: .72rem; color: var(--ink-soft); letter-spacing: .04em; }
-.panel-note { margin: 0; font-size: .74rem; color: var(--ink-faint); }
+.modal-card .primary.wide { width: 100%; margin-top: 10px; }
+.modal-card .close-btn { width: 100%; margin-top: 18px; }
 
 /* ---------- 盤面の上の状況 ---------- */
 .status {
@@ -336,6 +296,7 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
   margin-bottom: -4px;
+  flex-wrap: wrap;
 }
 .status-sep { color: var(--ink-faint); }
 
