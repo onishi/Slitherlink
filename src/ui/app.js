@@ -926,8 +926,8 @@ function renderHint(hint, actions) {
     el.hintSteps.appendChild(li);
   }
   el.hintProof.hidden = steps.length === 0;
-  // 手順は短ければ最初から開く（文字を小さくすれば収まる長さまで）
-  el.hintProof.open = steps.length > 0 && steps.length <= 8;
+  // 手順は最初は必ず畳んでおく（見たいときだけ開く）
+  el.hintProof.open = false;
 
   el.hintActions.textContent = '';
   for (const action of actions) {
