@@ -187,7 +187,10 @@ function placements(variant, rows, cols) {
  */
 export function findMatches(grid, clues, state, pattern) {
   if (pattern.match === 'loop') return findLoopMatches(grid, clues, state);
-  if (pattern.match === 'vertex') return findVertexMatches(grid, state);
+  if (pattern.match === 'vertex') return findVertexMatches(grid, state, 'all');
+  if (pattern.match === 'vertex-two' || pattern.match === 'vertex-pair' || pattern.match === 'vertex-dead') {
+    return findVertexMatches(grid, state, pattern.match.slice('vertex-'.length));
+  }
   if (pattern.match === 'bridge') return findBridgeMatches(grid, state);
   if (pattern.match === 'clue-full' || pattern.match === 'clue-rest') {
     return findClueMatches(grid, clues, state, pattern.match === 'clue-full');
@@ -257,10 +260,12 @@ function matchesHere(grid, clues, state, variant, dr, dc) {
 
 /**
  * 「交点に集まる線は 0 本か 2 本」を盤面全体に当てはめる。
+ * mode は 'all'（全部）か、'two'（線 2 本 → 残り ×）・'pair'（線の端 → 残る 1 本は線）・
+ * 'dead'（線が無くて残り 1 本 → ×）のどれか 1 つ。
  * 型の照合では拾えない向き（一直線に並ぶ 2 本、盤の角や縁の点）も含めて、
  * ルールそのものを適用する。
  */
-function findVertexMatches(grid, state) {
+function findVertexMatches(grid, state, mode) {
   const fills = [];
   let conflicts = 0;
   let places = 0;
@@ -277,11 +282,13 @@ function findVertexMatches(grid, state) {
     if (lines === 1 && unknown.length === 0) { conflicts++; continue; }
     if (unknown.length === 0) continue;
 
+    // mode で 3 つのうち 1 つだけに絞れる（'all' なら全部）
     let value = UNKNOWN;
-    if (lines === 2) value = CROSS;                       // 分かれ道は作れない
-    else if (lines === 1 && unknown.length === 1) value = LINE;  // 行き止まりにできない
-    else if (lines === 0 && unknown.length === 1) value = CROSS; // 1 本だけ出る形にできない
-    if (value === UNKNOWN) continue;
+    let kind = '';
+    if (lines === 2) { value = CROSS; kind = 'two'; }                              // 分かれ道は作れない
+    else if (lines === 1 && unknown.length === 1) { value = LINE; kind = 'pair'; }  // 行き止まりにできない
+    else if (lines === 0 && unknown.length === 1) { value = CROSS; kind = 'dead'; } // 1 本だけ出る形にできない
+    if (value === UNKNOWN || (mode !== 'all' && mode !== kind)) continue;
 
     places++;
     for (const e of unknown) fills.push({ edge: e, value });

@@ -139,8 +139,8 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
 });
 
 test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
-  const rules = PATTERNS.filter((p) => ['vertex', 'bridge', 'clue-full', 'clue-rest'].includes(p.match));
-  assert.equal(rules.length, 4, 'ルール適用型の定石が 4 つでない');
+  const rules = PATTERNS.filter((p) => p.match && p.match !== 'loop');
+  assert.equal(rules.length, 7, 'ルール適用型の定石が 7 つでない');
   let filled = 0;
 
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
@@ -224,6 +224,35 @@ test('数字の本数のルールは、どの数字・どの向きでも埋め�
     // 逆向きのルールは何もしない
     const other = rule === full ? rest : full;
     assert.equal(findMatches(grid, clues, state, other).fills.length, 0, `${label}: 逆のルールまで当てはまった`);
+  }
+});
+
+test('交点の定石は、直線でも曲がり角でも盤の縁でも埋める', () => {
+  const by = (match) => PATTERNS.find((p) => p.match === match);
+  const grid = getGrid(4, 4);
+  const clues = new Int8Array(16).fill(-1);
+  const cases = [
+    { label: '直線の横は ×', rule: 'vertex-two', marks: [['h', 2, 0, LINE], ['h', 2, 1, LINE]], want: [[grid.v(1, 1), CROSS], [grid.v(2, 1), CROSS]] },
+    { label: '曲がり角の外は ×', rule: 'vertex-two', marks: [['h', 2, 0, LINE], ['v', 1, 1, LINE]], want: [[grid.h(2, 1), CROSS], [grid.v(2, 1), CROSS]] },
+    { label: '線の端からまっすぐ進む', rule: 'vertex-pair', marks: [['h', 2, 0, LINE], ['v', 1, 1, CROSS], ['v', 2, 1, CROSS]], want: [[grid.h(2, 1), LINE]] },
+    { label: '縁の点は 2 方向が × なら残りも ×', rule: 'vertex-dead', marks: [['h', 0, 0, CROSS], ['h', 0, 1, CROSS]], want: [[grid.v(0, 1), CROSS]] },
+  ];
+  for (const { label, rule, marks, want } of cases) {
+    const state = new Int8Array(grid.edgeCount);
+    for (const [dir, r, c, v] of marks) state[dir === 'h' ? grid.h(r, c) : grid.v(r, c)] = v;
+    const { fills } = findMatches(grid, clues, state, by(rule));
+    for (const [edge, value] of want) {
+      const hit = fills.find((f) => f.edge === edge);
+      assert.ok(hit, `${label}: 埋めてくれない`);
+      assert.equal(hit.value, value, `${label}: 値が違う`);
+    }
+    // ほかの 2 つの交点ルールは、この形には当てはまらない
+    for (const other of ['vertex-two', 'vertex-pair', 'vertex-dead'].filter((m) => m !== rule)) {
+      assert.ok(
+        !findMatches(grid, clues, state, by(other)).fills.some((f) => want.some(([e]) => e === f.edge)),
+        `${label}: ${other} まで当てはまった`,
+      );
+    }
   }
 });
 
