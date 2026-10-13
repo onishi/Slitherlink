@@ -1055,3 +1055,59 @@ body.no-anim .app { transition: none !important; }
   .play-bar .modes { grid-column: 1 / -1; }
   .modes button { flex-direction: row; gap: 6px; font-size: .85rem; padding: 7px 4px; }
 }
+
+/* ---------- 写真から作問・問題リスト ---------- */
+.photo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.photo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: .84rem;
+  cursor: pointer;
+}
+.photo-btn:hover { background: var(--accent-soft); }
+.photo-btn .mi { font-size: 1.2rem; color: var(--accent); }
+
+.photo-card { max-width: 560px; }
+.photo-stage { margin: 8px 0 10px; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+#photo-canvas { display: block; width: 100%; height: auto; max-height: 56dvh; object-fit: contain; touch-action: none; }
+.photo-grid {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0;
+  max-width: min(100%, calc(var(--photo-cols, 10) * 34px));
+}
+.photo-cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font: 600 clamp(.6rem, 2.6vw, .95rem) ui-monospace, Menlo, monospace;
+  color: var(--ink);
+}
+.photo-cell.unsure { border: 1.5px dashed var(--line-hint); background: color-mix(in srgb, var(--line-hint) 10%, var(--surface)); }
+.photo-status { margin: 6px 0; font-size: .84rem; line-height: 1.6; color: var(--ink-soft); }
+.photo-status.ok { color: var(--accent); }
+.photo-status.warn { color: var(--danger); }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.photo-actions button { display: inline-flex; align-items: center; gap: 4px; font-size: .84rem; }
+.modal-card .photo-actions .primary { width: auto; margin-top: 0; flex: 1; justify-content: center; }
+.photo-actions .mi { font-size: 1.1rem; }
+
+.library { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 13em; overflow-y: auto; }
+.library li { display: flex; align-items: center; gap: 6px; }
+.library-label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: .84rem; }
+.library-label .mi { font-size: 1.05rem; color: var(--ink-faint); }
+.library-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.library-text b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.library-text small { color: var(--ink-faint); font-size: .74rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.library li > button.with-icon { font-size: .78rem; padding: 6px 10px; }
+.library li > .icon-btn { width: 30px; height: 30px; }
+.library-empty { font-size: .8rem; color: var(--ink-faint); }

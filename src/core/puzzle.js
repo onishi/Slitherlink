@@ -68,3 +68,26 @@ export function solutionFor(puzzle) {
   const proved = solveWithProofs(grid, puzzle.clues, { maxDepth: 1, solution: guess });
   return proved.solved ? proved.edges : null;
 }
+
+/**
+ * 持ち込まれた問題（写真から読み取ったものなど）を確かめる。
+ * - 'ok'           : 証明つきの手だけで最後まで解ける（＝答えが 1 つに決まる）
+ * - 'contradiction': 数字どうしが矛盾していて、答えが無い
+ * - 'stuck'        : 論理だけでは解き切れない（答えが複数あるか、当てずっぽうが要る）
+ * ok のときは、何段の背理法まで要るかで、むずかしさの目安も返す。
+ * @returns {{status:string, solution?:Int8Array, difficulty?:string, clueCount:number}}
+ */
+export function checkPuzzle(puzzle) {
+  const grid = getGrid(puzzle.rows, puzzle.cols);
+  let clueCount = 0;
+  for (const c of puzzle.clues) if (c >= 0) clueCount++;
+  let difficulty = null;
+  for (const [depth, label] of [[0, 'easy'], [1, 'normal'], [2, 'hard']]) {
+    const res = solveLogical(grid, puzzle.clues, { maxDepth: depth });
+    if (res.status === 'contradiction') return { status: 'contradiction', clueCount };
+    if (res.status === 'solved') { difficulty = label; break; }
+  }
+  const solution = solutionFor(puzzle);
+  if (!solution) return { status: 'stuck', clueCount };
+  return { status: 'ok', solution, difficulty: difficulty ?? 'hard', clueCount };
+}

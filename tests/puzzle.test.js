@@ -35,3 +35,18 @@ test('コードから正解を復元できる', () => {
   assert.ok(restored);
   assert.deepEqual([...restored], [...p.solution]);
 });
+
+test('持ち込まれた問題を確かめる：解ける・矛盾・解き切れない', async () => {
+  const { checkPuzzle } = await import('../src/core/puzzle.js');
+  const p = generatePuzzle({ rows: 6, cols: 6, difficulty: 'normal', seed: 31 });
+  const ok = checkPuzzle({ rows: 6, cols: 6, clues: p.clues });
+  assert.equal(ok.status, 'ok');
+  assert.deepEqual(Array.from(ok.solution), Array.from(p.solution));
+  assert.ok(['easy', 'normal', 'hard'].includes(ok.difficulty));
+  // 0 のとなりの 3 は、共有する辺を引けないので矛盾
+  const bad = checkPuzzle({ rows: 2, cols: 2, clues: Int8Array.from([0, 3, -1, -1]) });
+  assert.equal(bad.status, 'contradiction');
+  // 数字がひとつも無ければ答えが決まらない
+  const blank = checkPuzzle({ rows: 4, cols: 4, clues: new Int8Array(16).fill(-1) });
+  assert.equal(blank.status, 'stuck');
+});

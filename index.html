@@ -121,7 +121,18 @@
         </select>
       </label>
     </div>
+    <div class="photo-row">
+      <label class="photo-btn"><span class="mi" aria-hidden="true">photo_camera</span><span>カメラで撮る</span>
+        <input type="file" accept="image/*" capture="environment" id="photo-camera" hidden></label>
+      <label class="photo-btn"><span class="mi" aria-hidden="true">photo_library</span><span>写真から選ぶ</span>
+        <input type="file" accept="image/*" id="photo-pick" hidden></label>
+    </div>
+    <p class="hint-text">紙や画面に写った問題を読み取って、論理だけで解けるかを確かめてから遊べます。</p>
     <button type="button" class="primary wide" id="btn-new"><span class="mi" aria-hidden="true">add</span>この設定で新しい問題を作る</button>
+
+    <h3>問題リスト</h3>
+    <ul class="library" id="library-list"></ul>
+    <button type="button" class="menu-row" id="btn-save-current"><span class="mi" aria-hidden="true">bookmark_add</span>いまの問題をリストに入れる</button>
 
     <h3>入力と表示</h3>
     <div class="options">
@@ -170,6 +181,36 @@
     <p class="note">この中の問題はすべて、当てずっぽう無しで<b>論理だけで解ける</b>ことを確認してから出題しています。</p>
     <button type="button" class="rules-link" id="btn-rules-patterns">定石一覧を見る（よく出る形と、そこで決まること）→</button>
     <button type="button" class="primary" id="btn-close-rules">とじる</button>
+  </div>
+</div>
+
+<!-- 写真から作問：①盤の四隅を合わせる → ②読み取りを直して確かめる -->
+<div class="modal" id="photo-modal" hidden>
+  <div class="modal-card photo-card" role="dialog" aria-modal="true" aria-labelledby="photo-title">
+    <h2 id="photo-title">写真から問題を作る</h2>
+
+    <section id="photo-step-align">
+      <p class="hint-text">盤のいちばん外側の点に、4 つの丸を合わせてください。線は盤のマス目の見当です。</p>
+      <div class="photo-stage"><canvas id="photo-canvas"></canvas></div>
+      <div class="new-row">
+        <label class="field"><span>縦のマス数</span><input type="number" id="photo-rows" min="2" max="30" value="10"></label>
+        <label class="field"><span>横のマス数</span><input type="number" id="photo-cols" min="2" max="30" value="10"></label>
+      </div>
+      <button type="button" class="primary wide" id="photo-read"><span class="mi" aria-hidden="true">document_scanner</span>数字を読み取る</button>
+    </section>
+
+    <section id="photo-step-edit" hidden>
+      <p class="hint-text">マスを押すと 空白 → 0 → 1 → 2 → 3 と変わります。点線のマスは読み取りに自信がありません。</p>
+      <div class="photo-grid" id="photo-grid"></div>
+      <p class="photo-status" id="photo-status" role="status" aria-live="polite"></p>
+      <div class="photo-actions">
+        <button type="button" id="photo-back"><span class="mi" aria-hidden="true">arrow_back</span>合わせ直す</button>
+        <button type="button" id="photo-save" disabled><span class="mi" aria-hidden="true">bookmark_add</span>リストに入れる</button>
+        <button type="button" class="primary" id="photo-play" disabled><span class="mi" aria-hidden="true">play_arrow</span>遊ぶ</button>
+      </div>
+    </section>
+
+    <button type="button" class="close-btn" id="photo-close">とじる</button>
   </div>
 </div>
 
