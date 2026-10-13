@@ -362,8 +362,8 @@ function explainContradiction(grid, clues, proof) {
   const nested = proof.steps.some((s) => s.rule === 'case');
   const lines = proofLines(grid, clues, proof);
   const count = lines.filter((l) => l.level === 0 && l.kind !== 'assume' && l.kind !== 'clash').length;
-  // 手順は下に並べるので、要約は短く。手順を畳むほど長いときだけ矛盾の中身も書く
-  const why = lines.length > 8 ? `（${clashLine(grid, clues, proof.clash)}）` : '';
+  // 手順は畳んであるので、要約には何が起きて矛盾するかも書いておく
+  const why = `（${clashLine(grid, clues, proof.clash)}）`;
   const text = `ためしに${assumed}にすると、${count === 0 ? 'すぐ' : `${count} 手で`}矛盾します${why}。だから ${mark} です。`;
   return {
     title: nested ? '仮定を重ねると矛盾する' : '逆を試すと矛盾する',

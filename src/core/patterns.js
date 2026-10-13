@@ -20,6 +20,10 @@
  * 'loop' は「輪はひとつだけ」、'bridge' は「戻ってこられない辺は通れない」を
  * 盤面全体に適用する特別扱い（型ではなくルールそのものを当てはめる）。
  *
+ * combines は、ほかの定石を続けて使えば同じ結論になる「近道」の定石で、その組み合わせ。
+ * 一覧ではその旨を添え、テストでその組み合わせだけで本当に届くことを確かめる。
+ * 論理的に同じもの（ほかの定石 1 つの特別な場合）は載せない。
+ *
  * alt は、同じ定石の別の形（回転・反転では作れない向き）。照合ではどれかに合えば当てはまる。
  * 図は本体の形だけを描き、テストは expandForms で全部の形を確かめる。
  *
@@ -47,37 +51,14 @@ export const CATEGORIES = [
 const DEFINITIONS = [
   // ---------------- まず覚える ----------------
   {
-    id: 'vertex-rule',
-    category: 'basic', level: 1, match: 'vertex',
-    title: '交点に集まる線は 0 本か 2 本',
-    rows: 2, cols: 2, anchor: 'none',
-    clues: [],
-    given: [['h', 1, 0, 'line'], ['v', 0, 1, 'cross'], ['v', 1, 1, 'cross']],
-    conclude: [['h', 1, 1, 'line']],
-    why: '輪は枝分かれも交差も行き止まりもしません。だから交点に集まる線は 0 本か 2 本だけ。2 本そろったら残りは ×、線の端で行き先が 1 つしかなければそこは線、線が無くて残り 1 本になったらそこも × です。この定石は盤面じゅうの交点にこれをまとめて当てはめます（下の 3 つでは拾えない、まっすぐ進む形や盤の角・縁の点も含みます）。',
-  },
-  {
-    id: 'zero',
-    category: 'basic', level: 1,
-    title: '0 のまわりは全部 ×',
-    rows: 3, cols: 3, anchor: 'interior',
-    clues: [[1, 1, 0]],
-    given: [],
-    conclude: [
-      ['h', 1, 1, 'cross'], ['h', 2, 1, 'cross'],
-      ['v', 1, 1, 'cross'], ['v', 1, 2, 'cross'],
-    ],
-    why: '0 は「まわりの 4 辺に 1 本も線が通らない」という意味です。迷う余地がないので、盤面を開いたら真っ先に × で埋めてしまいましょう。',
-  },
-  {
     id: 'clue-full',
     category: 'basic', level: 1, match: 'clue-full',
-    title: '数字の本数がそろったら、残りは ×',
+    title: '数字の本数がそろったら、残りは ×（0 なら全部 ×）',
     rows: 3, cols: 3, anchor: 'none',
     clues: [[1, 1, 2]],
     given: [['h', 1, 1, 'line'], ['v', 1, 2, 'line']],
     conclude: [['h', 2, 1, 'cross'], ['v', 1, 1, 'cross']],
-    why: '数字はそのマスの線の本数をぴったり表します。2 に線が 2 本引けたら、残りの辺にはもう線を引けません。1 に 1 本、3 に 3 本でも同じです。この定石は盤面じゅうの数字にまとめて当てはめます。× を書き込んでおくと次の手がぐっと見えやすくなります。',
+    why: '数字はそのマスの線の本数をぴったり表します。2 に線が 2 本引けたら、残りの辺にはもう線を引けません。1 に 1 本、3 に 3 本でも同じです。0 は最初からそろっているので、盤面を開いたら真っ先にまわりの 4 辺を × にできます。この定石は盤面じゅうの数字にまとめて当てはめます。× を書き込んでおくと次の手がぐっと見えやすくなります。',
   },
   {
     id: 'clue-rest',
@@ -121,6 +102,7 @@ const DEFINITIONS = [
   },
   {
     id: 'three-one-cross',
+    combines: ['vertex-two', 'clue-rest'],
     category: 'basic', level: 2,
     title: '3 の 1 辺が × と分かったら',
     rows: 3, cols: 3, anchor: 'interior',
@@ -135,27 +117,8 @@ const DEFINITIONS = [
 
   // ---------------- 盤の角と縁 ----------------
   {
-    id: 'corner-one',
-    category: 'corner', level: 1,
-    title: '角の 1',
-    rows: 2, cols: 2, anchor: 'corner',
-    clues: [[0, 0, 1]],
-    given: [],
-    conclude: [['h', 0, 0, 'cross'], ['v', 0, 0, 'cross']],
-    why: '外側の 2 辺のどちらかが線だと、角の点から線が 1 本だけ出て行き止まりになります。2 本とも線にすると今度は数字の 1 を超えてしまいます。よって外側は両方 × です。',
-  },
-  {
-    id: 'corner-three',
-    category: 'corner', level: 1,
-    title: '角の 3',
-    rows: 2, cols: 2, anchor: 'corner',
-    clues: [[0, 0, 3]],
-    given: [],
-    conclude: [['h', 0, 0, 'line'], ['v', 0, 0, 'line']],
-    why: '外側の 2 辺のどちらかを × にすると、角の点に線が 1 本だけ入る形になり、行き止まりができてしまいます。だから外側の 2 辺は両方とも線です。',
-  },
-  {
     id: 'border-zero',
+    combines: ['clue-full', 'vertex-three-crosses'],
     category: 'corner', level: 2,
     title: '縁の 0',
     rows: 2, cols: 3, anchor: 'border',
@@ -166,16 +129,6 @@ const DEFINITIONS = [
       ['h', 0, 0, 'cross'], ['h', 0, 2, 'cross'],
     ],
     why: '外周にある 0 は、自分の 4 辺だけでなく、盤の縁にそって左右に伸びる辺も × にします。縁の点には内側へ向かう道が 1 本しかないので、そこが × なら縁沿いの線も行き止まりになってしまうからです。',
-  },
-  {
-    id: 'border-vertex-crosses',
-    category: 'corner', level: 2,
-    title: '縁の交点は、2 方向が × なら残りも ×',
-    rows: 2, cols: 4, anchor: 'border',
-    clues: [],
-    given: [['h', 0, 1, 'cross'], ['v', 0, 2, 'cross']],
-    conclude: [['h', 0, 2, 'cross']],
-    why: '外周の点から出られる方向は 3 つしかありません。そのうち 2 つが × なら、残る 1 つに線を引くと行き止まりになるので、そこも × です。盤の縁では 1 つ少ない数で決まるのがポイントです。',
   },
   {
     id: 'border-one-one',
@@ -210,6 +163,7 @@ const DEFINITIONS = [
 
   {
     id: 'corner-one-one',
+    combines: ['dead-end', 'clue-rest', 'corner-crosses-one'],
     category: 'corner', level: 3,
     title: '角の 1 のとなりに 1',
     rows: 2, cols: 2, anchor: 'corner',
@@ -219,10 +173,11 @@ const DEFINITIONS = [
       ['h', 0, 0, 'cross'], ['h', 0, 1, 'cross'], ['h', 1, 0, 'line'],
       ['v', 0, 0, 'cross'], ['v', 0, 1, 'cross'], ['v', 1, 0, 'line'],
     ],
-    why: '角の 1 で外側 2 辺が × になり、そこから縁の考え方が連鎖します。結果として 2 つの 1 は内側でそれぞれ 1 本ずつを使い、角のマスの内側 2 辺が線で確定します。',
+    why: '盤の角の 1 は外側 2 辺が × です（1 の角の外側がふさがれている）。そこから縁の考え方が連鎖します。結果として 2 つの 1 は内側でそれぞれ 1 本ずつを使い、角のマスの内側 2 辺が線で確定します。',
   },
   {
     id: 'corner-one-three',
+    combines: ['clue-full', 'vertex-three-crosses', 'corner-crosses-one', 'corner-crosses-three'],
     category: 'corner', level: 3,
     title: '角の 1 のとなりに 3',
     rows: 2, cols: 2, anchor: 'corner',
@@ -232,10 +187,11 @@ const DEFINITIONS = [
       ['h', 0, 0, 'cross'], ['h', 1, 0, 'cross'], ['v', 0, 0, 'cross'],
       ['h', 0, 1, 'line'], ['v', 0, 1, 'line'], ['v', 1, 0, 'cross'],
     ],
-    why: '角の 1 は外側 2 辺が × です。すると角のマスにはもう線を引ける場所がほとんど残らず、1 本ぶんは 3 との境目で使われます。3 の側は外周にそった辺が線になります。',
+    why: '盤の角の 1 は外側 2 辺が × です（1 の角の外側がふさがれている）。すると角のマスにはもう線を引ける場所がほとんど残らず、1 本ぶんは 3 との境目で使われます。3 の側は外周にそった辺が線になります。',
   },
   {
     id: 'corner-two-one',
+    combines: ['clue-full', 'dead-end', 'vertex-three-crosses', 'corner-two'],
     category: 'corner', level: 4,
     title: '角の 2 のとなりに 1',
     rows: 2, cols: 3, anchor: 'corner',
@@ -266,6 +222,7 @@ const DEFINITIONS = [
   // ---------------- 数字どうしの関係 ----------------
   {
     id: 'zero-three',
+    combines: ['clue-full', 'dead-end', 'vertex-two', 'clue-rest'],
     category: 'numbers', level: 2,
     title: '0 のとなりの 3',
     rows: 3, cols: 4, anchor: 'interior',
@@ -281,6 +238,7 @@ const DEFINITIONS = [
   },
   {
     id: 'zero-one-diagonal',
+    combines: ['clue-full', 'corner-crosses-one'],
     category: 'numbers', level: 2,
     title: '0 の斜めの 1',
     rows: 4, cols: 4, anchor: 'interior',
@@ -294,6 +252,7 @@ const DEFINITIONS = [
   },
   {
     id: 'zero-three-diagonal',
+    combines: ['clue-full', 'corner-crosses-three'],
     category: 'numbers', level: 2,
     title: '0 と 3 が斜めに並ぶ',
     rows: 4, cols: 4, anchor: 'interior',
@@ -339,39 +298,10 @@ const DEFINITIONS = [
     ],
     why: '2 つの 3 が接する角から見て、それぞれ「外側」にあたる 2 辺が線になります。内側を削ると必ずどちらかの 3 が足りなくなるためです。その角はもう 2 本使っているので、さらに外へ伸びる辺は × になります。3 が斜めに続くときは、同じ形がそのまま連鎖します。',
   },
-  {
-    id: 'three-three-three',
-    category: 'numbers', level: 4,
-    title: '3 が 3 つ並ぶ',
-    rows: 3, cols: 5, anchor: 'interior',
-    clues: [[1, 1, 3], [1, 2, 3], [1, 3, 3]],
-    given: [],
-    conclude: [
-      ['v', 1, 1, 'line'], ['v', 1, 2, 'line'], ['v', 1, 3, 'line'], ['v', 1, 4, 'line'],
-      ['v', 0, 2, 'cross'], ['v', 0, 3, 'cross'], ['v', 2, 2, 'cross'], ['v', 2, 3, 'cross'],
-    ],
-    why: '3 がまっすぐ 3 つ並ぶと、縦の 4 辺がすべて線になります。となり合う 3 と 3 の形が重なった結果で、まん中 2 本は「どちらの 3 から見ても外側」になるため確定します。境目から上下へ伸びる辺はすべて × です。',
-  },
-  {
-    id: 'three-zero-three',
-    category: 'numbers', level: 4,
-    title: '3 と 3 のあいだに 0',
-    rows: 3, cols: 5, anchor: 'interior',
-    clues: [[1, 1, 3], [1, 2, 0], [1, 3, 3]],
-    given: [],
-    conclude: [
-      ['h', 1, 1, 'line'], ['h', 2, 1, 'line'], ['v', 1, 1, 'line'],
-      ['h', 1, 3, 'line'], ['h', 2, 3, 'line'], ['v', 1, 4, 'line'],
-      ['v', 0, 2, 'line'], ['v', 2, 2, 'line'], ['v', 0, 3, 'line'], ['v', 2, 3, 'line'],
-      ['h', 1, 2, 'cross'], ['h', 2, 2, 'cross'], ['v', 1, 2, 'cross'], ['v', 1, 3, 'cross'],
-      ['h', 1, 0, 'cross'], ['h', 2, 0, 'cross'], ['v', 0, 1, 'cross'], ['v', 2, 1, 'cross'],
-      ['h', 1, 4, 'cross'], ['h', 2, 4, 'cross'], ['v', 0, 4, 'cross'], ['v', 2, 4, 'cross'],
-    ],
-    why: '0 のまわりが全部 × になるので、両側の 3 はそれぞれ残り 3 辺をすべて使います。するとコの字が向かい合う形になり、その先の交点も次々に埋まって、一度に 22 本が決まります。見つけたら最優先で処理したい形です。',
-  },
 
   {
     id: 'knight-zero-two-zero',
+    combines: ['clue-full', 'dead-end', 'vertex-three-crosses', 'blocked-corner-crossed-two'],
     category: 'numbers', level: 4,
     title: '2 をはさんで 0 が桂馬の位置に 2 つ',
     rows: 5, cols: 5, anchor: 'interior',
@@ -388,6 +318,7 @@ const DEFINITIONS = [
   },
   {
     id: 'three-three-two',
+    combines: ['line-into-crossed-two', 'three-three'],
     category: 'numbers', level: 5,
     title: 'となり合う 3 と 3 の下に 2',
     rows: 3, cols: 3, anchor: 'interior',
@@ -459,26 +390,27 @@ const DEFINITIONS = [
   // ---------------- 線や × が来たとき ----------------
   {
     id: 'corner-crosses-three',
-    category: 'incoming', level: 3,
-    title: '3 の角の外側が × 2 つ',
-    rows: 3, cols: 3, anchor: 'interior',
+    category: 'incoming', level: 3, match: 'corner-blocked-3',
+    title: '3 の角の外側がふさがれたら、その角の 2 辺は線',
+    rows: 3, cols: 3, anchor: 'none',
     clues: [[1, 1, 3]],
     given: [['h', 1, 0, 'cross'], ['v', 0, 1, 'cross']],
     conclude: [['h', 1, 1, 'line'], ['v', 1, 1, 'line']],
-    why: 'その角に外から線が来られないので、角に集まる線はマス側の 2 辺だけ。交点の線は 0 本か 2 本なので、この 2 辺は「両方とも線」か「両方とも ×」です。両方 × にすると 3 が足りなくなるため、両方とも線で確定します。',
+    why: 'その角に外から線が来られないので、角に集まる線はマス側の 2 辺だけ。交点の線は 0 本か 2 本なので、この 2 辺は「両方とも線」か「両方とも ×」です。両方 × にすると 3 が足りなくなるため、両方とも線で確定します。盤の縁の点（外側の辺が 1 本）や角の点（外側の辺が無い）でも同じです。この定石は盤面じゅうの 3 の角に当てはめます。',
   },
   {
     id: 'corner-crosses-one',
-    category: 'incoming', level: 3,
-    title: '1 の角の外側が × 2 つ',
-    rows: 3, cols: 3, anchor: 'interior',
+    category: 'incoming', level: 3, match: 'corner-blocked-1',
+    title: '1 の角の外側がふさがれたら、その角の 2 辺は ×',
+    rows: 3, cols: 3, anchor: 'none',
     clues: [[1, 1, 1]],
     given: [['h', 1, 0, 'cross'], ['v', 0, 1, 'cross']],
     conclude: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross']],
-    why: '3 のときと同じ理由で、この 2 辺は「両方とも線」か「両方とも ×」です。両方を線にすると 1 本しか引けない 1 を超えてしまうので、両方とも × で確定します。',
+    why: 'その角に外から線が来られないので、角に集まる線はマス側の 2 辺だけ。交点の線は 0 本か 2 本なので、この 2 辺は「両方とも線」か「両方とも ×」です。両方を線にすると 1 本しか引けない 1 を超えてしまうので、両方とも × で確定します。盤の縁の点（外側の辺が 1 本）や角の点（外側の辺が無い）でも同じです。この定石は盤面じゅうの 1 の角に当てはめます。',
   },
   {
     id: 'two-corner-crosses',
+    combines: ['vertex-two', 'clue-rest'],
     category: 'incoming', level: 3,
     title: '2 の角が × 2 つでふさがれた',
     rows: 3, cols: 3, anchor: 'interior',
@@ -515,6 +447,7 @@ const DEFINITIONS = [
   },
   {
     id: 'lines-into-two',
+    combines: ['vertex-two', 'clue-rest'],
     category: 'incoming', level: 4,
     title: '2 の角へ 2 方向から線が来た',
     rows: 3, cols: 3, anchor: 'interior',
@@ -591,7 +524,18 @@ const DEFINITIONS = [
       ['h', 2, 0, 'cross'], ['v', 2, 1, 'cross'], ['v', 2, 2, 'cross'], ['v', 1, 2, 'cross'],
     ],
     conclude: [['v', 1, 1, 'cross']],
-    why: '線の端どうしが近いと、片方の端から伸ばした線が、ほかに行き場のないまま数手でもう片方の端につながり、輪が閉じてしまうことがあります。図では左の端を下へ伸ばすと、× に挟まれて右へ進むしかなく、そのまま右の端に届いて輪が閉じます。ところが左下の 2 にはまだ線が 1 本もありません。輪はひとつだけなので、閉じた輪が答えのはずなのに 2 が満たされず、矛盾します。だからその近道へ向かう辺は ×。この定石は、線の端から伸ばすと 6 手以内に輪が閉じてしまう辺を盤面じゅうで探します。',
+    why: '線の端どうしが近いと、片方の端から伸ばした線が、ほかに行き場のないまま数手でもう片方の端につながり、輪が閉じてしまうことがあります。図では左の端を下へ伸ばすと、× に挟まれて右へ進むしかなく、そのまま右の端に届いて輪が閉じます。ところが左下の 2 にはまだ線が 1 本もありません。輪はひとつだけなので、閉じた輪が答えのはずなのに 2 が満たされず、矛盾します。だからその近道へ向かう辺は ×。逆に、× にすると数手で輪が閉じてしまう辺は線です。この定石は、線か × を置いてみると 12 手以内に輪が閉じてしまう辺を盤面じゅうで探します（1 マスのまわりを回るしかない袋小路などもこれで見つかります）。',
+  },
+  {
+    id: 'one-one-cross-end',
+    origin: 'hint',
+    category: 'numbers', level: 3,
+    title: 'となり合う 1 と 1 は、境目の先が × なら境目も ×',
+    rows: 4, cols: 4, anchor: 'interior',
+    clues: [[1, 1, 1], [1, 2, 1]],
+    given: [['v', 2, 2, 'cross']],
+    conclude: [['v', 1, 2, 'cross']],
+    why: '境目を線にすると、2 つの 1 はどちらもその 1 本で使い切ります。ところが境目の下の端の点では、まっすぐ先が × なので、線は左か右の 1 の下の辺へ曲がるしかありません。どちらの 1 にも 2 本目は引けないので、境目は ×。盤の縁で境目の先が無いときは「縁に 1 が 2 つ並ぶ」と同じです。',
   },
   {
     id: 'no-small-loop',
@@ -616,6 +560,19 @@ export const PATTERNS = DEFINITIONS
   .map((pattern, index) => ({ ...pattern, usage: PATTERN_USAGE[pattern.id] ?? 0, index }))
   .sort((a, b) => b.usage - a.usage || a.level - b.level || a.index - b.index)
   .map(({ index, ...pattern }) => pattern);
+
+/**
+ * 近道の定石なら「「A」・「B」を組み合わせれば、同じ結論にたどり着けます。」の一文を返す（そうでなければ null）。
+ * 一覧とカードの説明に添える。
+ */
+export function combinesText(pattern) {
+  if (!pattern.combines) return null;
+  const titles = pattern.combines.map((id) => {
+    const part = DEFINITIONS.find((p) => p.id === id);
+    return `「${part ? part.title.replace(/（.*?）$/, '') : id}」`;
+  });
+  return `近道: ${titles.join('・')}を組み合わせれば、同じ結論にたどり着けます。`;
+}
 
 /** 本体の形と alt の形を、それぞれ 1 つの形だけを持つ定石として並べる。 */
 export function expandForms(pattern) {

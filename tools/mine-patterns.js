@@ -18,7 +18,7 @@ import { applyAllPatterns, orientationsOf } from '../src/core/pattern-match.js';
 
 const reps = Number(process.argv[2] || 6);
 const top = Number(process.argv[3] || 15);
-const SETS = [[7, 7, 'normal'], [10, 10, 'normal'], [7, 7, 'hard'], [10, 10, 'hard']];
+const SETS = (process.env.SETS ? JSON.parse(process.env.SETS) : [[7, 7, 'normal'], [10, 10, 'normal'], [7, 7, 'hard'], [10, 10, 'hard']]);
 
 /** 定石を当てはめられるだけ当てはめた盤面。 */
 export function closure(grid, clues, state, patterns = PATTERNS) {

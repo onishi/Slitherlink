@@ -3,7 +3,7 @@
  * ゲーム画面のサイドバーからも、単独ページからも、同じものを使う。
  */
 
-import { PATTERNS, CATEGORIES } from '../core/patterns.js';
+import { PATTERNS, CATEGORIES, combinesText } from '../core/patterns.js';
 import { renderPattern, renderSwatch } from './pattern-render.js';
 
 const LEGEND = [
@@ -170,6 +170,8 @@ function card(pattern, options, actions) {
   const figure = el('div', 'pat-figure');
   figure.appendChild(renderPattern(pattern));
   article.append(figure, el('p', 'pat-why', pattern.why));
+  const shortcut = combinesText(pattern);
+  if (shortcut) article.appendChild(el('p', 'pat-combines', shortcut));
 
   if (pattern.caution) article.appendChild(el('p', 'pat-caution', pattern.caution));
   return article;

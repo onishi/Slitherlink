@@ -7,6 +7,7 @@ import { getGrid, UNKNOWN, LINE, CROSS } from '../core/grid.js';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const PAD = 0.62;          // 盤面まわりの余白 (マス単位)
 const PICK_RADIUS = 0.46;  // これより遠いクリックは無視する
+const TAP_SLOP = 8;        // これ以上（px）指が動いたら、タップではなく移動とみなす
 
 export class Board {
   /**
@@ -38,7 +39,9 @@ export class Board {
     this.fadeDone = true;
     this.inputMode = 'line'; // 'line' か 'cross'。タップで最初に付く印が変わる
     this.cursor = -1;
-    this._stroke = null;
+    this._pointers = new Map(); // 盤面に触れている指（pointerId → 位置）
+    this._gesture = null;       // いまの操作：tap / pan / slide / pinch
+    this.zoom = { scale: 1, cx: 0, cy: 0 };
     this._bindInput();
   }
 
@@ -56,6 +59,7 @@ export class Board {
     this.cursor = -1;
     this.showCursor = false;
     this._build();
+    this.resetZoom();
     this.refresh();
   }
 
@@ -255,45 +259,186 @@ export class Board {
     const svg = this.svg;
     svg.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
+    // 指 1 本で触って、ほとんど動かさずに離したら「タップ」として印を付ける。
+    // 動かしたら（拡大中なら）盤面を動かす。指 2 本ならピンチで拡大・縮小する。
+    // 印は指を離したときに付けるので、ピンチや移動のつもりが印になってしまうことはない。
     svg.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0 && ev.button !== 2) return;
-      const e = this._pick(ev);
-      if (e < 0) return;
       ev.preventDefault();
       // preventDefault でフォーカスが移らないので明示的に当てる。
       // 盤面をクリックしたあと、そのまま矢印キーで操作できるようにするため。
       svg.focus({ preventScroll: true });
       svg.setPointerCapture(ev.pointerId);
-      const current = this.state[e];
-      // 右クリック (Ctrl+クリック) は、いまのモードで主役でない方の印を付け外しする
-      const secondary = this.inputMode === 'cross' ? LINE : CROSS;
-      const value = (ev.button === 2 || ev.ctrlKey)
-        ? (current === secondary ? UNKNOWN : secondary)
-        : nextValue(current, this.inputMode);
-      // なぞっても広い範囲に続けて引くことはないので、反応するのは最初に触れた 1 辺だけ。
-      // 指がずれて隣の辺まで変わってしまう誤操作も防げる。
-      this._stroke = { pointerId: ev.pointerId };
-      // 指やマウスで触ったときは点線を出さない（キーボード再開位置だけ覚える）
-      this.cursor = e;
-      this.showCursor = false;
-      this._drawCursor();
-      this.handlers.onPaint(e, value);
+      this._pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (this._pointers.size === 2) {
+        const [p, q] = [...this._pointers.values()];
+        this._gesture = {
+          type: 'pinch',
+          dist: Math.hypot(p.x - q.x, p.y - q.y) || 1,
+          scale: this.zoom.scale,
+          anchor: this._toBoard((p.x + q.x) / 2, (p.y + q.y) / 2),
+        };
+        return;
+      }
+      if (this._pointers.size > 2) return;
+      this._gesture = {
+        type: 'tap',
+        id: ev.pointerId,
+        x: ev.clientX,
+        y: ev.clientY,
+        secondary: ev.button === 2 || ev.ctrlKey,
+        center: { x: this.zoom.cx, y: this.zoom.cy },
+      };
+    });
+
+    svg.addEventListener('pointermove', (ev) => {
+      if (!this._pointers.has(ev.pointerId)) return;
+      this._pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      const g = this._gesture;
+      if (!g) return;
+      if (g.type === 'pinch' && this._pointers.size >= 2) {
+        const [p, q] = [...this._pointers.values()];
+        const scale = g.scale * (Math.hypot(p.x - q.x, p.y - q.y) / g.dist);
+        // ピンチを始めた点が、指のまん中にとどまるように拡大する
+        this._zoomAround(scale, g.anchor, (p.x + q.x) / 2, (p.y + q.y) / 2);
+        return;
+      }
+      if (g.id !== ev.pointerId) return;
+      const dx = ev.clientX - g.x;
+      const dy = ev.clientY - g.y;
+      if (g.type === 'tap' && Math.hypot(dx, dy) > TAP_SLOP) g.type = this.zoom.scale > 1 ? 'pan' : 'slide';
+      if (g.type === 'pan') {
+        const rect = svg.getBoundingClientRect();
+        const unit = svg.viewBox.baseVal.width / (rect.width || 1);
+        this.setZoom(this.zoom.scale, g.center.x - dx * unit, g.center.y - dy * unit);
+      }
     });
 
     const end = (ev) => {
-      if (!this._stroke || ev.pointerId !== this._stroke.pointerId) return;
-      this._stroke = null;
+      if (!this._pointers.has(ev.pointerId)) return;
+      const g = this._gesture;
+      this._pointers.delete(ev.pointerId);
       if (svg.hasPointerCapture?.(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
-      this.handlers.onStrokeEnd();
+      // 拡大していないときになぞった場合は、最初に触れた 1 辺だけに印を付ける（これまでどおり）
+      const tapLike = g && (g.type === 'tap' || g.type === 'slide');
+      if (tapLike && g.id === ev.pointerId && ev.type === 'pointerup') this._tap(g);
+      // ピンチのあとに残った指を離しても、タップにはしない
+      this._gesture = this._pointers.size === 0 ? null : { type: 'done' };
     };
     svg.addEventListener('pointerup', end);
     svg.addEventListener('pointercancel', end);
+
+    // PC: Ctrl + ホイール（トラックパッドのピンチ）で拡大・縮小、拡大中はホイールで移動
+    svg.addEventListener('wheel', (ev) => {
+      if (ev.ctrlKey) {
+        ev.preventDefault();
+        const anchor = this._toBoard(ev.clientX, ev.clientY);
+        this._zoomAround(this.zoom.scale * Math.exp(-ev.deltaY * 0.01), anchor, ev.clientX, ev.clientY);
+      } else if (this.zoom.scale > 1) {
+        ev.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        const unit = svg.viewBox.baseVal.width / (rect.width || 1);
+        this.setZoom(this.zoom.scale, this.zoom.cx + ev.deltaX * unit, this.zoom.cy + ev.deltaY * unit);
+      }
+    }, { passive: false });
 
     svg.addEventListener('keydown', (ev) => this._onKey(ev));
     svg.addEventListener('blur', () => {
       this.showCursor = false;
       this._drawCursor();
     });
+  }
+
+  /** タップした場所の辺に印を付ける（右クリック・Ctrl+クリックは主役でない方の印）。 */
+  _tap(g) {
+    const e = this._pickAt(g.x, g.y);
+    if (e < 0) return;
+    const current = this.state[e];
+    // 右クリック (Ctrl+クリック) は、いまのモードで主役でない方の印を付け外しする
+    const secondary = this.inputMode === 'cross' ? LINE : CROSS;
+    const value = g.secondary
+      ? (current === secondary ? UNKNOWN : secondary)
+      : nextValue(current, this.inputMode);
+    // 指やマウスで触ったときは点線を出さない（キーボード再開位置だけ覚える）
+    this.cursor = e;
+    this.showCursor = false;
+    this._drawCursor();
+    this.handlers.onPaint(e, value);
+    this.handlers.onStrokeEnd();
+  }
+
+  /* ---------------- 拡大・縮小 ---------------- */
+
+  /** 盤面全体が見えるときの範囲（盤面の座標）。 */
+  _baseBox() {
+    const { rows, cols } = this.puzzle;
+    return { x: -PAD, y: -PAD, w: cols + PAD * 2, h: rows + PAD * 2 };
+  }
+
+  /** どこまで拡大できるか。小さな盤は拡大しない（5 マスぶんが画面いっぱいになるまで）。 */
+  maxScale() {
+    if (!this.puzzle) return 1;
+    return Math.max(1, Math.min(4, Math.max(this.puzzle.rows, this.puzzle.cols) / 5));
+  }
+
+  /** 倍率と、画面のまん中に来る点（盤面の座標）を決める。はみ出さないよう寄せる。 */
+  setZoom(scale, cx, cy) {
+    if (!this.puzzle) return;
+    const b = this._baseBox();
+    const s = Math.max(1, Math.min(this.maxScale(), scale));
+    const w = b.w / s;
+    const h = b.h / s;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const x = clamp(cx, b.x + w / 2, b.x + b.w - w / 2);
+    const y = clamp(cy, b.y + h / 2, b.y + b.h - h / 2);
+    const changed = s !== this.zoom.scale;
+    this.zoom = { scale: s, cx: x, cy: y };
+    this.svg.setAttribute('viewBox', `${x - w / 2} ${y - h / 2} ${w} ${h}`);
+    this.svg.classList.toggle('zoomed', s > 1);
+    if (changed) this.handlers.onZoomChange?.(s, this.maxScale());
+  }
+
+  /** 盤面の点 anchor が、画面の (sx, sy) に来るように倍率を変える。 */
+  _zoomAround(scale, anchor, sx, sy) {
+    const rect = this.svg.getBoundingClientRect();
+    const b = this._baseBox();
+    const s = Math.max(1, Math.min(this.maxScale(), scale));
+    const w = b.w / s;
+    const h = b.h / s;
+    const fx = (sx - rect.left) / (rect.width || 1);
+    const fy = (sy - rect.top) / (rect.height || 1);
+    this.setZoom(s, anchor.x - fx * w + w / 2, anchor.y - fy * h + h / 2);
+  }
+
+  /** ボタンから：いまの画面のまん中を中心に、factor 倍する。 */
+  zoomBy(factor) {
+    this.setZoom(this.zoom.scale * factor, this.zoom.cx, this.zoom.cy);
+  }
+
+  resetZoom() {
+    const b = this._baseBox();
+    this.setZoom(1, b.x + b.w / 2, b.y + b.h / 2);
+  }
+
+  /** 拡大中に辺が画面の外にあれば、その辺が見える位置まで動かす。 */
+  ensureVisible(edge) {
+    if (!this.grid || this.zoom.scale <= 1 || edge < 0) return;
+    const p = centerOf(this.grid.edgeInfo[edge]);
+    const vb = this.svg.viewBox.baseVal;
+    const m = 0.7;
+    if (p.x < vb.x + m || p.x > vb.x + vb.width - m || p.y < vb.y + m || p.y > vb.y + vb.height - m) {
+      this.setZoom(this.zoom.scale, p.x, p.y);
+    }
+  }
+
+  /** 画面の座標を盤面の座標にする。 */
+  _toBoard(clientX, clientY) {
+    const rect = this.svg.getBoundingClientRect();
+    const vb = this.svg.viewBox.baseVal;
+    return {
+      x: vb.x + ((clientX - rect.left) / (rect.width || 1)) * vb.width,
+      y: vb.y + ((clientY - rect.top) / (rect.height || 1)) * vb.height,
+    };
   }
 
   _onKey(ev) {
@@ -303,6 +448,7 @@ export class Board {
       ev.preventDefault();
       this.cursor = this._moveCursor(dirs[ev.key]);
       this.showCursor = true;
+      this.ensureVisible(this.cursor);
       this._drawCursor();
       return;
     }
@@ -358,14 +504,12 @@ export class Board {
   }
 
   /** 画面座標から最も近い辺を求める。遠すぎるときは -1。 */
-  _pick(ev) {
+  _pickAt(clientX, clientY) {
     const g = this.grid;
     if (!g) return -1;
     const rect = this.svg.getBoundingClientRect();
     if (!rect.width || !rect.height) return -1;
-    const vb = this.svg.viewBox.baseVal;
-    const bx = vb.x + ((ev.clientX - rect.left) / rect.width) * vb.width;
-    const by = vb.y + ((ev.clientY - rect.top) / rect.height) * vb.height;
+    const { x: bx, y: by } = this._toBoard(clientX, clientY);
 
     let best = -1;
     let bestDist = PICK_RADIUS * PICK_RADIUS;

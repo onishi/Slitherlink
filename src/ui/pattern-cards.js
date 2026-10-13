@@ -4,6 +4,7 @@
  */
 
 import { renderPattern } from './pattern-render.js';
+import { combinesText } from '../core/patterns.js';
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -111,7 +112,8 @@ export class PatternCards {
     const body = el('div', 'pc-body');
     const figure = el('div', 'pc-figure');
     figure.appendChild(renderPattern(pattern));
-    const why = el('p', 'pc-why', pattern.why);
+    const shortcut = combinesText(pattern);
+    const why = el('p', 'pc-why', shortcut ? `${pattern.why} ${shortcut}` : pattern.why);
     // 説明は長いので畳んでおき、触ると全部出す
     why.addEventListener('click', () => why.classList.toggle('is-open'));
     body.append(figure, why);
