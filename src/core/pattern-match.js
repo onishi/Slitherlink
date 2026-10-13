@@ -369,4 +369,22 @@ function findLoopMatches(grid, clues, state) {
   return { fills, conflicts: 0, places: fills.length };
 }
 
+/**
+ * 定石を、どれも埋められなくなるまで繰り返し当てはめた盤面を返す。
+ * 「いまの一覧だけで届くか」を調べるのに使う。
+ */
+export function applyAllPatterns(grid, clues, state, patterns) {
+  const s = Int8Array.from(state);
+  for (let round = 0; round < 500; round++) {
+    let progressed = false;
+    for (const pattern of patterns) {
+      for (const { edge, value } of findMatches(grid, clues, s, pattern).fills) {
+        if (s[edge] === UNKNOWN) { s[edge] = value; progressed = true; }
+      }
+    }
+    if (!progressed) break;
+  }
+  return s;
+}
+
 export { getGrid };

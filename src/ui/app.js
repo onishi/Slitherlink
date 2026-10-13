@@ -80,6 +80,7 @@ function init() {
   const prefs = store.prefs();
   // savePrefs() がこの値を上書きする前に控えておく
   const wantDrawerOpen = prefs.drawer === true;
+  patternsOnlyUsable = prefs.patternsOnlyUsable === true;
   if (prefs.size) el.size.value = prefs.size;
   if (prefs.difficulty) el.difficulty.value = prefs.difficulty;
   // 既定は「自動 × なし・矛盾表示なし・使い終わった数字は薄く」。
@@ -200,6 +201,8 @@ function bindUI() {
 /* ---------------- 定石ドロワー ---------------- */
 
 let patternsView = null;
+// 「いま使える定石だけ表示」の状態（init で保存値を読む）
+let patternsOnlyUsable = false;
 // 閉じるアニメーションの途中でも正しく答えたいので、DOM ではなくこの変数で持つ
 let drawerOpen = false;
 
@@ -213,8 +216,9 @@ function openDrawer({ instant = false } = {}) {
   if (!patternsView) {
     // 図の数が多いので、初めて開いたときにだけ作る
     patternsView = renderPatternsInto(el.drawerBody, {
-      scroller: el.drawerBody,
       onApply: applyPattern,
+      onlyUsable: patternsOnlyUsable,
+      onFilterChange: (on) => { patternsOnlyUsable = on; savePrefs(); },
     });
   }
   updatePatternCounts();
@@ -319,6 +323,7 @@ function savePrefs() {
     fade: el.fade.checked,
     inputMode: board ? board.inputMode : 'line',
     drawer: isDrawerOpen(),
+    patternsOnlyUsable,
     theme: document.documentElement.dataset.theme || '',
   });
 }

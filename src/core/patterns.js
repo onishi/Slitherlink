@@ -20,12 +20,16 @@
  * 'loop' は「輪はひとつだけ」、'bridge' は「戻ってこられない辺は通れない」を
  * 盤面全体に適用する特別扱い（型ではなくルールそのものを当てはめる）。
  *
+ * origin: 'hint' は、ヒントの証明から見つけて足した定石（tools/mine-patterns.js）。
+ * ほかの定石をどう組み合わせても届かない結論を持つことをテストで確かめている。
+ *
  * smallLoop と loopConclude は「輪はひとつだけ」に頼る結論のための組で、
  * smallLoop の輪が盤面の数字をすべて満たしてしまう（＝答えになりうる）ときは
  * loopConclude を使わない。
  */
 
 import { getGrid, LINE, CROSS } from './grid.js';
+import { PATTERN_USAGE } from './pattern-stats.js';
 
 export const CATEGORIES = [
   { id: 'basic', title: 'まず覚える', lead: 'この 5 つが分かれば、あとは組み合わせです。' },
@@ -36,8 +40,8 @@ export const CATEGORIES = [
 ];
 
 // level は目安のやさしさ。1 がいちばん易しく、5 がいちばん難しい。
-// 一覧はこの順（分類ごと、その中は level 順）に並べる。
-export const PATTERNS = [
+// ここでは分類ごとに書いておき、一覧は出番の多い順（PATTERNS）に並べ替えて出す。
+const DEFINITIONS = [
   // ---------------- まず覚える ----------------
   {
     id: 'vertex-rule',
@@ -396,6 +400,48 @@ export const PATTERNS = [
     ],
     why: '斜めの 3 と 3 で決まる形に、あいだの 2 が効いて × が 2 つ増えます。2 のまわりで線を引ける場所が限られるためです。',
   },
+  {
+    id: 'three-ones-l',
+    origin: 'hint',
+    category: 'numbers', level: 4,
+    title: '3 の 2 辺に 1 がとなり合う',
+    rows: 4, cols: 4, anchor: 'interior',
+    clues: [[1, 1, 1], [1, 2, 3], [2, 2, 1]],
+    given: [],
+    conclude: [
+      ['h', 1, 1, 'cross'], ['v', 1, 1, 'cross'],
+      ['v', 2, 3, 'cross'], ['h', 3, 2, 'cross'],
+    ],
+    why: '3 は × が 1 辺だけなので、2 つの 1 との境目は「両方とも線」か「どちらか一方だけ線」です。両方とも線なら、それぞれの 1 はそこで使い切ります。一方だけが線なら、3 の線は × の境目を避けて残りの 3 辺をまわり、2 つの 1 が接する角に出てきます。その角では、境目で線を使い切った 1 の辺へは進めないので、もう一方の 1 の辺へ曲がるしかありません。どの場合も 1 の線は 3 に寄った辺に来るので、3 から遠い外側の 4 辺は × です。',
+  },
+  {
+    id: 'two-cross-three-diagonal',
+    origin: 'hint',
+    category: 'numbers', level: 4,
+    title: '片側が × の 2 と、斜めの 3',
+    rows: 4, cols: 4, anchor: 'interior',
+    clues: [[1, 1, 2], [2, 2, 3]],
+    given: [['h', 1, 1, 'cross']],
+    conclude: [
+      ['v', 1, 1, 'line'], ['v', 2, 3, 'line'], ['h', 3, 2, 'line'],
+      ['h', 3, 3, 'cross'], ['v', 3, 3, 'cross'],
+    ],
+    why: '2 と 3 が接する角に目をつけます。2 がその角の 2 辺を両方使うと、角に線が 2 本集まって 3 の側の 2 辺が × になり、3 が成り立ちません。逆に 2 辺とも使わないと、2 に残るのは左の 1 辺だけで足りません。だから 2 はこの角でちょうど 1 本を使い、残りの 1 本は左の辺です。そしてこの角からは 3 へ線が 1 本入り込むので、3 の遠い側の 2 辺が線、その先の角から外へ伸びる辺は × になります。',
+  },
+  {
+    id: 'one-crosses-three-diagonal',
+    origin: 'hint',
+    category: 'numbers', level: 4,
+    title: '2 辺が × の 1 と、斜めの 3',
+    rows: 4, cols: 4, anchor: 'interior',
+    clues: [[1, 1, 1], [2, 2, 3]],
+    given: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross']],
+    conclude: [
+      ['v', 2, 3, 'line'], ['h', 3, 2, 'line'],
+      ['h', 3, 3, 'cross'], ['v', 3, 3, 'cross'],
+    ],
+    why: '1 の上と左が × なので、1 の線は 3 と接する角の 2 辺のどちらか 1 本です（両方は 1 を超えます）。つまりこの角には 1 の側から線がちょうど 1 本来て、そのまま 3 の側へ曲がり込みます。3 の角に線が入ってくると、3 の遠い側の 2 辺は線で確定し、その先の角から外へ伸びる辺は × です。',
+  },
 
   // ---------------- 線や × が来たとき ----------------
   {
@@ -468,6 +514,39 @@ export const PATTERNS = [
     ],
     why: 'その角はもう線が 2 本集まっているので、マス側の 2 辺は両方 × です。2 は 2 本必要なので、残った遠い側の 2 辺が線で確定します。さらにその 2 本が出会う角も 2 本使い切るため、先へ伸びる辺は × です。',
   },
+  {
+    id: 'line-into-crossed-two',
+    origin: 'hint',
+    category: 'incoming', level: 3,
+    title: '片側が × の 2 の角に、外から線が来た',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 2]],
+    given: [['h', 1, 1, 'cross'], ['v', 2, 2, 'line']],
+    conclude: [['h', 2, 2, 'cross'], ['v', 1, 1, 'line']],
+    why: '下から来た線が、この角で右へ折れて 2 から離れていくと、角に線が 2 本そろって 2 の下と右が × になります。上も × なので、2 に残るのは左の 1 辺だけで足りません。だから右へは進めず（×）、線は 2 の下か右のどちらか 1 辺に入ります。2 はこの角で 1 本しか使えないので、残りの 1 本は × でない左の辺です。',
+  },
+  {
+    id: 'blocked-corner-crossed-two',
+    origin: 'hint',
+    category: 'incoming', level: 3,
+    title: '片側が × の 2 の角が、× でふさがれた',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 2]],
+    given: [['h', 1, 1, 'cross'], ['h', 2, 2, 'cross'], ['v', 2, 2, 'cross']],
+    conclude: [['h', 2, 1, 'line'], ['v', 1, 2, 'line'], ['v', 1, 1, 'cross']],
+    why: '外へ伸びる 2 辺が × の角では、2 の下と右は「両方とも線」か「両方とも ×」のどちらかです（1 本だけだと行き止まり）。両方とも × だと、上も × なので 2 には左の 1 辺しか残りません。だから下と右が線で、2 本そろうので左は × です。',
+  },
+  {
+    id: 'line-into-crossed-one',
+    origin: 'hint',
+    category: 'incoming', level: 3,
+    title: '2 辺が × の 1 の角に、外から線が来た',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 1]],
+    given: [['h', 1, 1, 'cross'], ['v', 1, 1, 'cross'], ['h', 2, 2, 'line']],
+    conclude: [['v', 2, 2, 'cross']],
+    why: '1 の上と左が × なので、1 の線は右下の角に集まる下か右のどちらかです。右から来た線が、この角で下へ折れて 1 から離れていくと、角に線が 2 本そろって 1 の下と右がどちらも × になり、1 が 0 本になってしまいます。だから下へは進めず、線は 1 の辺に入ります。',
+  },
 
   // ---------------- 輪をつくるルール ----------------
   {
@@ -496,6 +575,16 @@ export const PATTERNS = [
     why: 'あと 1 辺で小さな輪が閉じる形ですが、右下の 1 は「このマスのまわりに線が 1 本ある」と言っているので、盤面の別の場所にも必ず線が必要です。ここで閉じてしまうと輪が 2 つになってしまうため、この辺は × で確定します。答えはいつも「ひとつながりの輪ひとつだけ」です。',
   },
 ];
+
+/**
+ * 定石の一覧。出番の多い順（usage の大きい順。同じならやさしい順）。
+ * usage は 1 問を解くあいだにその定石で決められる辺の数の平均で、
+ * tools/pattern-stats.js が実測して pattern-stats.js に書き出す。
+ */
+export const PATTERNS = DEFINITIONS
+  .map((pattern, index) => ({ ...pattern, usage: PATTERN_USAGE[pattern.id] ?? 0, index }))
+  .sort((a, b) => b.usage - a.usage || a.level - b.level || a.index - b.index)
+  .map(({ index, ...pattern }) => pattern);
 
 /** 定義から盤面を組み立てる。 */
 export function buildPattern(pattern) {
