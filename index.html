@@ -27,6 +27,12 @@
     <div class="board-wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" role="application"
            aria-label="スリザーリンクの盤面" tabindex="0"></svg>
+      <!-- 大きな盤のための拡大・縮小（ピンチ、Ctrl + ホイールでも） -->
+      <div class="zoom-ctl" id="zoom-ctl" hidden>
+        <button type="button" class="icon-btn" id="zoom-out" aria-label="縮小"><span class="mi" aria-hidden="true">zoom_out</span></button>
+        <button type="button" class="icon-btn" id="zoom-in" aria-label="拡大"><span class="mi" aria-hidden="true">zoom_in</span></button>
+        <button type="button" class="icon-btn" id="zoom-fit" aria-label="全体を表示" hidden><span class="mi" aria-hidden="true">fit_screen</span></button>
+      </div>
       <div class="board-overlay" id="overlay" hidden>
         <div class="overlay-card" id="overlay-card"></div>
       </div>
@@ -156,6 +162,7 @@
         <b>線モード</b>なら 線 → × → 空白、<b>×モード</b>なら × → 線 → 空白。</li>
       <li>モードは盤面のすぐ下の「線／×」で、または <b>M</b> キーで切り替えられます。</li>
       <li>指やマウスがずれても、変わるのは最初に触れた 1 辺だけです。</li>
+      <li>大きな盤は、2 本指のピンチか盤面の右上の <b>＋ −</b> で拡大できます。拡大中は 1 本指で動かせます（PC は Ctrl + ホイールで拡大、ホイールで移動）。</li>
       <li>右クリック（Ctrl+クリック）では、いまのモードで主役でない方の印が付きます。</li>
       <li>キーボードでも遊べます：<b>矢印キー</b>で移動、<b>スペース</b>で線、<b>X</b>で ×。</li>
     </ul>

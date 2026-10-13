@@ -280,6 +280,25 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 #board.solved .clue { opacity: .35; }
 
 /* ---------- 完成オーバーレイ ---------- */
+/* ---------- 拡大・縮小 ---------- */
+.zoom-ctl {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+}
+.zoom-ctl[hidden], .zoom-ctl .icon-btn[hidden] { display: none; }
+.zoom-ctl .icon-btn {
+  width: 32px;
+  height: 32px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+.zoom-ctl .icon-btn:disabled { opacity: .35; }
+#board.zoomed { cursor: grab; }
+
 .board-overlay {
   position: absolute;
   inset: 0;

@@ -58,6 +58,10 @@ const el = {
   hintPos: $('hint-pos'),
   patternsBtn: $('btn-patterns'),
   quickPatterns: $('btn-quick-patterns'),
+  zoomCtl: $('zoom-ctl'),
+  zoomIn: $('zoom-in'),
+  zoomOut: $('zoom-out'),
+  zoomFit: $('zoom-fit'),
   patPanel: $('pat-panel'),
   patTrack: $('pat-track'),
   patPos: $('pat-pos'),
@@ -115,6 +119,7 @@ function init() {
   board = new Board(el.board, {
     onPaint: paint,
     onStrokeEnd: commitStroke,
+    onZoomChange: updateZoomControls,
   });
   cards = new PatternCards({
     track: el.patTrack,
@@ -195,6 +200,9 @@ function bindUI() {
   el.patternsBtn.addEventListener('click', () => toggleDrawer());
   el.quickPatterns.addEventListener('click', () => (isPatternsOpen() ? hidePatterns() : showPatterns()));
   el.patClose.addEventListener('click', () => hidePatterns());
+  el.zoomIn.addEventListener('click', () => board.zoomBy(1.5));
+  el.zoomOut.addEventListener('click', () => board.zoomBy(1 / 1.5));
+  el.zoomFit.addEventListener('click', () => board.resetZoom());
   // 盤面のほうを触りたいだけのときもあるので、開いたままでも遊べるようにしておく
   el.rulesPatternsBtn.addEventListener('click', () => {
     el.rulesModal.hidden = true;
@@ -397,6 +405,15 @@ function refreshPatternCards(keep) {
 function focusPatternCard(item) {
   if (!item) { board.clearHints(); return; }
   board.setHints(item.fills.map((f) => f.edge), null, new Map(item.fills.map((f) => [f.edge, f.value])));
+  board.ensureVisible(item.fills[0].edge);
+}
+
+/** 拡大・縮小のボタンを、いまの倍率に合わせる。拡大できない小さな盤では出さない。 */
+function updateZoomControls(scale, max) {
+  el.zoomCtl.hidden = max <= 1;
+  el.zoomIn.disabled = scale >= max;
+  el.zoomOut.disabled = scale <= 1;
+  el.zoomFit.hidden = scale <= 1;
 }
 
 /** 定石を盤面じゅうに当てはめて、決まる印をまとめて引く。 */
@@ -513,6 +530,7 @@ function startPuzzle(puzzle, saved) {
 
   if (!saved) applyZeroCrosses();
   board.setPuzzle(puzzle, game.state);
+  updateZoomControls(board.zoom.scale, board.maxScale());
   board.setSolved(false);
   hideOverlay();
   el.code.value = puzzle.code || encodePuzzle(puzzle);
@@ -856,6 +874,7 @@ function showHintAt(i) {
   }
 
   board.setHints([hint.edge], hint.focus, hint.value);
+  board.ensureVisible(hint.edge);
   board.cursor = hint.edge;
   board.showCursor = true;
   board._drawCursor();
