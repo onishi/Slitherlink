@@ -23,16 +23,6 @@
     </div>
   </header>
 
-  <div class="status">
-    <span class="status-item" id="status-puzzle">7 × 7 ・ ふつう</span>
-    <span class="status-sep" aria-hidden="true">·</span>
-    <span class="status-item" id="status-time">0:00</span>
-    <span class="status-sep" aria-hidden="true">·</span>
-    <span class="status-item" id="status-progress">数字 0 / 0</span>
-    <span class="status-sep" aria-hidden="true">·</span>
-    <span class="status-item" id="status-best">自己ベスト —</span>
-  </div>
-
   <main class="board-area">
     <div class="board-wrap">
       <svg id="board" xmlns="http://www.w3.org/2000/svg" role="application"
@@ -45,14 +35,14 @@
 
   <!-- 解いているあいだずっと使うもの。盤面のすぐ下に 1 列で置く -->
   <div class="play-bar">
-    <button type="button" class="tool" id="btn-undo" title="もどす (Ctrl+Z)"><span class="mi ico" aria-hidden="true">undo</span>もどす</button>
-    <button type="button" class="tool" id="btn-redo" title="すすむ (Ctrl+Shift+Z)"><span class="mi ico" aria-hidden="true">redo</span>すすむ</button>
     <div class="modes" role="radiogroup" aria-label="タップで付く印（M キーで切り替え）">
       <button type="button" id="mode-line" role="radio" aria-checked="true" data-mode="line"
               title="線モード：線 → × → 空白"><span class="mi mode-ico" aria-hidden="true">horizontal_rule</span>線</button>
       <button type="button" id="mode-cross" role="radio" aria-checked="false" data-mode="cross"
               title="×モード：× → 線 → 空白"><span class="mi mode-ico" aria-hidden="true">close</span>バツ</button>
     </div>
+    <button type="button" class="tool" id="btn-undo" title="もどす (Ctrl+Z)"><span class="mi ico" aria-hidden="true">undo</span>もどす</button>
+    <button type="button" class="tool" id="btn-redo" title="すすむ (Ctrl+Shift+Z)"><span class="mi ico" aria-hidden="true">redo</span>すすむ</button>
     <button type="button" class="tool" id="btn-check" title="間違いがないか調べます"><span class="mi ico" aria-hidden="true">check</span>チェック</button>
     <button type="button" class="tool tool-hint" id="btn-hint" title="論理的に決まる場所を 1 つ教えます (H)"><span class="mi ico" aria-hidden="true">lightbulb</span>ヒント</button>
     <button type="button" class="tool tool-patterns" id="btn-quick-patterns" title="いま使える定石をカードで見ます (P)"
@@ -69,7 +59,7 @@
     <details class="hint-proof" id="hint-proof" hidden>
       <summary>根拠を一手ずつたどる</summary>
       <ol class="hint-steps" id="hint-steps"></ol>
-      <p class="hint-legend">盤面の点線と緑の × は、仮定したときに決まっていく印です（まだ置かれていません）。オレンジの印は、根拠にしたいまの盤面の印です。</p>
+      <p class="hint-legend">点線と緑の × は仮定で決まる印（まだ置かれていない）、オレンジは根拠にした盤面の印。</p>
     </details>
     <div class="hint-actions" id="hint-actions"></div>
     <div class="pc-nav" id="hint-nav" hidden>

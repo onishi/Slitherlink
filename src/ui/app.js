@@ -31,9 +31,6 @@ const el = {
   hint: $('btn-hint'),
   check: $('btn-check'),
   clear: $('btn-clear'),
-  time: $('status-time'),
-  progress: $('status-progress'),
-  best: $('status-best'),
   message: $('message'),
   overlay: $('overlay'),
   overlayCard: $('overlay-card'),
@@ -76,7 +73,6 @@ const el = {
   menuModal: $('menu-modal'),
   menuBtn: $('btn-menu'),
   closeMenu: $('btn-close-menu'),
-  puzzleInfo: $('status-puzzle'),
   modeCross: $('mode-cross'),
 };
 
@@ -206,6 +202,8 @@ function bindUI() {
   });
   // ✕ は「自分で考える」と同じ。説明を閉じて、盤面の光りも消す
   el.hintClose.addEventListener('click', () => { hideHint(); board.clearHints(); });
+  el.hintProof.addEventListener('toggle', fitHint);
+  window.addEventListener('resize', fitHint);
   el.hintPrev.addEventListener('click', () => showHintAt(hintIndex - 1));
   el.hintNext.addEventListener('click', () => showHintAt(hintIndex + 1));
   bindSwipe(el.hintPanel, (dir) => showHintAt(hintIndex + dir));
@@ -275,12 +273,7 @@ function closeMenu() {
   el.menuBtn.focus();
 }
 
-/** 「7 × 7 ・ ふつう」のように、いま解いている問題の大きさとむずかしさを出す。 */
-function updatePuzzleInfo() {
-  const p = game.puzzle;
-  if (!p) return;
-  el.puzzleInfo.textContent = `${p.rows} × ${p.cols} ・ ${DIFFICULTIES[p.difficulty]?.label ?? ''}`;
-}
+
 
 /* ---------------- 定石ドロワー ---------------- */
 
@@ -523,8 +516,6 @@ function startPuzzle(puzzle, saved) {
   board.setSolved(false);
   hideOverlay();
   el.code.value = puzzle.code || encodePuzzle(puzzle);
-  updateBest();
-  updatePuzzleInfo();
   refreshAll();
   persist();
 }
@@ -707,7 +698,6 @@ function clearBoard() {
 function refreshAll() {
   board.refresh();
   const a = analyze(game.grid, game.puzzle.clues, game.state);
-  el.progress.textContent = `数字 ${a.satisfied} / ${a.total}`;
   updateButtons();
   // 全定石を数え直しても 1ms 未満なので、盤面が動くたびに更新してよい
   if (isDrawerOpen()) updatePatternCounts();
@@ -740,7 +730,6 @@ function checkSolved() {
   const key = `${game.puzzle.rows}x${game.puzzle.cols}:${game.puzzle.difficulty}`;
   const isBest = store.saveRecord(key, game.elapsed);
   game.solvedBest = isBest; // 「盤面を見る」のあと、結果を出し直すときに使う
-  updateBest();
   store.clearGame();
   say('');
   // 完成した輪をひと目見せてからお知らせを出す
@@ -758,12 +747,14 @@ function showOverlay(isBest) {
   const sub = document.createElement('p');
   sub.textContent = `${game.puzzle.rows} × ${game.puzzle.cols} ・ ${diff}`;
   el.overlayCard.append(h, big, sub);
-  if (isBest) {
-    const b = document.createElement('p');
-    b.className = 'best';
-    b.append(icon('emoji_events'), '自己ベスト更新！');
-    el.overlayCard.appendChild(b);
+  const b = document.createElement('p');
+  b.className = 'best';
+  if (isBest) b.append(icon('emoji_events'), '自己ベスト更新！');
+  else {
+    const best = store.records()[`${game.puzzle.rows}x${game.puzzle.cols}:${game.puzzle.difficulty}`];
+    b.textContent = best == null ? '' : `自己ベスト ${formatTime(best)}`;
   }
+  if (b.childNodes.length) el.overlayCard.appendChild(b);
   el.overlayCard.appendChild(nextSettings());
   const row = document.createElement('div');
   row.className = 'row';
@@ -813,11 +804,6 @@ function hideOverlay() {
   el.overlay.hidden = true;
 }
 
-function updateBest() {
-  const key = `${game.puzzle.rows}x${game.puzzle.cols}:${game.puzzle.difficulty}`;
-  const best = store.records()[key];
-  el.best.textContent = best == null ? '自己ベスト —' : `自己ベスト ${formatTime(best)}`;
-}
 
 function say(text, warn = false) {
   clearTimeout(messageTimer);
@@ -896,6 +882,31 @@ function bindSwipe(target, onSwipe) {
   target.addEventListener('pointercancel', () => { start = null; });
 }
 
+// ヒントの文字はここまで小さくしてよい（これより小さいと読めない）
+const HINT_MIN_SCALE = 0.7;
+
+/**
+ * ヒントの欄を、スクロールせずに画面の下端までに収める。
+ * 収まらなければ文字を少しずつ小さくし、それでも無理なら欄の中だけで送れるようにする。
+ */
+function fitHint() {
+  const panel = el.hintPanel;
+  if (panel.hidden) return;
+  panel.classList.remove('is-overflow');
+  panel.style.maxHeight = '';
+  const available = window.innerHeight - panel.getBoundingClientRect().top - 12;
+  let scale = 1;
+  panel.style.setProperty('--hint-scale', String(scale));
+  while (panel.offsetHeight > available && scale > HINT_MIN_SCALE) {
+    scale = Math.max(HINT_MIN_SCALE, Math.round((scale - 0.05) * 100) / 100);
+    panel.style.setProperty('--hint-scale', String(scale));
+  }
+  if (panel.offsetHeight > available && available > 120) {
+    panel.style.maxHeight = `${available}px`;
+    panel.classList.add('is-overflow');
+  }
+}
+
 /** ヒントの内容をパネルに出す。 */
 function renderHint(hint, actions) {
   const warn = hint.type === 'mistake';
@@ -915,7 +926,8 @@ function renderHint(hint, actions) {
     el.hintSteps.appendChild(li);
   }
   el.hintProof.hidden = steps.length === 0;
-  el.hintProof.open = steps.length > 0 && steps.length <= 6;
+  // 手順は短ければ最初から開く（文字を小さくすれば収まる長さまで）
+  el.hintProof.open = steps.length > 0 && steps.length <= 8;
 
   el.hintActions.textContent = '';
   for (const action of actions) {
@@ -927,6 +939,7 @@ function renderHint(hint, actions) {
     el.hintActions.appendChild(button);
   }
   say('');
+  fitHint();
 }
 
 function hideHint() {
@@ -991,7 +1004,6 @@ function tickTimer() {
     game.elapsed += Math.max(0, Math.round((now - game.lastTick) / 1000));
   }
   game.lastTick = now;
-  el.time.textContent = formatTime(game.elapsed);
 }
 
 function formatTime(seconds) {
