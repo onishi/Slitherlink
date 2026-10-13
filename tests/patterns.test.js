@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { LINE, CROSS } from '../src/core/grid.js';
 import { countSolutions, solveLogical } from '../src/core/solver.js';
 import { PATTERNS, CATEGORIES, buildPattern, padded } from '../src/core/patterns.js';
+import { PATTERN_USAGE } from '../src/core/pattern-stats.js';
+import { applyAllPatterns } from '../src/core/pattern-match.js';
+import { UNKNOWN } from '../src/core/grid.js';
 
 const flip = (value) => (value === LINE ? CROSS : LINE);
 
@@ -102,17 +105,17 @@ test('縁の定石は、盤の縁に置いても成り立つ', () => {
   }
 });
 
-test('定石はやさしい順に並んでいる', () => {
-  const order = CATEGORIES.map((c) => c.id);
-  let lastCategory = -1;
-  let lastLevel = 0;
+test('定石は出番の多い順に並んでいる', () => {
   for (const p of PATTERNS) {
     assert.ok(typeof p.level === 'number' && p.level >= 1 && p.level <= 5, `${p.id}: level が無い`);
-    const index = order.indexOf(p.category);
-    assert.ok(index >= lastCategory, `${p.id}: 分類の並びが前後している`);
-    if (index > lastCategory) { lastCategory = index; lastLevel = 0; }
-    assert.ok(p.level >= lastLevel, `${p.id}: level ${p.level} が前の ${lastLevel} より易しい`);
-    lastLevel = p.level;
+    assert.ok(p.id in PATTERN_USAGE, `${p.id}: 出番の実測値が無い（node tools/pattern-stats.js を走らせる）`);
+  }
+  for (const id of Object.keys(PATTERN_USAGE)) {
+    assert.ok(PATTERNS.some((p) => p.id === id), `${id}: もう無い定石の実測値が残っている`);
+  }
+  for (let i = 1; i < PATTERNS.length; i++) {
+    const [a, b] = [PATTERNS[i - 1], PATTERNS[i]];
+    assert.ok(a.usage > b.usage || (a.usage === b.usage && a.level <= b.level), `${b.id} が ${a.id} より前に来るべき`);
   }
 });
 
@@ -121,6 +124,20 @@ test('すべての分類に定石が 1 つ以上ある', () => {
     assert.ok(
       PATTERNS.some((p) => p.category === c.id),
       `分類 ${c.id} に定石が無い`,
+    );
+  }
+});
+
+test('ヒントから足した定石は、ほかの定石をどう組み合わせても届かない', () => {
+  const added = PATTERNS.filter((p) => p.origin === 'hint');
+  assert.ok(added.length >= 6);
+  for (const pattern of added) {
+    const others = PATTERNS.filter((p) => p !== pattern);
+    const { grid, clues, given, conclude } = buildPattern(padded(pattern, 2));
+    const after = applyAllPatterns(grid, clues, given, others);
+    assert.ok(
+      conclude.some(({ edge }) => after[edge] === UNKNOWN),
+      `${pattern.id}: ほかの定石だけで結論がすべて出てしまう（載せる意味が無い）`,
     );
   }
 });

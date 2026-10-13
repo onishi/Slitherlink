@@ -22,29 +22,85 @@ const el = (tag, className, text) => {
 };
 
 /**
- * 定石一覧をまるごと container の中に作る。
+ * 定石一覧をまるごと container の中に作る。出番の多い順に 1 列で並べる。
  * @param {HTMLElement} container
  * @param {object} [options]
- * @param {HTMLElement} [options.scroller] 目次を押したときにスクロールさせる要素
  * @param {(pattern:object)=>void} [options.onApply] 「当てはめる」を押したときの処理
+ * @param {boolean} [options.onlyUsable] 最初から「いま使える定石だけ表示」にしておくか
+ * @param {(on:boolean)=>void} [options.onFilterChange] 表示の切り替えを覚えておくための通知
  * @returns {{setCounts:(counts:Map<string,number>)=>void}} 件数バッジの更新口
  */
 export function renderPatternsInto(container, options = {}) {
   container.textContent = '';
   const actions = new Map();
+  const cards = new Map();
+  let counts = null;
+  let onlyUsable = options.onApply ? options.onlyUsable === true : false;
 
-  container.append(legend(), toc(container, options.scroller));
-  for (const category of CATEGORIES) {
-    const items = PATTERNS.filter((p) => p.category === category.id);
-    if (items.length) container.appendChild(section(category, items, options, actions));
+  // 盤面があるときだけ「いま使える定石だけ表示」を出す
+  let filter = null;
+  let status = null;
+  if (options.onApply) {
+    const bar = el('div', 'pat-toolbar');
+    filter = el('button', 'pat-filter', 'いま使える定石だけ表示');
+    filter.type = 'button';
+    filter.addEventListener('click', () => {
+      onlyUsable = !onlyUsable;
+      refresh();
+      options.onFilterChange?.(onlyUsable);
+    });
+    status = el('span', 'pat-status');
+    status.setAttribute('aria-live', 'polite');
+    bar.append(filter, status);
+    container.appendChild(bar);
   }
 
+  container.appendChild(legend());
+
+  container.appendChild(el('p', 'pat-lead',
+    '解いているあいだに出番の多い順に並べています。数字は、1 問を解くあいだにその定石で決められる辺の本数（実測の平均）です。'));
+  const grid = el('div', 'pat-grid');
+  PATTERNS.forEach((pattern, i) => {
+    const node = card(pattern, i + 1, options, actions);
+    cards.set(pattern.id, node);
+    grid.appendChild(node);
+  });
+  container.appendChild(grid);
+  const empty = el('p', 'pat-empty', 'いまの盤面で使える定石はありません。ヒントを使うか、別の場所を考えてみましょう。');
+  empty.hidden = true;
+  container.appendChild(empty);
+
+  function refresh() {
+    let usable = 0;
+    for (const [id, node] of cards) {
+      const count = counts ? (counts.get(id) ?? 0) : 0;
+      if (count > 0) usable++;
+      node.hidden = onlyUsable && counts != null && count === 0;
+    }
+    if (filter) {
+      filter.setAttribute('aria-pressed', String(onlyUsable));
+      filter.classList.toggle('is-on', onlyUsable);
+      status.textContent = counts ? `いま使える定石 ${usable} 個` : '';
+    }
+    empty.hidden = !(onlyUsable && counts != null && usable === 0);
+  }
+  refresh();
+
   return {
-    /** 定石 id → 当てはまる場所の数。ボタンの表示を更新する。 */
-    setCounts(counts) {
-      for (const [id, action] of actions) action.update(counts.get(id) ?? 0);
+    /** 定石 id → 当てはまる場所の数。ボタンの表示と、絞り込みを更新する。 */
+    setCounts(next) {
+      counts = next;
+      for (const [id, action] of actions) action.update(next.get(id) ?? 0);
+      refresh();
     },
   };
+}
+
+/** 出番の多さを言葉にする。 */
+function usageText(usage) {
+  if (usage >= 1) return `1 問あたり約 ${Math.round(usage)} 本`;
+  if (usage > 0) return '1 問あたり 1 本未満';
+  return 'まれ';
 }
 
 function legend() {
@@ -61,42 +117,7 @@ function legend() {
   return box;
 }
 
-function toc(container, scroller) {
-  const nav = el('nav', 'toc');
-  nav.setAttribute('aria-label', '目次');
-  const list = document.createElement('ul');
-  for (const category of CATEGORIES) {
-    if (!PATTERNS.some((p) => p.category === category.id)) continue;
-    const li = document.createElement('li');
-    const link = el('a', null, category.title);
-    link.href = `#${category.id}`;
-    link.addEventListener('click', (ev) => {
-      const target = container.querySelector(`#${CSS.escape(category.id)}`);
-      if (!target) return;
-      ev.preventDefault();
-      // ドロワーの中では、ページではなくドロワーをスクロールさせたい
-      const box = scroller || document.scrollingElement;
-      const offset = target.getBoundingClientRect().top - box.getBoundingClientRect().top;
-      box.scrollBy({ top: scroller ? offset - 8 : offset - 12, behavior: 'smooth' });
-    });
-    li.appendChild(link);
-    list.appendChild(li);
-  }
-  nav.appendChild(list);
-  return nav;
-}
-
-function section(category, items, options, actions) {
-  const node = el('section', 'pat-section');
-  node.id = category.id;
-  node.append(el('h2', null, category.title), el('p', 'pat-lead', category.lead));
-  const grid = el('div', 'pat-grid');
-  for (const pattern of items) grid.appendChild(card(pattern, options, actions));
-  node.appendChild(grid);
-  return node;
-}
-
-function card(pattern, options, actions) {
+function card(pattern, rank, options, actions) {
   const article = el('article', 'pat-card');
   article.id = `pattern-${pattern.id}`;
 
@@ -104,6 +125,15 @@ function card(pattern, options, actions) {
   head.appendChild(el('h3', null, pattern.title));
   if (options.onApply) head.appendChild(applyButton(pattern, options.onApply, actions));
   article.appendChild(head);
+
+  const meta = el('p', 'pat-meta');
+  const category = CATEGORIES.find((c) => c.id === pattern.category);
+  meta.append(
+    el('span', 'pat-rank', `${rank} 位`),
+    el('span', 'pat-tag', category ? category.title : ''),
+    el('span', 'pat-usage', `出番 ${usageText(pattern.usage)}`),
+  );
+  article.appendChild(meta);
 
   const figure = el('div', 'pat-figure');
   figure.appendChild(renderPattern(pattern));
