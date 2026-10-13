@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LINE, CROSS } from '../src/core/grid.js';
 import { countSolutions, solveLogical } from '../src/core/solver.js';
-import { PATTERNS, CATEGORIES, buildPattern, padded, expandForms } from '../src/core/patterns.js';
+import { PATTERNS, CATEGORIES, buildPattern, padded, expandForms, isSearchPattern } from '../src/core/patterns.js';
 
 // alt を持つ定石は、別の形もそれぞれ 1 つの定石として確かめる
 const FORMS = PATTERNS.flatMap(expandForms);
@@ -141,7 +141,7 @@ test('ヒントから足した定石は、ほかの定石をどう組み合わ�
   const added = PATTERNS.filter((p) => p.origin === 'hint');
   assert.ok(added.length >= 6);
   for (const pattern of added) {
-    const others = PATTERNS.filter((p) => p !== pattern);
+    const others = PATTERNS.filter((p) => p !== pattern && !isSearchPattern(p));
     const { grid, clues, given, conclude } = buildPattern(padded(pattern, 2));
     const after = applyAllPatterns(grid, clues, given, others);
     assert.ok(
@@ -172,7 +172,7 @@ test('近道の定石は、書いてある組み合わせだけで同じ結論�
     for (const form of expandForms(pattern)) {
       const { grid, clues, given, conclude } = boardOf(form);
       for (const other of PATTERNS) {
-        if (other === pattern || other.popular) continue;
+        if (other === pattern || other.popular || isSearchPattern(other)) continue;
         const { fills } = findMatches(grid, clues, given, other);
         const all = conclude.every((c) => fills.some((f) => f.edge === c.edge && f.value === c.value));
         assert.ok(!all, `${pattern.id} は ${other.id} 1 つで結論が全部出る（同じ定石）`);

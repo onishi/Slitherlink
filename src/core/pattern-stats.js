@@ -4,6 +4,8 @@
  * 測定: 24 問（7×7・10×10 × やさしい・ふつう・むずかしい）、盤面 3933 通り。
  */
 export const PATTERN_USAGE = {
+  'cell-corners': 138.2,
+  'pair-corners': 132.8,
   'no-shortcut-loop': 51.9,
   'clue-full': 39.1,
   'dead-end': 36.1,

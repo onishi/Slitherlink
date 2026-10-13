@@ -208,6 +208,9 @@ export function findMatches(grid, clues, state, pattern) {
   }
   if (pattern.match === 'bridge') return findBridgeMatches(grid, state);
   if (pattern.match === 'shortcut') return findShortcutMatches(grid, clues, state);
+  if (pattern.match === 'local-1' || pattern.match === 'local-2') {
+    return findLocalMatches(grid, clues, state, pattern.match === 'local-2');
+  }
   if (pattern.match === 'corner-blocked-1' || pattern.match === 'corner-blocked-3') {
     return findCornerBlockedMatches(grid, clues, state, pattern.match === 'corner-blocked-3' ? 3 : 1);
   }
@@ -342,6 +345,90 @@ function findCornerBlockedMatches(grid, clues, state, clue) {
     }
   }
   return { fills: [...fills.values()], conflicts, places };
+}
+
+/**
+ * 「数字のまわりをまとめて考える」「となりの数字といっしょに考える」を盤面全体に当てはめる。
+ * 数字のマス（pair なら、となりか斜めに並ぶ 2 つ）の辺と、その角の点に集まる辺だけを取り出し、
+ * 「数字の本数」と「角の点の線は 0 本か 2 本」を満たす塗り方を全部調べる。どの塗り方でも同じに
+ * なる辺は決まる。角の偶奇（外から線が来ない角はマス側の 2 辺が両方線か両方 ×、1 本来る角は
+ * ちょうど 1 本）を、数字の本数と組み合わせて使うことにあたる。
+ */
+function findLocalMatches(grid, clues, state, pair) {
+  const fills = new Map();
+  let places = 0;
+  const take = (cells) => {
+    const found = localForced(grid, clues, state, cells);
+    if (found.length) places++;
+    for (const f of found) fills.set(f.edge, f);
+  };
+  for (let c = 0; c < grid.cellCount; c++) {
+    if (clues[c] < 0) continue;
+    if (!pair) { take([c]); continue; }
+    const r = Math.floor(c / grid.cols);
+    const k = c % grid.cols;
+    for (const [dr, dk] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+      const r2 = r + dr;
+      const k2 = k + dk;
+      if (r2 >= grid.rows || k2 < 0 || k2 >= grid.cols) continue;
+      const c2 = r2 * grid.cols + k2;
+      if (clues[c2] >= 0) take([c, c2]);
+    }
+  }
+  return { fills: [...fills.values()], conflicts: 0, places };
+}
+
+/** マスの集まり cells のまわりで、数字と交点のルールを満たす塗り方を全部調べ、どれでも同じ辺を返す。 */
+function localForced(grid, clues, state, cells) {
+  const sides = cells.map((c) => [0, 1, 2, 3].map((k) => grid.cellEdges[c * 4 + k]));
+  const corners = [...new Set(sides.flat().flatMap((e) => [grid.edgeEnds[e * 2], grid.edgeEnds[e * 2 + 1]]))];
+  const vars = [...new Set(corners.flatMap((v) => grid.vertexEdges[v]))];
+  const unknown = vars.filter((e) => state[e] === UNKNOWN);
+  if (!unknown.length) return [];
+  const value = new Map(vars.map((e) => [e, state[e]]));
+  const checks = [
+    ...cells.map((c, i) => ({ edges: sides[i], ok: (l, u) => l <= clues[c] && l + u >= clues[c] })),
+    ...corners.map((v) => ({ edges: grid.vertexEdges[v], ok: (l, u) => l <= 2 && !(u === 0 && l === 1) })),
+  ];
+  const holds = (check) => {
+    let l = 0;
+    let u = 0;
+    for (const e of check.edges) {
+      const x = value.get(e);
+      if (x === LINE) l++;
+      else if (x === UNKNOWN) u++;
+    }
+    return check.ok(l, u);
+  };
+  if (!checks.every(holds)) return [];
+  const touching = new Map(unknown.map((e) => [e, checks.filter((ch) => ch.edges.includes(e))]));
+  const seen = new Map(unknown.map((e) => [e, 0])); // 1: 線になれる、2: × になれる
+  let both = 0;
+  const search = (i) => {
+    if (both === unknown.length) return; // もうどの辺も決まらない
+    if (i === unknown.length) {
+      for (const e of unknown) {
+        const before = seen.get(e);
+        const now = before | (value.get(e) === LINE ? 1 : 2);
+        if (now === 3 && before !== 3) both++;
+        seen.set(e, now);
+      }
+      return;
+    }
+    const e = unknown[i];
+    for (const x of [LINE, CROSS]) {
+      value.set(e, x);
+      if (touching.get(e).every(holds)) search(i + 1);
+    }
+    value.set(e, UNKNOWN);
+  };
+  search(0);
+  const out = [];
+  for (const [e, bits] of seen) {
+    if (bits === 1) out.push({ edge: e, value: LINE });
+    else if (bits === 2) out.push({ edge: e, value: CROSS });
+  }
+  return out;
 }
 
 // 近道で輪が閉じるかを何手先まで見るか。長い連鎖は「定石」というより背理法なので打ち切る
