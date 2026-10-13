@@ -16,6 +16,7 @@ export const PATTERN_USAGE = {
   'two-corner-crosses': 16.1,
   'line-into-three': 13.6,
   'three-one-cross': 13.3,
+  'no-shortcut-loop': 12.3,
   'border-vertex-crosses': 11.9,
   'line-into-crossed-two': 9,
   'zero-one-diagonal': 8.9,

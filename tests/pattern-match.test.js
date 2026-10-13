@@ -140,7 +140,7 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
 
 test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
   const rules = PATTERNS.filter((p) => p.match && p.match !== 'loop');
-  assert.equal(rules.length, 7, 'ルール適用型の定石が 7 つでない');
+  assert.equal(rules.length, 8, 'ルール適用型の定石が 8 つでない');
   let filled = 0;
 
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
@@ -271,6 +271,34 @@ test('片側が × の 2 の角には、どちらの向きから線が来ても�
     assert.ok(fills.some((f) => f.edge === away && f.value === CROSS), '2 から離れる向きを × にしない');
     assert.ok(fills.some((f) => f.edge === grid.v(2, 2) && f.value === LINE), '左の辺を線にしない');
   }
+});
+
+test('近道で輪が閉じる辺は ×（実際にあった終盤の場面）', () => {
+  // 7x7 ふつう。左下で線の端が 2 つ近づき、7 行 2 列の 2 にまだ線が無い場面
+  const grid = getGrid(7, 7);
+  const clues = new Int8Array(49).fill(-1);
+  for (const [r, c, n] of [[0, 3, 0], [0, 5, 2], [0, 6, 2], [1, 2, 1], [1, 6, 2], [2, 0, 0], [2, 4, 3], [3, 2, 1],
+    [3, 5, 2], [3, 6, 2], [4, 2, 2], [4, 3, 3], [4, 6, 2], [5, 2, 1], [5, 4, 1], [5, 6, 2], [6, 1, 2], [6, 2, 2],
+    [6, 4, 2], [6, 6, 3]]) clues[r * 7 + c] = n;
+  const state = new Int8Array(grid.edgeCount);
+  const at = (d, r, c) => (d === 'h' ? grid.h(r, c) : grid.v(r, c));
+  for (const [d, r, c] of [['h', 0, 5], ['h', 0, 6], ['v', 0, 7], ['v', 1, 7], ['h', 2, 6], ['v', 2, 6], ['v', 3, 6],
+    ['h', 4, 6], ['v', 4, 7], ['v', 5, 7], ['v', 6, 7], ['h', 7, 6], ['v', 6, 6], ['v', 5, 6], ['h', 5, 5], ['v', 5, 5],
+    ['v', 6, 5], ['h', 7, 4], ['h', 7, 3], ['v', 0, 5], ['v', 1, 5], ['h', 2, 4], ['v', 2, 4], ['h', 3, 4], ['v', 3, 5],
+    ['h', 4, 4], ['v', 4, 4], ['h', 5, 3], ['v', 4, 3], ['v', 3, 3], ['v', 2, 3], ['h', 2, 2], ['v', 2, 2], ['h', 3, 1],
+    ['v', 3, 1], ['h', 4, 1], ['v', 4, 2]]) state[at(d, r, c)] = LINE;
+  const crosses = {
+    h: { 0: [0, 1, 2, 3, 4], 1: [0, 1, 2, 3, 4, 5, 6], 2: [0, 1, 3, 5], 3: [0, 2, 3, 5, 6], 4: [0, 2, 3, 5], 5: [2, 4, 6], 6: [3, 4, 5, 6], 7: [5] },
+    v: { 0: [0, 1, 2, 3, 4, 6], 1: [0, 1, 2, 3, 4, 6], 2: [0, 1, 5, 7], 3: [0, 2, 4, 7], 4: [0, 1, 5, 6], 5: [3, 4], 6: [4] },
+  };
+  for (const d of ['h', 'v']) for (const [r, cs] of Object.entries(crosses[d])) for (const c of cs) state[at(d, Number(r), c)] = CROSS;
+
+  // ほかの定石はどれも当てはまらず、近道の定石だけが 2 本を × にする
+  const others = PATTERNS.filter((p) => p.id !== 'no-shortcut-loop');
+  assert.ok(others.every((p) => findMatches(grid, clues, state, p).fills.length === 0), 'ほかの定石が当てはまった');
+  const { fills } = findMatches(grid, clues, state, PATTERNS.find((p) => p.id === 'no-shortcut-loop'));
+  assert.deepEqual(fills.map((f) => f.edge).sort((a, b) => a - b), [grid.h(7, 2), grid.v(5, 2)].sort((a, b) => a - b));
+  assert.ok(fills.every((f) => f.value === CROSS));
 });
 
 test('閉空間ルールは、交点の数え上げでは届かない辺を埋める', () => {
