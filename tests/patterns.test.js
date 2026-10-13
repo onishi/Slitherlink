@@ -7,7 +7,7 @@ import { PATTERNS, CATEGORIES, buildPattern, padded, expandForms } from '../src/
 // alt を持つ定石は、別の形もそれぞれ 1 つの定石として確かめる
 const FORMS = PATTERNS.flatMap(expandForms);
 import { PATTERN_USAGE } from '../src/core/pattern-stats.js';
-import { applyAllPatterns } from '../src/core/pattern-match.js';
+import { applyAllPatterns, findMatches } from '../src/core/pattern-match.js';
 import { UNKNOWN } from '../src/core/grid.js';
 
 const flip = (value) => (value === LINE ? CROSS : LINE);
@@ -143,5 +143,34 @@ test('ヒントから足した定石は、ほかの定石をどう組み合わ�
       conclude.some(({ edge }) => after[edge] === UNKNOWN),
       `${pattern.id}: ほかの定石だけで結論がすべて出てしまう（載せる意味が無い）`,
     );
+  }
+});
+
+test('近道の定石は、書いてある組み合わせだけで同じ結論に届く（論理的に同じものは載せない）', () => {
+  const byId = new Map(PATTERNS.map((p) => [p.id, p]));
+  for (const pattern of PATTERNS) {
+    const boardOf = (f) => buildPattern(f.anchor === 'interior' ? padded(f, 2) : f);
+    if (pattern.combines) {
+      const parts = pattern.combines.map((id) => {
+        assert.ok(byId.has(id), `${pattern.id}: 組み合わせの ${id} が無い`);
+        return byId.get(id);
+      });
+      for (const form of expandForms(pattern)) {
+        const { grid, clues, given, conclude } = boardOf(form);
+        const after = applyAllPatterns(grid, clues, given, parts);
+        assert.ok(conclude.every((c) => after[c.edge] === c.value), `${pattern.id}: ${pattern.combines.join(' + ')} だけでは届かない`);
+      }
+    }
+    // ほかの定石 1 つだけで結論が全部出てしまうなら、それは同じ定石の特別な場合
+    if (pattern.match) continue;
+    for (const form of expandForms(pattern)) {
+      const { grid, clues, given, conclude } = boardOf(form);
+      for (const other of PATTERNS) {
+        if (other === pattern) continue;
+        const { fills } = findMatches(grid, clues, given, other);
+        const all = conclude.every((c) => fills.some((f) => f.edge === c.edge && f.value === c.value));
+        assert.ok(!all, `${pattern.id} は ${other.id} 1 つで結論が全部出る（同じ定石）`);
+      }
+    }
   }
 });

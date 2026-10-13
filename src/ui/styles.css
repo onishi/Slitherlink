@@ -644,6 +644,7 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 }
 
 .pat-why { margin: 0; font-size: .84rem; line-height: 1.8; color: var(--ink-soft); }
+.pat-combines { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); font-size: .76rem; line-height: 1.7; color: var(--ink-soft); }
 
 .pat-caution {
   margin: 12px 0 0;

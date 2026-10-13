@@ -4,20 +4,17 @@
  * 測定: 24 問（7×7・10×10 × やさしい・ふつう・むずかしい）、盤面 3933 通り。
  */
 export const PATTERN_USAGE = {
-  'vertex-rule': 94.5,
   'clue-full': 39.1,
   'dead-end': 36.1,
   'closed-area': 33.4,
   'vertex-three-crosses': 32.2,
   'vertex-two': 26.9,
-  'zero': 24.5,
   'border-zero': 24,
   'clue-rest': 20.2,
   'two-corner-crosses': 16.1,
   'line-into-three': 13.6,
   'three-one-cross': 13.3,
   'no-shortcut-loop': 12.3,
-  'border-vertex-crosses': 11.9,
   'corner-crosses-one': 9.3,
   'line-into-crossed-two': 9,
   'zero-one-diagonal': 8.9,
@@ -34,9 +31,7 @@ export const PATTERN_USAGE = {
   'knight-zero-two-zero': 1.6,
   'two-cross-three-diagonal': 1.5,
   'border-one-three': 0.9,
-  'corner-one': 0.8,
   'corner-one-three': 0.8,
-  'corner-three': 0.5,
   'corner-two-three': 0.3,
   'three-three-two': 0.3,
   'three-three-diagonal-two': 0.3,
@@ -46,6 +41,4 @@ export const PATTERN_USAGE = {
   'border-one-one': 0,
   'corner-one-one': 0,
   'corner-two-one': 0,
-  'three-three-three': 0,
-  'three-zero-three': 0,
 };

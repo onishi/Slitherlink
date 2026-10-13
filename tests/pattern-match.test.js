@@ -43,34 +43,34 @@ test('角の定石は盤の角に置いたときだけ当てはまる', () => {
   const grid = getGrid(6, 6);
   const clues = new Int8Array(36).fill(-1);
   const state = new Int8Array(grid.edgeCount);
-  const corner = PATTERNS.find((p) => p.id === 'corner-three');
+  const corner = PATTERNS.find((p) => p.id === 'corner-two');
 
-  // 盤の真ん中の 3 には当てはまらない
-  clues[2 * 6 + 2] = 3;
+  // 盤の真ん中の 2 には当てはまらない
+  clues[2 * 6 + 2] = 2;
   assert.equal(findMatches(grid, clues, state, corner).fills.length, 0);
 
-  // 角の 3 には当てはまる
+  // 角の 2 には当てはまる
   clues[2 * 6 + 2] = -1;
-  clues[0] = 3;
+  clues[0] = 2;
   const hit = findMatches(grid, clues, state, corner);
   assert.equal(hit.fills.length, 2);
   for (const { edge, value } of hit.fills) {
     assert.equal(value, LINE);
-    assert.ok([grid.h(0, 0), grid.v(0, 0)].includes(edge), '角以外の辺を埋めようとしている');
+    assert.ok([grid.h(0, 1), grid.v(1, 0)].includes(edge), '決まるはずの辺以外を埋めようとしている');
   }
 });
 
 test('角の定石は 4 つの角すべてで当てはまる', () => {
   const grid = getGrid(6, 6);
-  const corner = PATTERNS.find((p) => p.id === 'corner-one');
+  const corner = PATTERNS.find((p) => p.id === 'corner-two');
   const corners = [[0, 0], [0, 5], [5, 0], [5, 5]];
   for (const [r, c] of corners) {
     const clues = new Int8Array(36).fill(-1);
-    clues[r * 6 + c] = 1;
+    clues[r * 6 + c] = 2;
     const state = new Int8Array(grid.edgeCount);
     const { fills } = findMatches(grid, clues, state, corner);
     assert.equal(fills.length, 2, `角 (${r},${c}) で当てはまらない`);
-    for (const f of fills) assert.equal(f.value, CROSS);
+    for (const f of fills) assert.equal(f.value, LINE);
   }
 });
 
@@ -140,7 +140,7 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
 
 test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
   const rules = PATTERNS.filter((p) => p.match && p.match !== 'loop');
-  assert.equal(rules.length, 10, 'ルール適用型の定石が 10 になっていない');
+  assert.equal(rules.length, 9, 'ルール適用型の定石が 9 になっていない');
   let filled = 0;
 
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
@@ -172,7 +172,8 @@ test('ルールを直接当てはめる定石が、正解と違う辺を埋め�
 });
 
 test('点の次数ルールは、型では拾えない形も埋める', () => {
-  const rule = PATTERNS.find((p) => p.match === 'vertex');
+  // 交点の 3 つの定石（2 本集まる・線の端・行き止まり）をまとめたルール
+  const rule = { id: 'vertex', match: 'vertex' };
   const grid = getGrid(5, 6);
   const clues = new Int8Array(30).fill(-1);
 
@@ -338,7 +339,7 @@ test('数字の角がふさがれた定石は、盤の縁や角の点でも当�
 
 test('閉空間ルールは、交点の数え上げでは届かない辺を埋める', () => {
   const rule = PATTERNS.find((p) => p.match === 'bridge');
-  const vertexRule = PATTERNS.find((p) => p.match === 'vertex');
+  const vertexRule = { id: 'vertex', match: 'vertex' };
   const grid = getGrid(3, 3);
   const clues = new Int8Array(9).fill(-1);
   const state = new Int8Array(grid.edgeCount);
@@ -360,30 +361,27 @@ test('閉空間ルールは、交点の数え上げでは届かない辺を埋�
   assert.ok(hit && hit.value === CROSS, '閉空間ルールが埋めてくれない');
 });
 
-test('盤の端にある 0 にも当てはまる', () => {
+test('盤の端にある数字にも当てはまる', () => {
   // 定義は 3x3 の枠だが、まわりの余白は推論に使っていない。
-  // 枠ごと収まることを求めると端の 0 を取りこぼす（実際に起きた不具合）。
+  // 枠ごと収まることを求めると端の数字を取りこぼす（実際に 0 で起きた不具合）。
   const grid = getGrid(7, 7);
-  const zero = PATTERNS.find((p) => p.id === 'zero');
-  const state = new Int8Array(grid.edgeCount);
+  const pattern = PATTERNS.find((p) => p.id === 'three-one-cross');
 
   const at = (r, c) => {
     const clues = new Int8Array(49).fill(-1);
-    clues[r * 7 + c] = 0;
-    return findMatches(grid, clues, state, zero);
+    clues[r * 7 + c] = 3;
+    const state = new Int8Array(grid.edgeCount);
+    state[grid.h(r, c)] = CROSS; // 3 の上の辺が ×
+    return findMatches(grid, clues, state, pattern);
   };
-  assert.equal(at(3, 3).places, 1, '盤の内側の 0');
-  assert.equal(at(3, 0).places, 1, '左端の 0');
-  assert.equal(at(0, 3).places, 1, '上端の 0');
-  assert.equal(at(6, 6).places, 1, '右下の角の 0');
-  assert.equal(at(0, 0).fills.length, 4, '角の 0 でも 4 辺すべてを埋める');
-
-  // 端と内側が混ざっていても全部数える
-  const clues = new Int8Array(49).fill(-1);
-  clues[3 * 7 + 0] = 0;
-  clues[4 * 7 + 1] = 0;
-  clues[4 * 7 + 2] = 0;
-  assert.equal(findMatches(grid, clues, state, zero).places, 3);
+  assert.equal(at(3, 3).places, 1, '盤の内側');
+  assert.equal(at(3, 0).places, 1, '左端');
+  assert.equal(at(0, 3).places, 1, '上端');
+  assert.equal(at(6, 6).places, 1, '右下の角');
+  const corner = at(0, 0);
+  for (const e of [grid.h(1, 0), grid.v(0, 0), grid.v(0, 1)]) {
+    assert.ok(corner.fills.some((f) => f.edge === e && f.value === LINE), '角でも 3 の残りの 3 辺を線にする');
+  }
 });
 
 /**
