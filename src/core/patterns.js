@@ -99,7 +99,7 @@ const DEFINITIONS = [
   {
     id: 'vertex-three-crosses',
     category: 'basic', level: 2, match: 'vertex-dead',
-    title: '交点の 3 方向が × なら、残りも ×',
+    title: '行き止まりになる辺は ×（交点の 3 方向が × なら残りも ×）',
     rows: 2, cols: 2, anchor: 'none',
     clues: [],
     given: [['h', 1, 0, 'cross'], ['v', 0, 1, 'cross'], ['v', 1, 1, 'cross']],
@@ -109,7 +109,7 @@ const DEFINITIONS = [
   {
     id: 'dead-end',
     category: 'basic', level: 2, match: 'vertex-pair',
-    title: '線の端は、必ずもう 1 本つながる',
+    title: '線の端は、行ける方向が 1 つならそこへ伸びる',
     rows: 2, cols: 2, anchor: 'none',
     clues: [],
     given: [['h', 1, 0, 'line'], ['v', 0, 1, 'cross'], ['h', 1, 1, 'cross']],

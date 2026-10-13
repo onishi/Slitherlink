@@ -14,8 +14,6 @@
   <header class="topbar">
     <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>スリザーリンク</h1>
     <div class="topbar-actions">
-      <button type="button" class="icon-btn has-label" id="btn-patterns" aria-label="定石一覧をひらく"
-              aria-expanded="false" aria-controls="patterns-drawer" title="定石一覧">定石</button>
       <button type="button" class="icon-btn" id="btn-rules" aria-label="遊び方" title="遊び方">?</button>
       <button type="button" class="icon-btn" id="btn-menu" aria-label="メニュー（新しい問題・設定など）" title="メニュー（新しい問題・設定など）"
               aria-haspopup="dialog">⋯</button>
@@ -54,6 +52,8 @@
     </div>
     <button type="button" class="tool" id="btn-check" title="間違いがないか調べます"><span class="ico" aria-hidden="true">✓</span>チェック</button>
     <button type="button" class="tool tool-hint" id="btn-hint" title="論理的に決まる場所を 1 つ教えます (H)"><span class="ico" aria-hidden="true">💡</span>ヒント</button>
+    <button type="button" class="tool tool-patterns" id="btn-quick-patterns" title="いま使える定石をカードで見ます (P)"
+            aria-controls="pat-panel" aria-expanded="false"><span class="ico" aria-hidden="true">▦</span>定石</button>
   </div>
 
   <div class="hint-panel" id="hint-panel" role="status" aria-live="polite" hidden>
@@ -70,6 +70,23 @@
     </details>
     <div class="hint-actions" id="hint-actions"></div>
   </div>
+
+  <!-- いま使える定石。ヒントと同じ場所に出し、左右のスワイプで切り替える -->
+  <section class="hint-panel pat-panel" id="pat-panel" aria-labelledby="pat-panel-title" hidden>
+    <div class="hint-head">
+      <span class="hint-badge" aria-hidden="true">▦</span>
+      <h2 id="pat-panel-title">いま使える定石</h2>
+      <button type="button" class="pat-list-btn" id="btn-patterns" aria-controls="patterns-drawer"
+              aria-expanded="false">一覧</button>
+      <button type="button" class="icon-btn" id="pat-panel-close" aria-label="定石をとじる">✕</button>
+    </div>
+    <div class="pc-track" id="pat-track" tabindex="0" aria-label="定石のカード（左右にスワイプ）"></div>
+    <div class="pc-nav">
+      <button type="button" class="icon-btn" id="pat-prev" aria-label="前の定石">‹</button>
+      <span class="pc-pos" id="pat-pos"></span>
+      <button type="button" class="icon-btn" id="pat-next" aria-label="次の定石">›</button>
+    </div>
+  </section>
 
   <p class="message" id="message" role="status" aria-live="polite"></p>
 </div>

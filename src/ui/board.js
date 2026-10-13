@@ -174,7 +174,9 @@ export class Board {
       const ln = this.edgeEls[e];
       const isEvidence = this.focusEdges.has(e);
       ln.classList.toggle('line', want === LINE);
-      const hintMark = want !== UNKNOWN ? want : this.hintValue;
+      const hintMark = want !== UNKNOWN
+        ? want
+        : (this.hintValue instanceof Map ? (this.hintValue.get(e) ?? UNKNOWN) : this.hintValue);
       ln.classList.toggle('hint', isHint && hintMark !== CROSS);
       ln.classList.toggle('evidence', isEvidence && want === LINE);
       ln.classList.toggle('trial', trial === LINE);
@@ -219,6 +221,7 @@ export class Board {
     this._drawCursor();
   }
 
+  /** value は全部の辺に共通の印か、辺 → 印の Map（定石のように辺ごとに違うとき）。 */
   setHints(edges, focus, value = UNKNOWN) {
     this.hintEdges = new Set(edges);
     this.hintValue = value;
