@@ -123,17 +123,13 @@ const RULE_TITLES = {
   loop_done: '輪が完成している',
 };
 
-/** マスや交点の位置を「上から◯番目・左から◯番目」と言い表す。 */
+/** マスや交点の位置を「3行2列のマス」のように行・列で短く言い表す。 */
 function cellName(grid, cell) {
-  const r = Math.floor(cell / grid.cols);
-  const c = cell % grid.cols;
-  return `上から ${r + 1} 番目・左から ${c + 1} 番目のマス`;
+  return `${Math.floor(cell / grid.cols) + 1}行${(cell % grid.cols) + 1}列のマス`;
 }
 
 function vertexName(grid, vertex) {
-  const r = Math.floor(vertex / (grid.cols + 1));
-  const c = vertex % (grid.cols + 1);
-  return `上から ${r + 1} 番目・左から ${c + 1} 番目の点`;
+  return `${Math.floor(vertex / (grid.cols + 1)) + 1}行${(vertex % (grid.cols + 1)) + 1}列の点`;
 }
 
 /** マスの周囲がいまどうなっているかを数える。 */
@@ -157,14 +153,14 @@ function clashText(grid, clues, clash) {
     const clue = clues[clash.index];
     const where = cellName(grid, clash.index);
     return clash.line > clue
-      ? `${where}の ${clue} のまわりに線が ${clash.line} 本も集まってしまいます`
-      : `${where}の ${clue} のまわりには、線を ${clash.line + clash.unknown} 本しか引けなくなります（${clue} 本必要なのに）`;
+      ? `${where}の ${clue} に線が ${clash.line} 本集まります`
+      : `${where}の ${clue} に線を ${clash.line + clash.unknown} 本しか引けません`;
   }
   if (clash.kind === 'vertex') {
     const where = vertexName(grid, clash.index);
     return clash.dead
-      ? `${where}が行き止まりになってしまいます`
-      : `${where}に線が ${clash.line} 本集まってしまいます`;
+      ? `${where}が行き止まりになります`
+      : `${where}に線が ${clash.line} 本集まります`;
   }
   return '輪がひとつにまとまらなくなります';
 }
@@ -330,30 +326,30 @@ function explain(grid, clues, state, edge, value, reason) {
     focus.cells.push(cell);
     focus.edges.push(...reason.premises);
     if (rule === 'clue_rest') {
-      text = `${cellName(grid, cell)}の ${clue} は、いま線が ${line} 本、空いているのが ${unknown} 辺だけ。空いている辺を全部使わないと ${clue} 本に届きません。`;
+      text = `${cellName(grid, cell)}の ${clue} は線が ${line} 本、空きが ${unknown} 辺。空きを全部線にしないと ${clue} 本に届きません。`;
     } else if (clue === 0) {
-      text = `${cellName(grid, cell)}は 0。線を 1 本も通さないマスなので、まわりの 4 辺はすべて × です。`;
+      text = `${cellName(grid, cell)}は 0。まわりの 4 辺はすべて × です。`;
     } else {
-      text = `${cellName(grid, cell)}の ${clue} は、まわりにもう線が ${line} 本。必要な数がそろっているので、残りの辺にはもう引けません。`;
+      text = `${cellName(grid, cell)}の ${clue} は線が ${line} 本そろいました。残りの辺は × です。`;
     }
   } else if (rule.startsWith('vertex') && reason.vertex != null) {
     const v = reason.vertex;
     focus.vertices.push(v);
     focus.edges.push(...reason.premises);
     if (rule === 'vertex_two') {
-      text = `${vertexName(grid, v)}には、もう線が 2 本集まっています。交点の線は 0 本か 2 本なので、3 本目は引けません。`;
+      text = `${vertexName(grid, v)}に線が 2 本集まりました。3 本目を引くと分かれ道になります。`;
     } else if (rule === 'vertex_pair') {
-      text = `${vertexName(grid, v)}は線の端で、ほかの道はすべて ×。輪は行き止まりを作れないので、進めるのはここだけです。`;
+      text = `${vertexName(grid, v)}は線の端で、ほかの道は ×。進めるのはここだけです。`;
     } else {
-      text = `${vertexName(grid, v)}は、この辺のほかがすべて ×。ここに線を引くと、その点から線が 1 本だけ出る行き止まりになってしまいます。`;
+      text = `${vertexName(grid, v)}はほかの道がすべて ×。ここに線を引くと行き止まりになります。`;
     }
   } else if (rule === 'loop_closed') {
     focus.edges.push(...reason.premises);
     if (reason.witness?.cell != null) focus.cells.push(reason.witness.cell);
-    text = `ここに線を引くと、光っている線とつながって輪が閉じます。答えはひとつながりの輪ひとつだけなので、閉じた輪が答えそのものになるはずですが、${witnessText(grid, clues, reason.witness)}。だからここは引けません。`;
+    text = `ここに線を引くと輪が閉じますが、${witnessText(grid, clues, reason.witness)}。輪はひとつだけなので引けません。`;
   } else if (rule === 'loop_done') {
     focus.edges.push(...reason.premises);
-    text = 'すでに輪が完成し、数字もすべて満たされています。輪はひとつだけなので、残りの辺はもう線にできません。';
+    text = '輪が完成し、数字もすべて満たされました。残りの辺は × です。';
   }
 
   return { title: RULE_TITLES[rule] || 'ここが決まります', text, focus };
@@ -366,7 +362,9 @@ function explainContradiction(grid, clues, proof) {
   const nested = proof.steps.some((s) => s.rule === 'case');
   const lines = proofLines(grid, clues, proof);
   const count = lines.filter((l) => l.level === 0 && l.kind !== 'assume' && l.kind !== 'clash').length;
-  const text = `ためしにここを${assumed}だとしてみると、${count === 0 ? 'すぐに' : `${count} 手で`}つじつまが合わなくなります（${clashLine(grid, clues, proof.clash)}）。だからここは ${mark} で確定です。`;
+  // 手順は下に並べるので、要約は短く。手順を畳むほど長いときだけ矛盾の中身も書く
+  const why = lines.length > 8 ? `（${clashLine(grid, clues, proof.clash)}）` : '';
+  const text = `ためしに${assumed}にすると、${count === 0 ? 'すぐ' : `${count} 手で`}矛盾します${why}。だから ${mark} です。`;
   return {
     title: nested ? '仮定を重ねると矛盾する' : '逆を試すと矛盾する',
     text,
@@ -423,8 +421,8 @@ export function findHints(grid, clues, state, solution, limit = 10) {
           value: solution[e],
           title: '間違いがあります',
           message: state[e] === LINE
-            ? 'ここには線が通りません。先にこの線を消してください。このままだと、この先の推論がすべてずれてしまいます。'
-            : 'ここには線が通ります。先に × を外してください。このままだと、この先の推論がすべてずれてしまいます。',
+            ? 'ここに線は通りません。先にこの線を消してください。'
+            : 'ここには線が通ります。先に × を外してください。',
           focus: { cells: [], vertices: [], edges: [] },
         }];
       }
@@ -436,7 +434,7 @@ export function findHints(grid, clues, state, solution, limit = 10) {
     return [{
       type: 'mistake',
       title: '盤面が矛盾しています',
-      message: `いまの盤面では${clashText(grid, clues, check.state.clash)}。どこかに誤りがあります。チェックを使ってみてください。`,
+      message: `いまの盤面では${clashText(grid, clues, check.state.clash)}。どこかに誤りがあります。`,
       focus: { cells: [], vertices: [], edges: [] },
     }];
   }

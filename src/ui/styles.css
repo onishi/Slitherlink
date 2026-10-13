@@ -330,25 +330,13 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 .modal-card .primary.wide { width: 100%; margin-top: 10px; }
 .modal-card .close-btn { width: 100%; margin-top: 18px; }
 
-/* ---------- 盤面の上の状況 ---------- */
-.status {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: .8rem;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-  margin-bottom: -4px;
-  flex-wrap: wrap;
-}
-.status-sep { color: var(--ink-faint); }
-
 /* ---------- 解いているあいだ使うもの（盤面のすぐ下） ---------- */
+/* 線／バツの切り替え（ボタン 2 つ分の幅）と、同じ幅の 5 つのボタンを 1 列に並べる */
 .play-bar {
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) repeat(5, minmax(0, 1fr));
   gap: 6px;
+  align-items: stretch;
 }
 
 .tool {
@@ -356,10 +344,12 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  min-width: 54px;
-  padding: 6px 4px;
-  font-size: .7rem;
+  gap: 2px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 2px;
+  font-size: .68rem;
+  white-space: nowrap;
   background: var(--surface);
   color: var(--ink-soft);
 }
@@ -367,7 +357,6 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 .tool-hint .ico { color: var(--line-hint); font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
 .tool-patterns .ico { color: var(--accent); }
 .tool-hint {
-  min-width: 64px;
   background: color-mix(in srgb, var(--line-hint) 16%, var(--surface));
   border-color: color-mix(in srgb, var(--line-hint) 45%, var(--border));
   color: var(--ink);
@@ -376,7 +365,6 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 .tool-hint:hover:not(:disabled) { background: color-mix(in srgb, var(--line-hint) 26%, var(--surface)); }
 
 .modes {
-  flex: 1;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 3px;
@@ -387,16 +375,19 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 }
 .modes button {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 4px;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 2px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--ink-soft);
   border-radius: 8px;
-  font-size: .9rem;
+  font-size: .72rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 .modes button:hover:not([aria-checked="true"]) { background: var(--surface); }
 .modes button[aria-checked="true"] {
@@ -405,7 +396,7 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   color: var(--ink);
   box-shadow: 0 1px 3px rgba(35, 32, 28, .1);
 }
-.modes .mode-ico { font-size: 1.2rem; color: var(--ink-faint); }
+.modes .mode-ico { font-size: 1.35rem; color: var(--ink-faint); }
 .modes button[aria-checked="true"] .mode-ico { color: var(--line); }
 
 /* ---------- 設定とその他（めったに使わないもの） ---------- */
@@ -486,10 +477,8 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 @media (max-width: 420px) {
   .app { padding: 10px 10px calc(20px + env(safe-area-inset-bottom)); gap: 10px; }
   .play-bar { gap: 4px; }
-  .tool { font-size: .62rem; min-width: 40px; padding: 6px 2px; white-space: nowrap; }
-  .tool-hint { min-width: 46px; }
-  .modes button { font-size: .82rem; gap: 3px; padding: 6px 2px; white-space: nowrap; }
-  .modes .mode-ico { font-size: 1.05rem; }
+  .tool, .modes button { font-size: .62rem; }
+  .tool .ico, .modes .mode-ico { font-size: 1.25rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -894,7 +883,7 @@ body.no-anim .app { transition: none !important; }
 }
 .hint-head h2 {
   margin: 0;
-  font-size: .92rem;
+  font-size: calc(.92rem * var(--hint-scale, 1));
   flex: 1;
   min-width: 0;
 }
@@ -922,20 +911,18 @@ body.no-anim .app { transition: none !important; }
 
 .hint-panel .hint-text {
   margin: 0;
-  font-size: .85rem;
-  line-height: 1.8;
+  font-size: calc(.86rem * var(--hint-scale, 1));
+  line-height: 1.65;
   color: var(--ink-soft);
 }
 
-.hint-proof { margin-top: 8px; font-size: .78rem; color: var(--ink-soft); }
+.hint-proof { margin-top: 6px; font-size: calc(.8rem * var(--hint-scale, 1)); color: var(--ink-soft); }
 .hint-proof[hidden] { display: none; }
 .hint-proof summary { cursor: pointer; font-weight: 600; color: var(--ink); }
 .hint-steps {
   margin: 6px 0 0;
   padding: 0 0 0 1.6em;
-  line-height: 1.7;
-  max-height: 14em;
-  overflow-y: auto;
+  line-height: 1.55;
 }
 .hint-steps li { padding-left: 2px; }
 .hint-steps li.lv1 { margin-left: 1.2em; }
@@ -943,7 +930,7 @@ body.no-anim .app { transition: none !important; }
 .hint-steps li.assume { color: var(--ink); }
 .hint-steps li.clash { color: var(--danger); }
 .hint-steps li.lv1, .hint-steps li.lv2 { list-style-type: circle; }
-.hint-legend { margin: 6px 0 0; font-size: .72rem; color: var(--ink-faint); }
+.hint-legend { margin: 4px 0 0; font-size: calc(.72rem * var(--hint-scale, 1)); color: var(--ink-faint); }
 
 .hint-actions {
   display: flex;
@@ -952,6 +939,8 @@ body.no-anim .app { transition: none !important; }
 }
 .hint-actions:empty { display: none; }
 .hint-actions button { font-size: .82rem; padding: 8px 14px; }
+/* 文字を小さくしても収まらないほど長いときだけ、最後の手段として欄の中で送る */
+.hint-panel.is-overflow { overflow-y: auto; }
 
 /* ---------- いま使える定石のカード（ヒントと同じ場所） ---------- */
 .tool-patterns.is-on {
@@ -1023,6 +1012,26 @@ body.no-anim .app { transition: none !important; }
   margin-top: 6px;
 }
 .pc-nav .icon-btn { width: 30px; height: 30px; font-size: 1.05rem; }
-.pc-nav .icon-btn[hidden] { display: none; }
+.pc-nav[hidden], .pc-nav .icon-btn[hidden] { display: none; }
 .pc-nav .icon-btn:disabled { opacity: .35; }
 .pc-pos { font-size: .76rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: center; }
+
+/* ---------- 広い画面：盤面の右にボタンとヒントを置き、ヒントが下へはみ出さないようにする ---------- */
+@media (min-width: 900px) {
+  .app:not(.doc) {
+    max-width: 1080px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-auto-rows: min-content;
+    column-gap: 18px;
+    align-items: start;
+  }
+  .app:not(.doc) > .topbar { grid-column: 1 / -1; }
+  .app:not(.doc) > .board-area { grid-column: 1; grid-row: 2 / span 20; }
+  .app:not(.doc) > :not(.topbar):not(.board-area) { grid-column: 2; }
+  .app:not(.doc) #board { max-height: calc(100dvh - 110px); }
+  /* 右の列は狭いので、線／バツを 1 行目、ほかのボタンを 2 行目にする */
+  .play-bar { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .play-bar .modes { grid-column: 1 / -1; }
+  .modes button { flex-direction: row; gap: 6px; font-size: .85rem; padding: 7px 4px; }
+}
