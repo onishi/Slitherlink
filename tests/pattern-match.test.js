@@ -139,8 +139,8 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
 });
 
 test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
-  const rules = PATTERNS.filter((p) => p.match === 'vertex' || p.match === 'bridge');
-  assert.equal(rules.length, 2, 'ルール適用型の定石が 2 つでない');
+  const rules = PATTERNS.filter((p) => ['vertex', 'bridge', 'clue-full', 'clue-rest'].includes(p.match));
+  assert.equal(rules.length, 4, 'ルール適用型の定石が 4 つでない');
   let filled = 0;
 
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
@@ -191,6 +191,39 @@ test('点の次数ルールは、型では拾えない形も埋める', () => {
     const hit = fills.find((f) => f.edge === want[0]);
     assert.ok(hit, `${label}: 埋めてくれない`);
     assert.equal(hit.value, want[1], `${label}: 値が違う`);
+  }
+});
+
+test('数字の本数のルールは、どの数字・どの向きでも埋める', () => {
+  const full = PATTERNS.find((p) => p.match === 'clue-full');
+  const rest = PATTERNS.find((p) => p.match === 'clue-rest');
+  const grid = getGrid(5, 5);
+  const center = 12;
+  const sides = [0, 1, 2, 3].map((k) => grid.cellEdges[center * 4 + k]);
+  const cases = [
+    { label: '1 の 3 辺が ×', clue: 1, marks: [CROSS, CROSS, CROSS, 0], rule: rest, want: LINE },
+    { label: '2 のとなり合う 2 辺が ×', clue: 2, marks: [CROSS, 0, CROSS, 0], rule: rest, want: LINE },
+    { label: '2 の向かい合う 2 辺が ×', clue: 2, marks: [CROSS, CROSS, 0, 0], rule: rest, want: LINE },
+    { label: '3 の 1 辺が ×', clue: 3, marks: [0, 0, 0, CROSS], rule: rest, want: LINE },
+    { label: '2 に線が 2 本', clue: 2, marks: [LINE, 0, LINE, 0], rule: full, want: CROSS },
+    { label: '3 に線が 3 本', clue: 3, marks: [LINE, LINE, LINE, 0], rule: full, want: CROSS },
+    { label: '1 に線が 1 本', clue: 1, marks: [0, 0, 0, LINE], rule: full, want: CROSS },
+  ];
+  for (const { label, clue, marks, rule, want } of cases) {
+    const clues = new Int8Array(25).fill(-1);
+    clues[center] = clue;
+    const state = new Int8Array(grid.edgeCount);
+    marks.forEach((m, i) => { if (m) state[sides[i]] = m; });
+    const { fills } = findMatches(grid, clues, state, rule);
+    const open = sides.filter((e) => state[e] === UNKNOWN);
+    assert.equal(fills.length, open.length, `${label}: 残りの辺をすべて埋めていない`);
+    for (const f of fills) {
+      assert.ok(open.includes(f.edge), `${label}: 関係ない辺を埋めた`);
+      assert.equal(f.value, want, `${label}: 値が違う`);
+    }
+    // 逆向きのルールは何もしない
+    const other = rule === full ? rest : full;
+    assert.equal(findMatches(grid, clues, state, other).fills.length, 0, `${label}: 逆のルールまで当てはまった`);
   }
 });
 
