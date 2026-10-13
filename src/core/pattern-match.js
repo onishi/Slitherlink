@@ -8,6 +8,7 @@
 
 import { getGrid, UNKNOWN, LINE, CROSS } from './grid.js';
 import { SolveState } from './solver.js';
+import { expandForms } from './patterns.js';
 
 /**
  * 頂点の座標を変換する 8 通り。
@@ -186,6 +187,19 @@ function placements(variant, rows, cols) {
  * @returns {{fills:{edge:number,value:number}[], conflicts:number, places:number}}
  */
 export function findMatches(grid, clues, state, pattern) {
+  if (pattern.alt) {
+    // 別の形を持つ定石は、どれかの形に合えば当てはまる
+    const fills = new Map();
+    let conflicts = 0;
+    let places = 0;
+    for (const form of expandForms(pattern)) {
+      const r = findMatches(grid, clues, state, form);
+      for (const f of r.fills) fills.set(f.edge, f);
+      conflicts += r.conflicts;
+      places += r.places;
+    }
+    return { fills: [...fills.values()], conflicts, places };
+  }
   if (pattern.match === 'loop') return findLoopMatches(grid, clues, state);
   if (pattern.match === 'vertex') return findVertexMatches(grid, state, 'all');
   if (pattern.match === 'vertex-two' || pattern.match === 'vertex-pair' || pattern.match === 'vertex-dead') {

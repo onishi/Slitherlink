@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getGrid, UNKNOWN, LINE, CROSS } from '../src/core/grid.js';
 import { countSolutions, solveLogical } from '../src/core/solver.js';
-import { PATTERNS, buildPattern } from '../src/core/patterns.js';
+import { PATTERNS, buildPattern, expandForms } from '../src/core/patterns.js';
 import { orientationsOf, findMatches, transformPattern } from '../src/core/pattern-match.js';
 import { generatePuzzle } from '../src/core/generator.js';
 
-const templates = PATTERNS.filter((p) => !p.match); // 型で照合するものだけ
+const templates = PATTERNS.filter((p) => !p.match).flatMap(expandForms); // 型で照合するものだけ（別の形も 1 つずつ）
 
 test('回転・反転しても定石は成り立つ', () => {
   for (const pattern of templates) {
@@ -253,6 +253,23 @@ test('交点の定石は、直線でも曲がり角でも盤の縁でも埋め�
         `${label}: ${other} まで当てはまった`,
       );
     }
+  }
+});
+
+test('片側が × の 2 の角には、どちらの向きから線が来ても当てはまる', () => {
+  // 実際にあった場面: 上が × の 2 の右下の角へ、右から線が来た
+  const pattern = PATTERNS.find((p) => p.id === 'line-into-crossed-two');
+  const grid = getGrid(5, 5);
+  const clues = new Int8Array(25).fill(-1);
+  clues[2 * 5 + 2] = 2;
+  for (const incoming of [grid.v(3, 3), grid.h(3, 3)]) {
+    const state = new Int8Array(grid.edgeCount);
+    state[grid.h(2, 2)] = CROSS;
+    state[incoming] = LINE;
+    const { fills } = findMatches(grid, clues, state, pattern);
+    const away = incoming === grid.v(3, 3) ? grid.h(3, 3) : grid.v(3, 3);
+    assert.ok(fills.some((f) => f.edge === away && f.value === CROSS), '2 から離れる向きを × にしない');
+    assert.ok(fills.some((f) => f.edge === grid.v(2, 2) && f.value === LINE), '左の辺を線にしない');
   }
 });
 

@@ -4,7 +4,7 @@
 
 import { UNKNOWN, LINE, CROSS } from './grid.js';
 import { solveLogical } from './solver.js';
-import { findProof } from './proof.js';
+import { collectProofs, proofSize } from './proof.js';
 
 /**
  * 盤面の今の状態を調べる。
@@ -380,19 +380,44 @@ const ruleRank = (proof) => {
   return rank < 0 ? RULE_PRIORITY.length : rank;
 };
 
+/** 証明 1 つをヒントの形にする。 */
+function hintFromProof(grid, clues, state, proof) {
+  if (proof.kind === 'direct') {
+    const { title, text, focus } = explain(grid, clues, state, proof.edge, proof.value, proof.step);
+    return { type: 'move', edge: proof.edge, value: proof.value, title, message: text, steps: [], proof, focus };
+  }
+  const { title, text, lines, focus } = explainContradiction(grid, clues, proof);
+  return { type: 'move', edge: proof.edge, value: proof.value, title, message: text, steps: lines, proof, focus };
+}
+
+/** 分かりやすさの点数（小さいほど先に見せる）。 */
+const proofScore = (proof) => (proof.kind === 'direct' ? ruleRank(proof) : 100 + proofSize(proof));
+
 /**
- * 次の一手を探す。
- * 出す手には必ず、いまの盤面から一歩ずつたどれる証明が付いていて、
- * その証明は checkProof で検算済み。
- * @returns {{type:'mistake'|'move'|'none', edge?:number, value?:number,
- *            title:string, message:string, steps?:object[], proof?:object, focus?:object}}
+ * 同じ理由で決まる手は 1 つにまとめる（0 のまわり 4 辺が 4 枚に分かれないように）。
+ * 背理法は辺ごとに別の手として扱う。
  */
-export function findHint(grid, clues, state, solution) {
+function reasonKey(proof) {
+  if (proof.kind !== 'direct') return `edge:${proof.edge}`;
+  const { rule, cell, vertex } = proof.step;
+  if (cell != null) return `${rule}:cell:${cell}`;
+  if (vertex != null) return `${rule}:vertex:${vertex}`;
+  return `${rule}:edge:${proof.edge}`;
+}
+
+/**
+ * いま示せるヒントを、分かりやすい順に並べて返す（ヒントのページ送り用）。
+ * どの手にも、いまの盤面から一歩ずつたどれる証明が付いていて、checkProof で検算済み。
+ * 間違いや矛盾があるとき、決まる手が無いときは、その 1 件だけを返す。
+ * @param {number} [limit=10] 返す件数の上限
+ * @returns {object[]} findHint と同じ形のヒントの列（1 件以上）
+ */
+export function findHints(grid, clues, state, solution, limit = 10) {
   if (solution) {
     for (let e = 0; e < grid.edgeCount; e++) {
       if (state[e] === UNKNOWN) continue;
       if (state[e] !== solution[e]) {
-        return {
+        return [{
           type: 'mistake',
           edge: e,
           value: solution[e],
@@ -401,36 +426,49 @@ export function findHint(grid, clues, state, solution) {
             ? 'ここには線が通りません。先にこの線を消してください。このままだと、この先の推論がすべてずれてしまいます。'
             : 'ここには線が通ります。先に × を外してください。このままだと、この先の推論がすべてずれてしまいます。',
           focus: { cells: [], vertices: [], edges: [] },
-        };
+        }];
       }
     }
   }
 
   const check = solveLogical(grid, clues, { maxDepth: 0, initial: state });
   if (check.status === 'contradiction') {
-    return {
+    return [{
       type: 'mistake',
       title: '盤面が矛盾しています',
       message: `いまの盤面では${clashText(grid, clues, check.state.clash)}。どこかに誤りがあります。チェックを使ってみてください。`,
       focus: { cells: [], vertices: [], edges: [] },
-    };
+    }];
   }
 
-  const proof = findProof(grid, clues, state, { rank: ruleRank, solution });
-  if (proof) {
-    if (proof.kind === 'direct') {
-      const { title, text, focus } = explain(grid, clues, state, proof.edge, proof.value, proof.step);
-      return { type: 'move', edge: proof.edge, value: proof.value, title, message: text, steps: [], proof, focus };
-    }
-    const { title, text, lines, focus } = explainContradiction(grid, clues, proof);
-    return { type: 'move', edge: proof.edge, value: proof.value, title, message: text, steps: lines, proof, focus };
+  const proofs = collectProofs(grid, clues, state, { solution })
+    .map((proof, i) => ({ proof, i, score: proofScore(proof) }))
+    .sort((a, b) => a.score - b.score || a.i - b.i);
+  const seen = new Set();
+  const hints = [];
+  for (const { proof } of proofs) {
+    const key = reasonKey(proof);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    hints.push(hintFromProof(grid, clues, state, proof));
+    if (hints.length >= limit) break;
   }
-  return {
+  if (hints.length) return hints;
+  return [{
     type: 'none',
     title: 'ヒントはありません',
     message: state.includes(UNKNOWN)
       ? 'いまの盤面から、根拠を示して決められる場所が見つかりませんでした。'
       : 'もう全部の辺が埋まっています。',
     focus: { cells: [], vertices: [], edges: [] },
-  };
+  }];
+}
+
+/**
+ * 次の一手を 1 つ探す（いちばん分かりやすいもの）。
+ * @returns {{type:'mistake'|'move'|'none', edge?:number, value?:number,
+ *            title:string, message:string, steps?:object[], proof?:object, focus?:object}}
+ */
+export function findHint(grid, clues, state, solution) {
+  return findHints(grid, clues, state, solution, 1)[0];
 }

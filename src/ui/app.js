@@ -1,5 +1,5 @@
 import { getGrid, UNKNOWN, LINE, CROSS } from '../core/grid.js';
-import { analyze, autoCrossEdges, findHint } from '../core/game.js';
+import { analyze, autoCrossEdges, findHints } from '../core/game.js';
 import { decodePuzzle, encodePuzzle, solutionFor } from '../core/puzzle.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { Board } from './board.js';
@@ -7,6 +7,7 @@ import { renderPatternsInto } from './patterns-view.js';
 import { findMatches } from '../core/pattern-match.js';
 import { PATTERNS } from '../core/patterns.js';
 import { PuzzleService } from './puzzle-service.js';
+import { PatternCards } from './pattern-cards.js';
 import { store } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
@@ -45,7 +46,18 @@ const el = {
   hintProof: $('hint-proof'),
   hintSteps: $('hint-steps'),
   hintClose: $('hint-close'),
+  hintNav: $('hint-nav'),
+  hintPrev: $('hint-prev'),
+  hintNext: $('hint-next'),
+  hintPos: $('hint-pos'),
   patternsBtn: $('btn-patterns'),
+  quickPatterns: $('btn-quick-patterns'),
+  patPanel: $('pat-panel'),
+  patTrack: $('pat-track'),
+  patPos: $('pat-pos'),
+  patPrev: $('pat-prev'),
+  patNext: $('pat-next'),
+  patClose: $('pat-panel-close'),
   rulesPatternsBtn: $('btn-rules-patterns'),
   drawer: $('patterns-drawer'),
   drawerBody: $('drawer-body'),
@@ -76,6 +88,7 @@ const game = {
 };
 
 let board;
+let cards;
 let messageTimer = 0;
 
 /* ---------------- 起動 ---------------- */
@@ -97,6 +110,18 @@ function init() {
   board = new Board(el.board, {
     onPaint: paint,
     onStrokeEnd: commitStroke,
+  });
+  cards = new PatternCards({
+    track: el.patTrack,
+    position: el.patPos,
+    prev: el.patPrev,
+    next: el.patNext,
+    onApply: (item) => applyPattern(item.pattern),
+    onFocus: focusPatternCard,
+    emptyActions: [
+      { label: 'ヒントを見る', run: () => showHint() },
+      { label: '定石の一覧', run: () => openDrawer() },
+    ],
   });
   board.showErrors = el.errors.checked;
   board.fadeDone = el.fade.checked;
@@ -163,12 +188,17 @@ function bindUI() {
   }
 
   el.patternsBtn.addEventListener('click', () => toggleDrawer());
+  el.quickPatterns.addEventListener('click', () => (isPatternsOpen() ? hidePatterns() : showPatterns()));
+  el.patClose.addEventListener('click', () => hidePatterns());
   // 盤面のほうを触りたいだけのときもあるので、開いたままでも遊べるようにしておく
   el.rulesPatternsBtn.addEventListener('click', () => {
     el.rulesModal.hidden = true;
     openDrawer();
   });
   el.hintClose.addEventListener('click', () => hideHint());
+  el.hintPrev.addEventListener('click', () => showHintAt(hintIndex - 1));
+  el.hintNext.addEventListener('click', () => showHintAt(hintIndex + 1));
+  bindSwipe(el.hintPanel, (dir) => showHintAt(hintIndex + dir));
   el.drawerClose.addEventListener('click', () => closeDrawer());
   el.drawerScrim.addEventListener('click', () => closeDrawer());
 
@@ -186,8 +216,10 @@ function bindUI() {
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
-      if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
+      // 手前に重なっているものから閉じる
       if (isDrawerOpen()) { closeDrawer(); return; }
+      if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
+      if (isPatternsOpen()) { hidePatterns(); return; }
       if (!el.menuModal.hidden) { closeMenu(); return; }
       el.rulesModal.hidden = true;
       hideOverlay();
@@ -202,6 +234,9 @@ function bindUI() {
     } else if (!mod && !isTyping(ev.target) && (ev.key === 'h' || ev.key === 'H')) {
       ev.preventDefault();
       showHint();
+    } else if (!mod && !isTyping(ev.target) && (ev.key === 'p' || ev.key === 'P')) {
+      ev.preventDefault();
+      if (isPatternsOpen()) hidePatterns(); else showPatterns();
     } else if (!mod && !isTyping(ev.target) && (ev.key === 'm' || ev.key === 'M')) {
       ev.preventDefault();
       setInputMode(board.inputMode === 'cross' ? 'line' : 'cross');
@@ -288,7 +323,8 @@ function closeDrawer() {
   el.drawerScrim.hidden = true;
   document.body.classList.remove('drawer-open');
   el.patternsBtn.setAttribute('aria-expanded', 'false');
-  el.patternsBtn.focus();
+  // 一覧のボタンはカードの欄にあって隠れていることがあるので、定石ボタンへ戻す
+  el.quickPatterns.focus();
   const done = () => { el.drawer.hidden = true; };
   const motion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (motion) done();
@@ -312,6 +348,54 @@ function updatePatternCounts() {
   patternsView.setCounts(counts);
 }
 
+/* ---------------- いま使える定石のカード（ヒントと同じ場所） ---------------- */
+
+function isPatternsOpen() {
+  return !el.patPanel.hidden;
+}
+
+/** いま使える定石を、出番の多い順に集める。 */
+function usablePatterns() {
+  const items = [];
+  for (const pattern of PATTERNS) {
+    const { fills, places } = findMatches(game.grid, game.puzzle.clues, game.state, pattern);
+    if (fills.length) items.push({ pattern, fills, places });
+  }
+  return items;
+}
+
+function showPatterns() {
+  if (!game.grid || game.solved) return;
+  hideHint();
+  el.patPanel.hidden = false;
+  el.quickPatterns.setAttribute('aria-expanded', 'true');
+  el.quickPatterns.classList.add('is-on');
+  refreshPatternCards(null);
+}
+
+function hidePatterns() {
+  if (el.patPanel.hidden) return;
+  el.patPanel.hidden = true;
+  el.quickPatterns.setAttribute('aria-expanded', 'false');
+  el.quickPatterns.classList.remove('is-on');
+  board.clearHints();
+}
+
+/** 盤面が変わったら数え直す。見ていたカードがまだ使えるなら、そのカードのまま。 */
+function refreshPatternCards(keep) {
+  const items = usablePatterns();
+  el.patPanel.querySelector('h2').textContent = items.length
+    ? `いま使える定石 ${items.length} 個`
+    : 'いま使える定石';
+  cards.render(items, keep === undefined ? cards.focusedId : keep);
+}
+
+/** 見ているカードの定石が、盤面のどこで何を決めるかを光らせる。 */
+function focusPatternCard(item) {
+  if (!item) { board.clearHints(); return; }
+  board.setHints(item.fills.map((f) => f.edge), null, new Map(item.fills.map((f) => [f.edge, f.value])));
+}
+
 /** 定石を盤面じゅうに当てはめて、決まる印をまとめて引く。 */
 function applyPattern(pattern) {
   if (game.solved) return;
@@ -330,8 +414,11 @@ function applyPattern(pattern) {
   for (const { edge, value } of fills) applyChange(edge, value);
   commitStroke();
   refreshAll();
-  board.setHints(fills.map((f) => f.edge));
-  setTimeout(() => board.clearHints(), 1600);
+  // カードを開いているときは、次のカードの場所を光らせるので、ここでは光らせない
+  if (!isPatternsOpen()) {
+    board.setHints(fills.map((f) => f.edge));
+    setTimeout(() => board.clearHints(), 1600);
+  }
 
   const suffix = conflicts > 0 ? '（合わない場所も見つかりました。チェックを試してください）' : '';
   say(`「${pattern.title}」で ${fills.length} 本決まりました${suffix}`, conflicts > 0);
@@ -409,6 +496,7 @@ async function newPuzzle() {
 
 function startPuzzle(puzzle, saved) {
   hideHint();
+  hidePatterns();
   game.puzzle = puzzle;
   game.grid = getGrid(puzzle.rows, puzzle.cols);
   game.state = saved?.state ?? new Int8Array(game.grid.edgeCount);
@@ -613,6 +701,7 @@ function refreshAll() {
   updateButtons();
   // 全定石を数え直しても 1ms 未満なので、盤面が動くたびに更新してよい
   if (isDrawerOpen()) updatePatternCounts();
+  if (isPatternsOpen()) refreshPatternCards();
   return a;
 }
 
@@ -631,6 +720,7 @@ function checkSolved() {
   tickTimer();
   board.setSolved(true);
   hideHint();
+  hidePatterns();
   board.clearHints();
   board.cursor = -1;
   board.showCursor = false;
@@ -663,6 +753,7 @@ function showOverlay(isBest) {
     b.textContent = '🏅 自己ベスト更新！';
     el.overlayCard.appendChild(b);
   }
+  el.overlayCard.appendChild(nextSettings());
   const row = document.createElement('div');
   row.className = 'row';
   const again = document.createElement('button');
@@ -679,6 +770,32 @@ function showOverlay(isBest) {
   el.overlayCard.appendChild(row);
   el.overlay.hidden = false;
   again.focus();
+}
+
+/**
+ * 完成のお知らせの中に置く「次の問題」の大きさ・むずかしさ。
+ * メニューの選択と同じ値を持ち、変えたらメニューの側にも反映する。
+ */
+function nextSettings() {
+  const box = document.createElement('div');
+  box.className = 'next-settings';
+  for (const [source, label] of [[el.size, '大きさ'], [el.difficulty, 'むずかしさ']]) {
+    const field = document.createElement('label');
+    field.className = 'field';
+    const caption = document.createElement('span');
+    caption.textContent = `次の${label}`;
+    const select = document.createElement('select');
+    for (const option of source.options) select.appendChild(option.cloneNode(true));
+    select.value = source.value;
+    select.addEventListener('change', () => {
+      source.value = select.value;
+      savePrefs();
+      prefetchCurrent();
+    });
+    field.append(caption, select);
+    box.appendChild(field);
+  }
+  return box;
 }
 
 function hideOverlay() {
@@ -700,9 +817,27 @@ function say(text, warn = false) {
 
 /* ---------------- ヒントとチェック ---------------- */
 
+// いま示せるヒントの列と、そのうち何番目を見せているか
+let hints = [];
+let hintIndex = 0;
+
 function showHint() {
   if (game.solved) return;
-  const hint = findHint(game.grid, game.puzzle.clues, game.state, game.puzzle.solution);
+  hidePatterns();
+  hints = findHints(game.grid, game.puzzle.clues, game.state, game.puzzle.solution);
+  showHintAt(0);
+}
+
+/** ヒントの列の i 番目を見せる。ほかにもヒントがあれば ‹ › で切り替えられる。 */
+function showHintAt(i) {
+  if (!hints.length) return;
+  hintIndex = Math.max(0, Math.min(hints.length - 1, i));
+  const hint = hints[hintIndex];
+  const many = hints.length > 1 && hint.type === 'move';
+  el.hintNav.hidden = !many;
+  el.hintPos.textContent = many ? `${hintIndex + 1} / ${hints.length}` : '';
+  el.hintPrev.disabled = hintIndex === 0;
+  el.hintNext.disabled = hintIndex === hints.length - 1;
 
   if (hint.type === 'none') {
     renderHint(hint, []);
@@ -731,6 +866,23 @@ function showHint() {
     { label: `この${hint.value === LINE ? '線' : '×'}を置く`, primary: true, run: () => placeHint(hint) },
     { label: '自分で考える', run: () => { hideHint(); board.clearHints(); } },
   ]);
+}
+
+/** 横にはらう操作で前後へ送る（ボタンや文字の選択とぶつからないよう、はっきり横に動いたときだけ）。 */
+function bindSwipe(target, onSwipe) {
+  let start = null;
+  target.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType === 'mouse') return;
+    start = { x: ev.clientX, y: ev.clientY };
+  });
+  target.addEventListener('pointerup', (ev) => {
+    if (!start) return;
+    const dx = ev.clientX - start.x;
+    const dy = ev.clientY - start.y;
+    start = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe(dx < 0 ? 1 : -1);
+  });
+  target.addEventListener('pointercancel', () => { start = null; });
 }
 
 /** ヒントの内容をパネルに出す。 */

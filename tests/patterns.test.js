@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LINE, CROSS } from '../src/core/grid.js';
 import { countSolutions, solveLogical } from '../src/core/solver.js';
-import { PATTERNS, CATEGORIES, buildPattern, padded } from '../src/core/patterns.js';
+import { PATTERNS, CATEGORIES, buildPattern, padded, expandForms } from '../src/core/patterns.js';
+
+// alt を持つ定石は、別の形もそれぞれ 1 つの定石として確かめる
+const FORMS = PATTERNS.flatMap(expandForms);
 import { PATTERN_USAGE } from '../src/core/pattern-stats.js';
 import { applyAllPatterns } from '../src/core/pattern-match.js';
 import { UNKNOWN } from '../src/core/grid.js';
@@ -26,7 +29,7 @@ function isForced(pattern, conclusion) {
 }
 
 test('定石の前提そのものに解がある（空虚な真になっていない）', () => {
-  for (const pattern of PATTERNS) {
+  for (const pattern of FORMS) {
     const { grid, clues, given } = buildPattern(pattern);
     assert.ok(
       countSolutions(grid, clues, 1, given) > 0,
@@ -35,8 +38,9 @@ test('定石の前提そのものに解がある（空虚な真になってい�
   }
 });
 
-for (const pattern of PATTERNS) {
-  test(`定石「${pattern.title}」の結論が本当に確定する`, () => {
+for (const pattern of FORMS) {
+  const label = pattern.id.includes('#') ? `${pattern.title}（別の形）` : pattern.title;
+  test(`定石「${label}」の結論が本当に確定する`, () => {
     assert.ok(pattern.conclude.length > 0, `${pattern.id}: 結論が空`);
     const { conclude } = buildPattern(pattern);
     conclude.forEach((conclusion, i) => {
@@ -50,7 +54,7 @@ for (const pattern of PATTERNS) {
   if (pattern.anchor === 'interior') {
     // 余白付きの大きな盤は総当たりが重いので、論理ソルバで矛盾を示す。
     // 「矛盾する」と言えた時点で解が無いことは確定なので、証明として十分。
-    test(`定石「${pattern.title}」は盤の端と関係なく成り立つ`, () => {
+    test(`定石「${label}」は盤の端と関係なく成り立つ`, () => {
       const { grid, clues, given, conclude } = buildPattern(padded(pattern, 2));
       assert.notEqual(
         solveLogical(grid, clues, { maxDepth: 0, initial: given }).status,

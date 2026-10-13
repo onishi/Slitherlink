@@ -271,6 +271,14 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 .overlay-card p { margin: 4px 0; color: var(--ink-soft); font-size: .9rem; }
 .overlay-card .big { font-size: 1.55rem; font-weight: 700; color: var(--accent); margin: 6px 0; }
 .overlay-card .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+.overlay-card .next-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  text-align: left;
+}
+.overlay-card .next-settings select { font-size: .85rem; padding: 7px 8px; }
 
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise {
@@ -454,7 +462,10 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 @media (max-width: 420px) {
   .app { padding: 10px 10px calc(20px + env(safe-area-inset-bottom)); gap: 10px; }
   .play-bar { gap: 4px; }
-  .tool { font-size: .66rem; min-width: 46px; }
+  .tool { font-size: .62rem; min-width: 40px; padding: 6px 2px; white-space: nowrap; }
+  .tool-hint { min-width: 46px; }
+  .modes button { font-size: .82rem; gap: 3px; padding: 6px 2px; white-space: nowrap; }
+  .modes .mode-ico { width: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -834,6 +845,8 @@ body.no-anim .app { transition: none !important; }
   animation: rise .22s cubic-bezier(.2, .8, .3, 1);
 }
 .hint-panel[hidden] { display: none; }
+/* 横にはらってヒントを送れるよう、横方向の操作はページに渡さない */
+.hint-panel { touch-action: pan-y; }
 .hint-panel.is-warn { border-color: var(--danger); border-left-color: var(--danger); }
 
 .hint-head {
@@ -902,3 +915,77 @@ body.no-anim .app { transition: none !important; }
 }
 .hint-actions:empty { display: none; }
 .hint-actions button { font-size: .82rem; padding: 8px 14px; }
+
+/* ---------- いま使える定石のカード（ヒントと同じ場所） ---------- */
+.tool-patterns.is-on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.pat-panel { border-color: var(--accent); border-left-color: var(--accent); }
+.pat-panel .hint-badge { background: var(--accent-soft); }
+.pat-list-btn {
+  flex: none;
+  font-size: .76rem;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.pc-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  outline: none;
+}
+.pc-track::-webkit-scrollbar { display: none; }
+.pc-track:focus-visible { box-shadow: 0 0 0 3px var(--accent-soft); border-radius: 9px; }
+
+.pc-card {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 2px 4px;
+  min-width: 0;
+}
+.pc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pc-head h3 { margin: 0; font-size: .9rem; line-height: 1.5; }
+.pc-count { flex: none; font-size: .74rem; color: var(--ink-faint); }
+.pc-body { display: flex; gap: 12px; align-items: flex-start; }
+.pc-figure { flex: 0 0 104px; display: flex; justify-content: center; }
+.pc-figure .pat-svg { width: 100%; max-height: 110px; }
+.pc-why {
+  margin: 0;
+  font-size: .8rem;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+}
+.pc-why.is-open { -webkit-line-clamp: unset; display: block; }
+.pc-apply { align-self: flex-start; font-size: .82rem; }
+.pc-empty { align-items: flex-start; }
+.pc-empty p { margin: 0; font-size: .86rem; color: var(--ink-soft); }
+.pc-empty-actions { display: flex; gap: 8px; }
+.pc-empty-actions button { font-size: .8rem; padding: 7px 12px; }
+
+.pc-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.pc-nav .icon-btn { width: 30px; height: 30px; font-size: 1.05rem; }
+.pc-nav .icon-btn[hidden] { display: none; }
+.pc-nav .icon-btn:disabled { opacity: .35; }
+.pc-pos { font-size: .76rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: center; }
