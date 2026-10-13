@@ -117,6 +117,11 @@ function bindUI() {
     select.addEventListener('change', () => { savePrefs(); prefetchCurrent(); });
   }
 
+  // 完成後に「盤面を見る」で結果を閉じても、盤面をタップすればまた出せるようにする
+  el.board.addEventListener('click', () => {
+    if (game.solved && el.overlay.hidden) showOverlay(game.solvedBest);
+  });
+
   el.undo.addEventListener('click', undo);
   el.redo.addEventListener('click', redo);
   el.hint.addEventListener('click', showHint);
@@ -634,6 +639,7 @@ function checkSolved() {
 
   const key = `${game.puzzle.rows}x${game.puzzle.cols}:${game.puzzle.difficulty}`;
   const isBest = store.saveRecord(key, game.elapsed);
+  game.solvedBest = isBest; // 「盤面を見る」のあと、結果を出し直すときに使う
   updateBest();
   store.clearGame();
   say('');
@@ -665,7 +671,10 @@ function showOverlay(isBest) {
   again.addEventListener('click', () => { hideOverlay(); newPuzzle(); });
   const look = document.createElement('button');
   look.textContent = '盤面を見る';
-  look.addEventListener('click', hideOverlay);
+  look.addEventListener('click', () => {
+    hideOverlay();
+    say('盤面をタップすると、結果をもう一度出せます');
+  });
   row.append(again, look);
   el.overlayCard.appendChild(row);
   el.overlay.hidden = false;
