@@ -22,7 +22,8 @@
  *
  * combines は、ほかの定石を続けて使えば同じ結論になる「近道」の定石で、その組み合わせ。
  * 一覧ではその旨を添え、テストでその組み合わせだけで本当に届くことを確かめる。
- * 論理的に同じもの（ほかの定石 1 つの特別な場合）は載せない。
+ * 論理的に同じもの（ほかの定石 1 つの特別な場合）は載せない。ただし、よく知られた定番の形は
+ * popular（覚えたい順）を付けて、重なっても載せ、一覧の先頭に並べる。
  *
  * alt は、同じ定石の別の形（回転・反転では作れない向き）。照合ではどれかに合えば当てはまる。
  * 図は本体の形だけを描き、テストは expandForms で全部の形を確かめる。
@@ -152,6 +153,7 @@ const DEFINITIONS = [
   },
   {
     id: 'corner-two',
+    popular: 4,
     category: 'corner', level: 3,
     title: '角の 2',
     rows: 3, cols: 3, anchor: 'corner',
@@ -222,6 +224,7 @@ const DEFINITIONS = [
   // ---------------- 数字どうしの関係 ----------------
   {
     id: 'zero-three',
+    popular: 7,
     combines: ['clue-full', 'dead-end', 'vertex-two', 'clue-rest'],
     category: 'numbers', level: 2,
     title: '0 のとなりの 3',
@@ -252,6 +255,7 @@ const DEFINITIONS = [
   },
   {
     id: 'zero-three-diagonal',
+    popular: 8,
     combines: ['clue-full', 'corner-crosses-three'],
     category: 'numbers', level: 2,
     title: '0 と 3 が斜めに並ぶ',
@@ -266,6 +270,7 @@ const DEFINITIONS = [
   },
   {
     id: 'three-three',
+    popular: 5,
     category: 'numbers', level: 3,
     title: '3 と 3 がとなり合う',
     rows: 3, cols: 4, anchor: 'interior',
@@ -285,6 +290,7 @@ const DEFINITIONS = [
   },
   {
     id: 'three-three-diagonal',
+    popular: 6,
     category: 'numbers', level: 3,
     title: '3 と 3 が斜めに並ぶ',
     rows: 4, cols: 4, anchor: 'interior',
@@ -385,6 +391,76 @@ const DEFINITIONS = [
       ['h', 3, 3, 'cross'], ['v', 3, 3, 'cross'],
     ],
     why: '1 の上と左が × なので、1 の線は 3 と接する角の 2 辺のどちらか 1 本です（両方は 1 を超えます）。つまりこの角には 1 の側から線がちょうど 1 本来て、そのまま 3 の側へ曲がり込みます。3 の角に線が入ってくると、3 の遠い側の 2 辺は線で確定し、その先の角から外へ伸びる辺は × です。',
+  },
+
+  // ---------------- 定番（ほかの定石と結論が重なっても、よく知られた形なので載せる） ----------------
+  {
+    id: 'zero',
+    popular: 1,
+    category: 'basic', level: 1,
+    title: '0 のまわりは全部 ×',
+    rows: 3, cols: 3, anchor: 'interior',
+    clues: [[1, 1, 0]],
+    given: [],
+    conclude: [
+      ['h', 1, 1, 'cross'], ['h', 2, 1, 'cross'],
+      ['v', 1, 1, 'cross'], ['v', 1, 2, 'cross'],
+    ],
+    why: '0 は「まわりの 4 辺に 1 本も線が通らない」という意味です。迷う余地がないので、盤面を開いたら真っ先に × で埋めてしまいましょう。',
+  },
+  {
+    id: 'corner-one',
+    popular: 2,
+    category: 'corner', level: 1,
+    title: '角の 1',
+    rows: 2, cols: 2, anchor: 'corner',
+    clues: [[0, 0, 1]],
+    given: [],
+    conclude: [['h', 0, 0, 'cross'], ['v', 0, 0, 'cross']],
+    why: '外側の 2 辺のどちらかが線だと、角の点から線が 1 本だけ出て行き止まりになります。2 本とも線にすると今度は数字の 1 を超えてしまいます。よって外側は両方 × です。',
+  },
+  {
+    id: 'corner-three',
+    popular: 3,
+    category: 'corner', level: 1,
+    title: '角の 3',
+    rows: 2, cols: 2, anchor: 'corner',
+    clues: [[0, 0, 3]],
+    given: [],
+    conclude: [['h', 0, 0, 'line'], ['v', 0, 0, 'line']],
+    why: '外側の 2 辺のどちらかを × にすると、角の点に線が 1 本だけ入る形になり、行き止まりができてしまいます。だから外側の 2 辺は両方とも線です。',
+  },
+  {
+    id: 'three-three-three',
+    popular: 10,
+    category: 'numbers', level: 4,
+    title: '3 が 3 つ並ぶ',
+    rows: 3, cols: 5, anchor: 'interior',
+    clues: [[1, 1, 3], [1, 2, 3], [1, 3, 3]],
+    given: [],
+    conclude: [
+      ['v', 1, 1, 'line'], ['v', 1, 2, 'line'], ['v', 1, 3, 'line'], ['v', 1, 4, 'line'],
+      ['v', 0, 2, 'cross'], ['v', 0, 3, 'cross'], ['v', 2, 2, 'cross'], ['v', 2, 3, 'cross'],
+    ],
+    why: '3 がまっすぐ 3 つ並ぶと、縦の 4 辺がすべて線になります。となり合う 3 と 3 の形が重なった結果で、まん中 2 本は「どちらの 3 から見ても外側」になるため確定します。境目から上下へ伸びる辺はすべて × です。',
+  },
+  {
+    id: 'three-zero-three',
+    popular: 9,
+    category: 'numbers', level: 4,
+    title: '3 と 3 のあいだに 0',
+    rows: 3, cols: 5, anchor: 'interior',
+    clues: [[1, 1, 3], [1, 2, 0], [1, 3, 3]],
+    given: [],
+    conclude: [
+      ['h', 1, 1, 'line'], ['h', 2, 1, 'line'], ['v', 1, 1, 'line'],
+      ['h', 1, 3, 'line'], ['h', 2, 3, 'line'], ['v', 1, 4, 'line'],
+      ['v', 0, 2, 'line'], ['v', 2, 2, 'line'], ['v', 0, 3, 'line'], ['v', 2, 3, 'line'],
+      ['h', 1, 2, 'cross'], ['h', 2, 2, 'cross'], ['v', 1, 2, 'cross'], ['v', 1, 3, 'cross'],
+      ['h', 1, 0, 'cross'], ['h', 2, 0, 'cross'], ['v', 0, 1, 'cross'], ['v', 2, 1, 'cross'],
+      ['h', 1, 4, 'cross'], ['h', 2, 4, 'cross'], ['v', 0, 4, 'cross'], ['v', 2, 4, 'cross'],
+    ],
+    why: '0 のまわりが全部 × になるので、両側の 3 はそれぞれ残り 3 辺をすべて使います。するとコの字が向かい合う形になり、その先の交点も次々に埋まって、一度に 22 本が決まります。見つけたら最優先で処理したい形です。',
   },
 
   // ---------------- 線や × が来たとき ----------------
@@ -538,6 +614,28 @@ const DEFINITIONS = [
     why: '境目を線にすると、2 つの 1 はどちらもその 1 本で使い切ります。ところが境目の下の端の点では、まっすぐ先が × なので、線は左か右の 1 の下の辺へ曲がるしかありません。どちらの 1 にも 2 本目は引けないので、境目は ×。盤の縁で境目の先が無いときは「縁に 1 が 2 つ並ぶ」と同じです。',
   },
   {
+    id: 'cell-corners',
+    origin: 'stage',
+    category: 'incoming', level: 4, match: 'local-1',
+    title: '数字のまわりをまとめて考える（角の偶奇）',
+    rows: 3, cols: 3, anchor: 'none',
+    clues: [[1, 1, 2]],
+    given: [['h', 1, 1, 'line'], ['v', 2, 2, 'cross'], ['h', 2, 2, 'cross']],
+    conclude: [['v', 1, 1, 'line'], ['v', 1, 2, 'cross'], ['h', 2, 1, 'cross'], ['h', 1, 0, 'cross'], ['v', 0, 1, 'cross']],
+    why: '数字のマスの 4 つの角に注目します。角の点に集まる線は 0 本か 2 本なので、外へ出る辺がすべて × の角では、マス側の 2 辺は「両方とも線」か「両方とも ×」。外から線が 1 本来ている角では、マス側はちょうど 1 本です。図の 2 は上が線で、右下の角は外がふさがっています。右下の 2 辺を両方線にすると 3 本になるので両方 ×、残る左が線です。2 なら対角の角どうしは同じ、1・3 なら逆になる、という「角の偶奇」もこれで分かります。この定石は盤面じゅうの数字に、こうした組み合わせをまとめて当てはめます。',
+  },
+  {
+    id: 'pair-corners',
+    origin: 'stage',
+    category: 'numbers', level: 5, match: 'local-2',
+    title: 'となりの数字といっしょに考える',
+    rows: 3, cols: 4, anchor: 'none',
+    clues: [[1, 1, 3], [1, 2, 2]],
+    given: [['v', 2, 3, 'cross'], ['h', 2, 3, 'cross']],
+    conclude: [['v', 1, 1, 'line'], ['h', 2, 1, 'line'], ['h', 2, 0, 'cross'], ['v', 2, 1, 'cross'], ['v', 2, 2, 'cross']],
+    why: 'となりや斜めに並ぶ 2 つの数字は、角の点を分け合っています。2 つのマスの辺と、それぞれの角の点に集まる辺をまとめて、数字の本数と「角の点の線は 0 本か 2 本」を両方満たす引き方を考えると、どの引き方でも同じになる辺が出てきます。図では 2 の右下の角が外からふさがれているので、2 の下と右は両方線か両方 ×。どちらにしても 3 の左と下が線に決まります。1 つずつ見ると決まらないのに、2 つ合わせると決まる、という場面で効きます。この定石は盤面じゅうの、となり・斜めに並ぶ数字の組に当てはめます。',
+  },
+  {
     id: 'no-small-loop',
     category: 'loop', level: 5,
     title: '小さな輪を閉じてはいけない',
@@ -552,13 +650,14 @@ const DEFINITIONS = [
 ];
 
 /**
- * 定石の一覧。出番の多い順（usage の大きい順。同じならやさしい順）。
+ * 定石の一覧。定番（popular の順）を先に、そのあとは出番の多い順（usage の大きい順。同じならやさしい順）。
  * usage は 1 問を解くあいだにその定石で決められる辺の数の平均で、
  * tools/pattern-stats.js が実測して pattern-stats.js に書き出す。
  */
 export const PATTERNS = DEFINITIONS
   .map((pattern, index) => ({ ...pattern, usage: PATTERN_USAGE[pattern.id] ?? 0, index }))
-  .sort((a, b) => b.usage - a.usage || a.level - b.level || a.index - b.index)
+  .sort((a, b) => (a.popular ?? Infinity) - (b.popular ?? Infinity)
+    || b.usage - a.usage || a.level - b.level || a.index - b.index)
   .map(({ index, ...pattern }) => pattern);
 
 /**
@@ -572,6 +671,14 @@ export function combinesText(pattern) {
     return `「${part ? part.title.replace(/（.*?）$/, '') : id}」`;
   });
   return `近道: ${titles.join('・')}を組み合わせれば、同じ結論にたどり着けます。`;
+}
+
+/**
+ * 数手先まで試したり、まわりの辺をまとめて総当たりしたりする「探す」定石か。
+ * ほかの定石の結論もまとめて拾えてしまうので、重なりや「届くかどうか」を調べるときは外して考える。
+ */
+export function isSearchPattern(pattern) {
+  return ['local-1', 'local-2', 'shortcut'].includes(pattern.match);
 }
 
 /** 本体の形と alt の形を、それぞれ 1 つの形だけを持つ定石として並べる。 */

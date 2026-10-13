@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getGrid, UNKNOWN, LINE, CROSS } from '../src/core/grid.js';
 import { countSolutions, solveLogical } from '../src/core/solver.js';
-import { PATTERNS, buildPattern, expandForms } from '../src/core/patterns.js';
+import { PATTERNS, buildPattern, expandForms, isSearchPattern } from '../src/core/patterns.js';
 import { orientationsOf, findMatches, transformPattern } from '../src/core/pattern-match.js';
 import { generatePuzzle } from '../src/core/generator.js';
 import { solutionFor } from '../src/core/puzzle.js';
@@ -141,7 +141,7 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
 
 test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
   const rules = PATTERNS.filter((p) => p.match && p.match !== 'loop');
-  assert.equal(rules.length, 9, 'ルール適用型の定石が 9 になっていない');
+  assert.equal(rules.length, 11, 'ルール適用型の定石が 11 になっていない');
   let filled = 0;
 
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
@@ -296,7 +296,7 @@ test('近道で輪が閉じる辺は ×（実際にあった終盤の場面）',
   for (const d of ['h', 'v']) for (const [r, cs] of Object.entries(crosses[d])) for (const c of cs) state[at(d, Number(r), c)] = CROSS;
 
   // ほかの定石はどれも当てはまらず、近道の定石だけが 2 本を × にする
-  const others = PATTERNS.filter((p) => p.id !== 'no-shortcut-loop');
+  const others = PATTERNS.filter((p) => !isSearchPattern(p));
   assert.ok(others.every((p) => findMatches(grid, clues, state, p).fills.length === 0), 'ほかの定石が当てはまった');
   const { fills } = findMatches(grid, clues, state, PATTERNS.find((p) => p.id === 'no-shortcut-loop'));
   for (const e of [grid.h(7, 2), grid.v(5, 2)]) {
@@ -539,6 +539,9 @@ test('すべての定石は、その形を盤に作れば見つかる', () => {
   }
 });
 
+// 「探す」定石は何でも拾ってしまうので、出番を見るときは外す
+const SHAPES = PATTERNS.filter((p) => !isSearchPattern(p));
+
 test('生成した問題で、半分以上の定石が実際に使われる', () => {
   const used = new Set();
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
@@ -548,7 +551,7 @@ test('生成した問題で、半分以上の定石が実際に使われる', ()
       const state = new Int8Array(grid.edgeCount);
       for (let round = 0; round < 120; round++) {
         let progressed = false;
-        for (const pattern of PATTERNS) {
+        for (const pattern of SHAPES) {
           const { fills } = findMatches(grid, puzzle.clues, state, pattern);
           if (!fills.length) continue;
           used.add(pattern.id);
@@ -561,8 +564,8 @@ test('生成した問題で、半分以上の定石が実際に使われる', ()
   }
   // 珍しい配置の定石は出番が無いこともあるので、割合で見る
   assert.ok(
-    used.size / PATTERNS.length >= 0.7,
-    `使われた定石が ${used.size}/${PATTERNS.length} しかない`,
+    used.size / SHAPES.length >= 0.7,
+    `使われた定石が ${used.size}/${SHAPES.length} しかない`,
   );
 });
 
