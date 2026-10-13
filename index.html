@@ -17,41 +17,14 @@
       <button type="button" class="icon-btn has-label" id="btn-patterns" aria-label="定石一覧をひらく"
               aria-expanded="false" aria-controls="patterns-drawer" title="定石一覧">定石</button>
       <button type="button" class="icon-btn" id="btn-rules" aria-label="遊び方" title="遊び方">?</button>
-      <button type="button" class="icon-btn" id="btn-menu" aria-label="設定とその他" title="設定とその他"
+      <button type="button" class="icon-btn" id="btn-menu" aria-label="メニュー（新しい問題・設定など）" title="メニュー（新しい問題・設定など）"
               aria-haspopup="dialog">⋯</button>
     </div>
   </header>
 
-  <!-- 問題ごとに 1 回使うもの：大きさ・むずかしさ（めったに変えない）と、新しい問題 -->
-  <div class="puzzle-bar">
-    <details class="puzzle-settings" id="puzzle-settings">
-      <summary aria-label="問題の大きさとむずかしさ"><span id="puzzle-summary">7 × 7 ・ ふつう</span></summary>
-      <div class="puzzle-settings-panel">
-        <label class="field">
-          <span>大きさ</span>
-          <select id="sel-size">
-            <option value="5x5">5 × 5</option>
-            <option value="7x7" selected>7 × 7</option>
-            <option value="10x10">10 × 10</option>
-            <option value="12x12">12 × 12</option>
-            <option value="15x15">15 × 15</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>むずかしさ</span>
-          <select id="sel-difficulty">
-            <option value="easy">やさしい</option>
-            <option value="normal" selected>ふつう</option>
-            <option value="hard">むずかしい</option>
-          </select>
-        </label>
-        <p class="panel-note">次の「新しい問題」から使われます。</p>
-      </div>
-    </details>
-    <button type="button" class="primary" id="btn-new">新しい問題</button>
-  </div>
-
   <div class="status">
+    <span class="status-item" id="status-puzzle">7 × 7 ・ ふつう</span>
+    <span class="status-sep" aria-hidden="true">·</span>
     <span class="status-item" id="status-time">0:00</span>
     <span class="status-sep" aria-hidden="true">·</span>
     <span class="status-item" id="status-progress">数字 0 / 0</span>
@@ -101,10 +74,33 @@
   <p class="message" id="message" role="status" aria-live="polite"></p>
 </div>
 
-<!-- めったに使わないもの：表示の設定・問題コード・テーマ・盤面をぜんぶ消す -->
+<!-- 解いている最中には使わないもの：新しい問題・表示の設定・問題コード・テーマ・盤面をぜんぶ消す -->
 <div class="modal" id="menu-modal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="menu-title">
-    <h2 id="menu-title">設定とその他</h2>
+    <h2 id="menu-title">メニュー</h2>
+
+    <h3>新しい問題</h3>
+    <div class="new-row">
+      <label class="field">
+        <span>大きさ</span>
+        <select id="sel-size">
+          <option value="5x5">5 × 5</option>
+          <option value="7x7" selected>7 × 7</option>
+          <option value="10x10">10 × 10</option>
+          <option value="12x12">12 × 12</option>
+          <option value="15x15">15 × 15</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>むずかしさ</span>
+        <select id="sel-difficulty">
+          <option value="easy">やさしい</option>
+          <option value="normal" selected>ふつう</option>
+          <option value="hard">むずかしい</option>
+        </select>
+      </label>
+    </div>
+    <button type="button" class="primary wide" id="btn-new">この設定で新しい問題を作る</button>
 
     <h3>入力と表示</h3>
     <div class="options">
@@ -126,7 +122,7 @@
     <button type="button" class="menu-row danger" id="btn-clear">書き込みをぜんぶ消す</button>
     <p class="hint-text">消したあとでも「もどす」で元に戻せます。</p>
 
-    <button type="button" class="primary" id="btn-close-menu">とじる</button>
+    <button type="button" class="close-btn" id="btn-close-menu">とじる</button>
   </div>
 </div>
 
@@ -148,7 +144,7 @@
       <li>右クリック（Ctrl+クリック）では、いまのモードで主役でない方の印が付きます。</li>
       <li>キーボードでも遊べます：<b>矢印キー</b>で移動、<b>スペース</b>で線、<b>X</b>で ×。</li>
     </ul>
-    <p class="rules-more">表示の設定・問題コード（共有や読み込み）・テーマ・書き込みをぜんぶ消す、は右上の <b>⋯</b> にあります。</p>
+    <p class="rules-more">新しい問題（大きさ・むずかしさ）・表示の設定・問題コード（共有や読み込み）・テーマ・書き込みをぜんぶ消す、は右上の <b>⋯</b> にあります。</p>
     <p class="note">この中の問題はすべて、当てずっぽう無しで<b>論理だけで解ける</b>ことを確認してから出題しています。</p>
     <button type="button" class="rules-link" id="btn-rules-patterns">定石一覧を見る（よく出る形と、そこで決まること）→</button>
     <button type="button" class="primary" id="btn-close-rules">とじる</button>
