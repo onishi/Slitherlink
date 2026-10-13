@@ -140,7 +140,7 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
 
 test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
   const rules = PATTERNS.filter((p) => p.match && p.match !== 'loop');
-  assert.equal(rules.length, 8, 'ルール適用型の定石が 8 つでない');
+  assert.equal(rules.length, 10, 'ルール適用型の定石が 10 になっていない');
   let filled = 0;
 
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
@@ -299,6 +299,41 @@ test('近道で輪が閉じる辺は ×（実際にあった終盤の場面）',
   const { fills } = findMatches(grid, clues, state, PATTERNS.find((p) => p.id === 'no-shortcut-loop'));
   assert.deepEqual(fills.map((f) => f.edge).sort((a, b) => a - b), [grid.h(7, 2), grid.v(5, 2)].sort((a, b) => a - b));
   assert.ok(fills.every((f) => f.value === CROSS));
+});
+
+test('数字の角がふさがれた定石は、盤の縁や角の点でも当てはまる', () => {
+  const one = PATTERNS.find((p) => p.match === 'corner-blocked-1');
+  const three = PATTERNS.find((p) => p.match === 'corner-blocked-3');
+  const grid = getGrid(5, 5);
+  // 実際にあった場面: 上の縁の 1。右上の点から右へ出る辺が ×
+  {
+    const clues = new Int8Array(25).fill(-1);
+    clues[1] = 1;
+    const state = new Int8Array(grid.edgeCount);
+    state[grid.h(0, 2)] = CROSS;
+    const { fills } = findMatches(grid, clues, state, one);
+    for (const e of [grid.h(0, 1), grid.v(0, 2)]) {
+      assert.ok(fills.some((f) => f.edge === e && f.value === CROSS), '縁の 1 の角の 2 辺を × にしない');
+    }
+  }
+  // 左の縁の 3。左下の点から下へ出る辺が × なら、左と下は線
+  {
+    const clues = new Int8Array(25).fill(-1);
+    clues[2 * 5] = 3;
+    const state = new Int8Array(grid.edgeCount);
+    state[grid.v(3, 0)] = CROSS;
+    const { fills } = findMatches(grid, clues, state, three);
+    for (const e of [grid.v(2, 0), grid.h(3, 0)]) {
+      assert.ok(fills.some((f) => f.edge === e && f.value === LINE), '縁の 3 の角の 2 辺を線にしない');
+    }
+  }
+  // 盤の角の 1 は、外側の辺が無いので最初から当てはまる
+  {
+    const clues = new Int8Array(25).fill(-1);
+    clues[0] = 1;
+    const { fills } = findMatches(grid, clues, new Int8Array(grid.edgeCount), one);
+    assert.deepEqual(fills.map((f) => f.edge).sort((a, b) => a - b), [grid.h(0, 0), grid.v(0, 0)].sort((a, b) => a - b));
+  }
 });
 
 test('閉空間ルールは、交点の数え上げでは届かない辺を埋める', () => {

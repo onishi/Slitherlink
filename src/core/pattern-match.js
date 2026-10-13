@@ -208,6 +208,9 @@ export function findMatches(grid, clues, state, pattern) {
   }
   if (pattern.match === 'bridge') return findBridgeMatches(grid, state);
   if (pattern.match === 'shortcut') return findShortcutMatches(grid, clues, state);
+  if (pattern.match === 'corner-blocked-1' || pattern.match === 'corner-blocked-3') {
+    return findCornerBlockedMatches(grid, clues, state, pattern.match === 'corner-blocked-3' ? 3 : 1);
+  }
   if (pattern.match === 'clue-full' || pattern.match === 'clue-rest') {
     return findClueMatches(grid, clues, state, pattern.match === 'clue-full');
   }
@@ -310,6 +313,35 @@ function findVertexMatches(grid, state, mode) {
     for (const e of unknown) fills.push({ edge: e, value });
   }
   return { fills: dedupe(fills), conflicts, places };
+}
+
+/**
+ * 「数字の角の外側がふさがれたら」を盤面全体に当てはめる。
+ * 角の点から外へ出る辺がすべて ×（盤の縁なら 1 本、盤の角なら 0 本）なら、その角の
+ * マス側の 2 辺は「両方とも線」か「両方とも ×」。3 なら両方線、1 なら両方 ×。
+ * 型の照合では外側の辺が 2 本ある内側の点しか拾えないので、ルールそのものを当てはめる。
+ */
+function findCornerBlockedMatches(grid, clues, state, clue) {
+  const fills = new Map();
+  let conflicts = 0;
+  let places = 0;
+  const value = clue === 3 ? LINE : CROSS;
+  for (let cell = 0; cell < grid.cellCount; cell++) {
+    if (clues[cell] !== clue) continue;
+    const sides = [0, 1, 2, 3].map((k) => grid.cellEdges[cell * 4 + k]);
+    const corners = new Set(sides.flatMap((e) => [grid.edgeEnds[e * 2], grid.edgeEnds[e * 2 + 1]]));
+    for (const v of corners) {
+      const own = sides.filter((e) => grid.edgeEnds[e * 2] === v || grid.edgeEnds[e * 2 + 1] === v);
+      const outside = grid.vertexEdges[v].filter((e) => !own.includes(e));
+      if (!outside.every((e) => state[e] === CROSS)) continue;
+      if (own.some((e) => state[e] !== UNKNOWN && state[e] !== value)) { conflicts++; continue; }
+      const open = own.filter((e) => state[e] === UNKNOWN);
+      if (!open.length) continue;
+      places++;
+      for (const e of open) fills.set(e, { edge: e, value });
+    }
+  }
+  return { fills: [...fills.values()], conflicts, places };
 }
 
 // 近道で輪が閉じるかを何手先まで見るか。長い連鎖は「定石」というより背理法なので打ち切る
