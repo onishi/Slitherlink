@@ -4,6 +4,7 @@
  * 測定: 24 問（7×7・10×10 × やさしい・ふつう・むずかしい）、盤面 3933 通り。
  */
 export const PATTERN_USAGE = {
+  'no-shortcut-loop': 51.9,
   'clue-full': 39.1,
   'dead-end': 36.1,
   'closed-area': 33.4,
@@ -14,7 +15,6 @@ export const PATTERN_USAGE = {
   'two-corner-crosses': 16.1,
   'line-into-three': 13.6,
   'three-one-cross': 13.3,
-  'no-shortcut-loop': 12.3,
   'corner-crosses-one': 9.3,
   'line-into-crossed-two': 9,
   'zero-one-diagonal': 8.9,
@@ -35,6 +35,7 @@ export const PATTERN_USAGE = {
   'corner-two-three': 0.3,
   'three-three-two': 0.3,
   'three-three-diagonal-two': 0.3,
+  'one-one-cross-end': 0.3,
   'corner-two': 0.2,
   'three-three': 0.2,
   'three-ones-l': 0.2,

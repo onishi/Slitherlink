@@ -345,26 +345,29 @@ function findCornerBlockedMatches(grid, clues, state, clue) {
 }
 
 // 近道で輪が閉じるかを何手先まで見るか。長い連鎖は「定石」というより背理法なので打ち切る
-const SHORTCUT_STEPS = 6;
+const SHORTCUT_STEPS = 12;
 
 /**
  * 「近道で輪を閉じてはいけない」を盤面全体に当てはめる。
- * 線の端から伸びる空白の辺を線にしてみて、数字と交点のルールだけで数手のうちに
- * 輪が閉じてしまい、しかもそれで完成にならない（線の要る数字や別の線が残る）なら、その辺は ×。
+ * 空白の辺を線（または ×）にしてみて、数字と交点のルールだけで数手のうちに
+ * 輪が閉じてしまい、しかもそれで完成にならない（線の要る数字や別の線が残る）なら、その逆に決まる。
  * 1 本の辺で輪が閉じる形は「小さな輪を閉じてはいけない」が受け持つので、ここでは 1 手以上かかるものだけ。
  */
 function findShortcutMatches(grid, clues, state) {
   const base = boardState(grid, clues, state);
   if (!base) return { fills: [], conflicts: 1, places: 0 };
   const fills = new Map();
-  for (let v = 0; v < grid.vertexCount; v++) {
-    if (base.vertexLine[v] !== 1) continue; // 線の端だけを見る
-    for (const e of grid.vertexEdges[v]) {
-      if (state[e] !== UNKNOWN || fills.has(e)) continue;
-      const proof = refute(base, e, LINE, 0, { nodes: 4 });
+  for (let e = 0; e < grid.edgeCount; e++) {
+    if (state[e] !== UNKNOWN) continue;
+    // 線にすると数手で輪が閉じる → ×。× にすると数手で輪が閉じる → 線
+    for (const assumed of [LINE, CROSS]) {
+      const proof = refute(base, e, assumed, 0, { nodes: 4 });
       if (!proof || !usesLoopRule(proof)) continue;
-      if (proof.steps.length < 1 || proof.steps.length > SHORTCUT_STEPS) continue;
-      fills.set(e, { edge: e, value: CROSS });
+      // 1 本で閉じる形は「小さな輪を閉じてはいけない」が受け持つ
+      if (assumed === LINE && proof.steps.length < 1) continue;
+      if (proof.steps.length > SHORTCUT_STEPS) continue;
+      fills.set(e, { edge: e, value: assumed === LINE ? CROSS : LINE });
+      break;
     }
   }
   return { fills: [...fills.values()], conflicts: 0, places: fills.size };

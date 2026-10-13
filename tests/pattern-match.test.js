@@ -5,6 +5,7 @@ import { countSolutions, solveLogical } from '../src/core/solver.js';
 import { PATTERNS, buildPattern, expandForms } from '../src/core/patterns.js';
 import { orientationsOf, findMatches, transformPattern } from '../src/core/pattern-match.js';
 import { generatePuzzle } from '../src/core/generator.js';
+import { solutionFor } from '../src/core/puzzle.js';
 
 const templates = PATTERNS.filter((p) => !p.match).flatMap(expandForms); // 型で照合するものだけ（別の形も 1 つずつ）
 
@@ -298,8 +299,12 @@ test('近道で輪が閉じる辺は ×（実際にあった終盤の場面）',
   const others = PATTERNS.filter((p) => p.id !== 'no-shortcut-loop');
   assert.ok(others.every((p) => findMatches(grid, clues, state, p).fills.length === 0), 'ほかの定石が当てはまった');
   const { fills } = findMatches(grid, clues, state, PATTERNS.find((p) => p.id === 'no-shortcut-loop'));
-  assert.deepEqual(fills.map((f) => f.edge).sort((a, b) => a - b), [grid.h(7, 2), grid.v(5, 2)].sort((a, b) => a - b));
-  assert.ok(fills.every((f) => f.value === CROSS));
+  for (const e of [grid.h(7, 2), grid.v(5, 2)]) {
+    assert.ok(fills.some((f) => f.edge === e && f.value === CROSS), '近道の辺を × にしない');
+  }
+  // 見つけた辺はどれも正解と合う
+  const solution = solutionFor({ rows: 7, cols: 7, difficulty: 'normal', clues });
+  for (const f of fills) assert.equal(f.value, solution[f.edge], '正解と違う辺を埋めた');
 });
 
 test('数字の角がふさがれた定石は、盤の縁や角の点でも当てはまる', () => {
