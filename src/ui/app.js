@@ -12,6 +12,15 @@ import { store } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
 
+/** Material Symbols のアイコン（読み上げでは飛ばす）。 */
+function icon(name) {
+  const span = document.createElement('span');
+  span.className = 'mi';
+  span.setAttribute('aria-hidden', 'true');
+  span.textContent = name;
+  return span;
+}
+
 const el = {
   board: $('board'),
   size: $('sel-size'),
@@ -195,7 +204,8 @@ function bindUI() {
     el.rulesModal.hidden = true;
     openDrawer();
   });
-  el.hintClose.addEventListener('click', () => hideHint());
+  // ✕ は「自分で考える」と同じ。説明を閉じて、盤面の光りも消す
+  el.hintClose.addEventListener('click', () => { hideHint(); board.clearHints(); });
   el.hintPrev.addEventListener('click', () => showHintAt(hintIndex - 1));
   el.hintNext.addEventListener('click', () => showHintAt(hintIndex + 1));
   bindSwipe(el.hintPanel, (dir) => showHintAt(hintIndex + dir));
@@ -750,7 +760,8 @@ function showOverlay(isBest) {
   el.overlayCard.append(h, big, sub);
   if (isBest) {
     const b = document.createElement('p');
-    b.textContent = '🏅 自己ベスト更新！';
+    b.className = 'best';
+    b.append(icon('emoji_events'), '自己ベスト更新！');
     el.overlayCard.appendChild(b);
   }
   el.overlayCard.appendChild(nextSettings());
@@ -890,7 +901,7 @@ function renderHint(hint, actions) {
   const warn = hint.type === 'mistake';
   el.hintPanel.hidden = false;
   el.hintPanel.classList.toggle('is-warn', warn);
-  el.hintBadge.textContent = warn ? '⚠' : '💡';
+  el.hintBadge.replaceChildren(icon(warn ? 'warning' : 'lightbulb'));
   el.hintTitle.textContent = hint.title;
   el.hintText.textContent = hint.message;
 
@@ -1009,8 +1020,9 @@ async function copyCode() {
     await navigator.clipboard.writeText(text);
     say('共有リンクをコピーしました');
     // メニューの中では下のメッセージが見えないので、ボタンでも知らせる
-    el.copy.textContent = 'コピーしました';
-    setTimeout(() => { el.copy.textContent = 'コピー'; }, 1600);
+    const label = el.copy.querySelector('span:last-child');
+    label.textContent = 'コピーしました';
+    setTimeout(() => { label.textContent = 'コピー'; }, 1600);
   } catch {
     el.code.select();
     say('コピーできませんでした。手動で選択してください', true);

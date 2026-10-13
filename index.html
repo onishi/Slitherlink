@@ -7,6 +7,9 @@
 <meta name="description" content="ブラウザで遊べるスリザーリンク。必ず論理だけで解ける問題を自動生成します。">
 <title>スリザーリンク</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6f5e'/%3E%3Cpath d='M8 11h9v10h7' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&display=block">
 <link rel="stylesheet" href="src/ui/styles.css">
 </head>
 <body>
@@ -14,9 +17,9 @@
   <header class="topbar">
     <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>スリザーリンク</h1>
     <div class="topbar-actions">
-      <button type="button" class="icon-btn" id="btn-rules" aria-label="遊び方" title="遊び方">?</button>
+      <button type="button" class="icon-btn" id="btn-rules" aria-label="遊び方" title="遊び方"><span class="mi" aria-hidden="true">help</span></button>
       <button type="button" class="icon-btn" id="btn-menu" aria-label="メニュー（新しい問題・設定など）" title="メニュー（新しい問題・設定など）"
-              aria-haspopup="dialog">⋯</button>
+              aria-haspopup="dialog"><span class="mi" aria-hidden="true">more_horiz</span></button>
     </div>
   </header>
 
@@ -42,25 +45,25 @@
 
   <!-- 解いているあいだずっと使うもの。盤面のすぐ下に 1 列で置く -->
   <div class="play-bar">
-    <button type="button" class="tool" id="btn-undo" title="もどす (Ctrl+Z)"><span class="ico" aria-hidden="true">↶</span>もどす</button>
-    <button type="button" class="tool" id="btn-redo" title="すすむ (Ctrl+Shift+Z)"><span class="ico" aria-hidden="true">↷</span>すすむ</button>
+    <button type="button" class="tool" id="btn-undo" title="もどす (Ctrl+Z)"><span class="mi ico" aria-hidden="true">undo</span>もどす</button>
+    <button type="button" class="tool" id="btn-redo" title="すすむ (Ctrl+Shift+Z)"><span class="mi ico" aria-hidden="true">redo</span>すすむ</button>
     <div class="modes" role="radiogroup" aria-label="タップで付く印（M キーで切り替え）">
       <button type="button" id="mode-line" role="radio" aria-checked="true" data-mode="line"
-              title="線モード：線 → × → 空白"><span class="mode-ico ico-line" aria-hidden="true"></span>線</button>
+              title="線モード：線 → × → 空白"><span class="mi mode-ico" aria-hidden="true">horizontal_rule</span>線</button>
       <button type="button" id="mode-cross" role="radio" aria-checked="false" data-mode="cross"
-              title="×モード：× → 線 → 空白"><span class="mode-ico ico-cross" aria-hidden="true">✕</span>バツ</button>
+              title="×モード：× → 線 → 空白"><span class="mi mode-ico" aria-hidden="true">close</span>バツ</button>
     </div>
-    <button type="button" class="tool" id="btn-check" title="間違いがないか調べます"><span class="ico" aria-hidden="true">✓</span>チェック</button>
-    <button type="button" class="tool tool-hint" id="btn-hint" title="論理的に決まる場所を 1 つ教えます (H)"><span class="ico" aria-hidden="true">💡</span>ヒント</button>
+    <button type="button" class="tool" id="btn-check" title="間違いがないか調べます"><span class="mi ico" aria-hidden="true">check</span>チェック</button>
+    <button type="button" class="tool tool-hint" id="btn-hint" title="論理的に決まる場所を 1 つ教えます (H)"><span class="mi ico" aria-hidden="true">lightbulb</span>ヒント</button>
     <button type="button" class="tool tool-patterns" id="btn-quick-patterns" title="いま使える定石をカードで見ます (P)"
-            aria-controls="pat-panel" aria-expanded="false"><span class="ico" aria-hidden="true">▦</span>定石</button>
+            aria-controls="pat-panel" aria-expanded="false"><span class="mi ico" aria-hidden="true">menu_book</span>定石</button>
   </div>
 
   <div class="hint-panel" id="hint-panel" role="status" aria-live="polite" hidden>
     <div class="hint-head">
       <span class="hint-badge" id="hint-badge"></span>
       <h2 id="hint-title"></h2>
-      <button type="button" class="icon-btn" id="hint-close" aria-label="ヒントをとじる">✕</button>
+      <button type="button" class="icon-btn" id="hint-close" aria-label="ヒントをとじる"><span class="mi" aria-hidden="true">close</span></button>
     </div>
     <p class="hint-text" id="hint-text"></p>
     <details class="hint-proof" id="hint-proof" hidden>
@@ -70,26 +73,26 @@
     </details>
     <div class="hint-actions" id="hint-actions"></div>
     <div class="pc-nav" id="hint-nav" hidden>
-      <button type="button" class="icon-btn" id="hint-prev" aria-label="前のヒント">‹</button>
+      <button type="button" class="icon-btn" id="hint-prev" aria-label="前のヒント"><span class="mi" aria-hidden="true">chevron_left</span></button>
       <span class="pc-pos" id="hint-pos"></span>
-      <button type="button" class="icon-btn" id="hint-next" aria-label="次のヒント">›</button>
+      <button type="button" class="icon-btn" id="hint-next" aria-label="次のヒント"><span class="mi" aria-hidden="true">chevron_right</span></button>
     </div>
   </div>
 
   <!-- いま使える定石。ヒントと同じ場所に出し、左右のスワイプで切り替える -->
   <section class="hint-panel pat-panel" id="pat-panel" aria-labelledby="pat-panel-title" hidden>
     <div class="hint-head">
-      <span class="hint-badge" aria-hidden="true">▦</span>
+      <span class="hint-badge" aria-hidden="true"><span class="mi" aria-hidden="true">menu_book</span></span>
       <h2 id="pat-panel-title">いま使える定石</h2>
       <button type="button" class="pat-list-btn" id="btn-patterns" aria-controls="patterns-drawer"
-              aria-expanded="false">一覧</button>
-      <button type="button" class="icon-btn" id="pat-panel-close" aria-label="定石をとじる">✕</button>
+              aria-expanded="false"><span class="mi" aria-hidden="true">list</span>一覧</button>
+      <button type="button" class="icon-btn" id="pat-panel-close" aria-label="定石をとじる"><span class="mi" aria-hidden="true">close</span></button>
     </div>
     <div class="pc-track" id="pat-track" tabindex="0" aria-label="定石のカード（左右にスワイプ）"></div>
     <div class="pc-nav">
-      <button type="button" class="icon-btn" id="pat-prev" aria-label="前の定石">‹</button>
+      <button type="button" class="icon-btn" id="pat-prev" aria-label="前の定石"><span class="mi" aria-hidden="true">chevron_left</span></button>
       <span class="pc-pos" id="pat-pos"></span>
-      <button type="button" class="icon-btn" id="pat-next" aria-label="次の定石">›</button>
+      <button type="button" class="icon-btn" id="pat-next" aria-label="次の定石"><span class="mi" aria-hidden="true">chevron_right</span></button>
     </div>
   </section>
 
@@ -122,7 +125,7 @@
         </select>
       </label>
     </div>
-    <button type="button" class="primary wide" id="btn-new">この設定で新しい問題を作る</button>
+    <button type="button" class="primary wide" id="btn-new"><span class="mi" aria-hidden="true">add</span>この設定で新しい問題を作る</button>
 
     <h3>入力と表示</h3>
     <div class="options">
@@ -130,18 +133,18 @@
       <label><input type="checkbox" id="opt-errors"> 明らかな矛盾を赤く表示</label>
       <label><input type="checkbox" id="opt-fade" checked> 使い終わった数字を薄くする</label>
     </div>
-    <button type="button" class="menu-row" id="btn-theme">表示テーマを切り替える（ライト／ダーク）</button>
+    <button type="button" class="menu-row" id="btn-theme"><span class="mi" aria-hidden="true">dark_mode</span>ライト／ダークを切り替える</button>
 
     <h3>問題コード</h3>
     <div class="code-row">
       <input type="text" id="puzzle-code" spellcheck="false" autocomplete="off" aria-label="問題コード">
-      <button type="button" id="btn-copy">コピー</button>
-      <button type="button" id="btn-load">読み込む</button>
+      <button type="button" class="with-icon" id="btn-copy"><span class="mi" aria-hidden="true">content_copy</span><span>コピー</span></button>
+      <button type="button" class="with-icon" id="btn-load"><span class="mi" aria-hidden="true">file_open</span><span>読み込む</span></button>
     </div>
     <p class="hint-text">同じコードからいつでも同じ問題を開けます。人に送れば同じ問題で遊べます。</p>
 
     <h3>盤面</h3>
-    <button type="button" class="menu-row danger" id="btn-clear">書き込みをぜんぶ消す</button>
+    <button type="button" class="menu-row danger" id="btn-clear"><span class="mi" aria-hidden="true">delete</span>書き込みをぜんぶ消す</button>
     <p class="hint-text">消したあとでも「もどす」で元に戻せます。</p>
 
     <button type="button" class="close-btn" id="btn-close-menu">とじる</button>
@@ -166,7 +169,7 @@
       <li>右クリック（Ctrl+クリック）では、いまのモードで主役でない方の印が付きます。</li>
       <li>キーボードでも遊べます：<b>矢印キー</b>で移動、<b>スペース</b>で線、<b>X</b>で ×。</li>
     </ul>
-    <p class="rules-more">新しい問題（大きさ・むずかしさ）・表示の設定・問題コード（共有や読み込み）・テーマ・書き込みをぜんぶ消す、は右上の <b>⋯</b> にあります。</p>
+    <p class="rules-more">新しい問題（大きさ・むずかしさ）・表示の設定・問題コード（共有や読み込み）・テーマ・書き込みをぜんぶ消す、は右上の <span class="mi" aria-hidden="true">more_horiz</span> にあります。</p>
     <p class="note">この中の問題はすべて、当てずっぽう無しで<b>論理だけで解ける</b>ことを確認してから出題しています。</p>
     <button type="button" class="rules-link" id="btn-rules-patterns">定石一覧を見る（よく出る形と、そこで決まること）→</button>
     <button type="button" class="primary" id="btn-close-rules">とじる</button>
@@ -177,7 +180,7 @@
 <aside class="drawer" id="patterns-drawer" role="complementary" aria-label="定石一覧" hidden>
   <header class="drawer-head">
     <h2 id="drawer-title">定石一覧</h2>
-    <button type="button" class="icon-btn" id="btn-drawer-close" aria-label="定石一覧をとじる">✕</button>
+    <button type="button" class="icon-btn" id="btn-drawer-close" aria-label="定石一覧をとじる"><span class="mi" aria-hidden="true">close</span></button>
   </header>
   <div class="drawer-body" id="drawer-body" tabindex="-1"></div>
 </aside>

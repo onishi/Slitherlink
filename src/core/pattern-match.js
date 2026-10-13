@@ -9,6 +9,7 @@
 import { getGrid, UNKNOWN, LINE, CROSS } from './grid.js';
 import { SolveState } from './solver.js';
 import { expandForms } from './patterns.js';
+import { boardState, refute } from './proof.js';
 
 /**
  * 頂点の座標を変換する 8 通り。
@@ -206,6 +207,7 @@ export function findMatches(grid, clues, state, pattern) {
     return findVertexMatches(grid, state, pattern.match.slice('vertex-'.length));
   }
   if (pattern.match === 'bridge') return findBridgeMatches(grid, state);
+  if (pattern.match === 'shortcut') return findShortcutMatches(grid, clues, state);
   if (pattern.match === 'clue-full' || pattern.match === 'clue-rest') {
     return findClueMatches(grid, clues, state, pattern.match === 'clue-full');
   }
@@ -308,6 +310,37 @@ function findVertexMatches(grid, state, mode) {
     for (const e of unknown) fills.push({ edge: e, value });
   }
   return { fills: dedupe(fills), conflicts, places };
+}
+
+// 近道で輪が閉じるかを何手先まで見るか。長い連鎖は「定石」というより背理法なので打ち切る
+const SHORTCUT_STEPS = 6;
+
+/**
+ * 「近道で輪を閉じてはいけない」を盤面全体に当てはめる。
+ * 線の端から伸びる空白の辺を線にしてみて、数字と交点のルールだけで数手のうちに
+ * 輪が閉じてしまい、しかもそれで完成にならない（線の要る数字や別の線が残る）なら、その辺は ×。
+ * 1 本の辺で輪が閉じる形は「小さな輪を閉じてはいけない」が受け持つので、ここでは 1 手以上かかるものだけ。
+ */
+function findShortcutMatches(grid, clues, state) {
+  const base = boardState(grid, clues, state);
+  if (!base) return { fills: [], conflicts: 1, places: 0 };
+  const fills = new Map();
+  for (let v = 0; v < grid.vertexCount; v++) {
+    if (base.vertexLine[v] !== 1) continue; // 線の端だけを見る
+    for (const e of grid.vertexEdges[v]) {
+      if (state[e] !== UNKNOWN || fills.has(e)) continue;
+      const proof = refute(base, e, LINE, 0, { nodes: 4 });
+      if (!proof || !usesLoopRule(proof)) continue;
+      if (proof.steps.length < 1 || proof.steps.length > SHORTCUT_STEPS) continue;
+      fills.set(e, { edge: e, value: CROSS });
+    }
+  }
+  return { fills: [...fills.values()], conflicts: 0, places: fills.size };
+}
+
+/** 証明が「輪はひとつだけ」を使っているか（輪が閉じて矛盾する、または小さな輪を避けて × にした）。 */
+function usesLoopRule(proof) {
+  return proof.clash.kind === 'loop' || proof.steps.some((s) => s.rule === 'loop_closed' || s.rule === 'loop_done');
 }
 
 /**
