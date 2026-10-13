@@ -154,6 +154,42 @@ button:hover:not(:disabled) { background: var(--accent-soft); }
 button:active:not(:disabled) { transform: translateY(1px); }
 button:disabled { opacity: .42; cursor: default; }
 
+/* ---------- アイコン（Material Symbols） ---------- */
+/* フォントが読めないときに名前の文字が広がらないよう、幅は 1 文字分に固定する */
+.mi {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 1.25em;
+  line-height: 1;
+  width: 1em;
+  height: 1em;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+  flex: none;
+}
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn .mi { font-size: 1.25rem; }
+.with-icon { display: inline-flex; align-items: center; gap: 4px; }
+.with-icon .mi { font-size: 1.05rem; }
+.menu-row .mi, .modal-card .primary .mi { font-size: 1.15rem; margin-right: 6px; vertical-align: -4px; }
+.rules-more .mi { font-size: 1.1rem; vertical-align: -3px; }
+.back-link .mi { font-size: 1.05rem; margin-right: 4px; vertical-align: -3px; }
+.pat-list-btn { display: inline-flex; align-items: center; gap: 3px; }
+.pat-list-btn .mi { font-size: 1rem; }
+.hint-badge .mi { font-size: 1rem; }
+.overlay-card .best { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.overlay-card .best .mi { color: var(--line-hint); font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -327,7 +363,9 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   background: var(--surface);
   color: var(--ink-soft);
 }
-.tool .ico { font-size: 1.1rem; line-height: 1.15; color: var(--ink); }
+.tool .ico { font-size: 1.35rem; color: var(--ink); }
+.tool-hint .ico { color: var(--line-hint); font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.tool-patterns .ico { color: var(--accent); }
 .tool-hint {
   min-width: 64px;
   background: color-mix(in srgb, var(--line-hint) 16%, var(--surface));
@@ -367,22 +405,8 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   color: var(--ink);
   box-shadow: 0 1px 3px rgba(35, 32, 28, .1);
 }
-.mode-ico {
-  width: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: .85rem;
-  line-height: 1;
-}
-.ico-line::before {
-  content: "";
-  width: 15px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--ink-faint);
-}
-.modes button[aria-checked="true"] .ico-line::before { background: var(--line); }
+.modes .mode-ico { font-size: 1.2rem; color: var(--ink-faint); }
+.modes button[aria-checked="true"] .mode-ico { color: var(--line); }
 
 /* ---------- 設定とその他（めったに使わないもの） ---------- */
 .options {
@@ -465,7 +489,7 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   .tool { font-size: .62rem; min-width: 40px; padding: 6px 2px; white-space: nowrap; }
   .tool-hint { min-width: 46px; }
   .modes button { font-size: .82rem; gap: 3px; padding: 6px 2px; white-space: nowrap; }
-  .modes .mode-ico { width: 13px; }
+  .modes .mode-ico { font-size: 1.05rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -524,8 +548,20 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   border-radius: 2px;
   background: var(--accent);
 }
-.pat-tier > summary::after { content: '▸'; margin-left: auto; color: var(--ink-faint); transition: transform .15s ease; }
-.pat-tier[open] > summary::after { transform: rotate(90deg); }
+.pat-tier > summary::after {
+  content: 'expand_more';
+  font-family: 'Material Symbols Rounded';
+  font-feature-settings: 'liga';
+  font-size: 1.3rem;
+  line-height: 1;
+  width: 1em;
+  overflow: hidden;
+  margin-left: auto;
+  color: var(--ink-faint);
+  transform: rotate(-90deg);
+  transition: transform .15s ease;
+}
+.pat-tier[open] > summary::after { transform: none; }
 .pat-tier-title { font-size: 1.02rem; font-weight: 700; }
 .pat-tier-count { font-size: .76rem; color: var(--ink-faint); }
 .legend-list {
@@ -558,13 +594,14 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   padding: 7px 12px;
   border-radius: 999px;
 }
-.pat-filter::before { content: '○ '; }
+.pat-filter { display: inline-flex; align-items: center; gap: 4px; }
+.pat-filter::before { content: 'radio_button_unchecked'; font-family: 'Material Symbols Rounded'; font-feature-settings: 'liga'; font-size: 1.1rem; line-height: 1; width: 1em; overflow: hidden; }
 .pat-filter.is-on {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
-.pat-filter.is-on::before { content: '● '; }
+.pat-filter.is-on::before { content: 'check_circle'; }
 .pat-filter.is-on:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
 .drawer-body .pat-toolbar {
   position: sticky;
