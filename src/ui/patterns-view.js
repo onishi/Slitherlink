@@ -21,26 +21,35 @@ const el = (tag, className, text) => {
   return node;
 };
 
+/** 出番の多さで 3 段に分ける（usage は 1 問あたりに決められる辺の本数）。 */
+const TIERS = [
+  { id: 'often', title: 'よく使う', min: 5, lead: 'ほぼ毎問、何度も出てきます。まずはここから。' },
+  { id: 'sometimes', title: 'ときどき使う', min: 1, lead: '行き詰まったら探してみる形です。' },
+  { id: 'rare', title: 'たまに使う', min: -Infinity, lead: '出番は少ないものの、見つかると一気に進みます。', folded: true },
+];
+
 /**
- * 定石一覧をまるごと container の中に作る。出番の多い順に 1 列で並べる。
+ * 定石一覧をまるごと container の中に作る。出番の多さで 3 段に分け、段の中も多い順に並べる。
  * @param {HTMLElement} container
  * @param {object} [options]
- * @param {(pattern:object)=>void} [options.onApply] 「当てはめる」を押したときの処理
+ * @param {(pattern:object)=>void} [options.onApply] 「当てはめる」を押したときの処理（盤面があるとき）
  * @param {boolean} [options.onlyUsable] 最初から「いま使える定石だけ表示」にしておくか
  * @param {(on:boolean)=>void} [options.onFilterChange] 表示の切り替えを覚えておくための通知
  * @returns {{setCounts:(counts:Map<string,number>)=>void}} 件数バッジの更新口
  */
 export function renderPatternsInto(container, options = {}) {
   container.textContent = '';
+  const inGame = Boolean(options.onApply);
   const actions = new Map();
   const cards = new Map();
+  const sections = [];
   let counts = null;
-  let onlyUsable = options.onApply ? options.onlyUsable === true : false;
+  let onlyUsable = inGame ? options.onlyUsable === true : false;
 
   // 盤面があるときだけ「いま使える定石だけ表示」を出す
   let filter = null;
   let status = null;
-  if (options.onApply) {
+  if (inGame) {
     const bar = el('div', 'pat-toolbar');
     filter = el('button', 'pat-filter', 'いま使える定石だけ表示');
     filter.type = 'button';
@@ -55,34 +64,54 @@ export function renderPatternsInto(container, options = {}) {
     container.appendChild(bar);
   }
 
-  container.appendChild(legend());
+  // 図の読み方は一度読めば足りるので、ゲーム中は畳んでおく
+  container.appendChild(legend(!inGame));
 
-  container.appendChild(el('p', 'pat-lead',
-    '解いているあいだに出番の多い順に並べています。数字は、1 問を解くあいだにその定石で決められる辺の本数（実測の平均）です。'));
-  const grid = el('div', 'pat-grid');
-  PATTERNS.forEach((pattern, i) => {
-    const node = card(pattern, i + 1, options, actions);
-    cards.set(pattern.id, node);
-    grid.appendChild(node);
-  });
-  container.appendChild(grid);
+  for (const tier of TIERS) {
+    const items = PATTERNS.filter((p) => p.usage >= tier.min && !TIERS.some((t) => t.min > tier.min && p.usage >= t.min));
+    if (!items.length) continue;
+    const node = document.createElement('details');
+    node.className = 'pat-tier';
+    node.id = `tier-${tier.id}`;
+    node.open = !(inGame && tier.folded);
+    const summary = document.createElement('summary');
+    summary.append(el('span', 'pat-tier-title', tier.title), el('span', 'pat-tier-count', `${items.length} 個`));
+    node.append(summary, el('p', 'pat-lead', tier.lead));
+    const grid = el('div', 'pat-grid');
+    for (const pattern of items) {
+      const c = card(pattern, options, actions);
+      cards.set(pattern.id, c);
+      grid.appendChild(c);
+    }
+    node.appendChild(grid);
+    container.appendChild(node);
+    sections.push({ node, ids: items.map((p) => p.id), folded: !node.open });
+  }
+
   const empty = el('p', 'pat-empty', 'いまの盤面で使える定石はありません。ヒントを使うか、別の場所を考えてみましょう。');
   empty.hidden = true;
   container.appendChild(empty);
 
   function refresh() {
+    const filtering = onlyUsable && counts != null;
     let usable = 0;
     for (const [id, node] of cards) {
       const count = counts ? (counts.get(id) ?? 0) : 0;
       if (count > 0) usable++;
-      node.hidden = onlyUsable && counts != null && count === 0;
+      node.hidden = filtering && count === 0;
+    }
+    for (const section of sections) {
+      const visible = section.ids.some((id) => !cards.get(id).hidden);
+      section.node.hidden = !visible;
+      // 絞り込み中は、使える定石が畳まれた段に隠れないよう開いておく
+      if (filtering && visible) section.node.open = true;
     }
     if (filter) {
       filter.setAttribute('aria-pressed', String(onlyUsable));
       filter.classList.toggle('is-on', onlyUsable);
       status.textContent = counts ? `いま使える定石 ${usable} 個` : '';
     }
-    empty.hidden = !(onlyUsable && counts != null && usable === 0);
+    empty.hidden = !(filtering && usable === 0);
   }
   refresh();
 
@@ -103,21 +132,25 @@ function usageText(usage) {
   return 'まれ';
 }
 
-function legend() {
-  const box = el('section', 'legend');
-  box.setAttribute('aria-label', '図の読み方');
-  box.appendChild(el('h2', null, '図の読み方'));
+function legend(open) {
+  const box = document.createElement('details');
+  box.className = 'legend';
+  box.open = open;
+  const summary = document.createElement('summary');
+  summary.textContent = '図の読み方';
+  box.appendChild(summary);
   const list = el('ul', 'legend-list');
   for (const item of LEGEND) {
     const li = document.createElement('li');
     li.append(renderSwatch(item.kind), el('span', null, item.label));
     list.appendChild(li);
   }
-  box.appendChild(list);
+  box.append(list, el('p', 'legend-note',
+    '出番は、1 問を解くあいだにその定石で決められる辺の本数（実測の平均）です。段の中も出番の多い順に並んでいます。'));
   return box;
 }
 
-function card(pattern, rank, options, actions) {
+function card(pattern, options, actions) {
   const article = el('article', 'pat-card');
   article.id = `pattern-${pattern.id}`;
 
@@ -129,7 +162,6 @@ function card(pattern, rank, options, actions) {
   const meta = el('p', 'pat-meta');
   const category = CATEGORIES.find((c) => c.id === pattern.category);
   meta.append(
-    el('span', 'pat-rank', `${rank} 位`),
     el('span', 'pat-tag', category ? category.title : ''),
     el('span', 'pat-usage', `出番 ${usageText(pattern.usage)}`),
   );

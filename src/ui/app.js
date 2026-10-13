@@ -52,6 +52,11 @@ const el = {
   drawerScrim: $('drawer-scrim'),
   drawerClose: $('btn-drawer-close'),
   modeLine: $('mode-line'),
+  menuModal: $('menu-modal'),
+  menuBtn: $('btn-menu'),
+  closeMenu: $('btn-close-menu'),
+  puzzleSettings: $('puzzle-settings'),
+  puzzleSummary: $('puzzle-summary'),
   modeCross: $('mode-cross'),
 };
 
@@ -83,6 +88,7 @@ function init() {
   patternsOnlyUsable = prefs.patternsOnlyUsable === true;
   if (prefs.size) el.size.value = prefs.size;
   if (prefs.difficulty) el.difficulty.value = prefs.difficulty;
+  updatePuzzleSummary();
   // 既定は「自動 × なし・矛盾表示なし・使い終わった数字は薄く」。
   // 一度でも触った設定は localStorage の値が優先される。
   el.autocross.checked = prefs.autocross === true;
@@ -109,14 +115,19 @@ function init() {
 
 function bindUI() {
   el.newBtn.addEventListener('click', () => newPuzzle());
-  el.size.addEventListener('change', () => { savePrefs(); prefetchCurrent(); });
-  el.difficulty.addEventListener('change', () => { savePrefs(); prefetchCurrent(); });
+  for (const select of [el.size, el.difficulty]) {
+    select.addEventListener('change', () => { updatePuzzleSummary(); savePrefs(); prefetchCurrent(); });
+  }
+  // 大きさ・むずかしさの小窓は、外側を触ったら閉じる
+  document.addEventListener('pointerdown', (ev) => {
+    if (el.puzzleSettings.open && !el.puzzleSettings.contains(ev.target)) el.puzzleSettings.open = false;
+  });
 
   el.undo.addEventListener('click', undo);
   el.redo.addEventListener('click', redo);
   el.hint.addEventListener('click', showHint);
   el.check.addEventListener('click', check);
-  el.clear.addEventListener('click', clearBoard);
+  el.clear.addEventListener('click', () => { closeMenu(); clearBoard(); });
 
   el.autocross.addEventListener('change', () => {
     if (el.autocross.checked && game.grid && !game.solved) {
@@ -140,9 +151,12 @@ function bindUI() {
   });
 
   el.copy.addEventListener('click', copyCode);
-  el.load.addEventListener('click', () => tryLoadCode(el.code.value, false));
+  el.load.addEventListener('click', () => { if (tryLoadCode(el.code.value, false)) closeMenu(); });
   el.code.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') { ev.preventDefault(); tryLoadCode(el.code.value, false); }
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      if (tryLoadCode(el.code.value, false)) closeMenu();
+    }
   });
 
   for (const btn of [el.modeLine, el.modeCross]) {
@@ -160,6 +174,11 @@ function bindUI() {
   el.drawerScrim.addEventListener('click', () => closeDrawer());
 
   el.rulesBtn.addEventListener('click', () => { el.rulesModal.hidden = false; });
+  el.menuBtn.addEventListener('click', openMenu);
+  el.closeMenu.addEventListener('click', closeMenu);
+  el.menuModal.addEventListener('click', (ev) => {
+    if (ev.target === el.menuModal) closeMenu();
+  });
   el.closeRules.addEventListener('click', () => { el.rulesModal.hidden = true; });
   el.rulesModal.addEventListener('click', (ev) => {
     if (ev.target === el.rulesModal) el.rulesModal.hidden = true;
@@ -170,6 +189,8 @@ function bindUI() {
     if (ev.key === 'Escape') {
       if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
       if (isDrawerOpen()) { closeDrawer(); return; }
+      if (!el.menuModal.hidden) { closeMenu(); return; }
+      if (el.puzzleSettings.open) { el.puzzleSettings.open = false; return; }
       el.rulesModal.hidden = true;
       hideOverlay();
     }
@@ -196,6 +217,26 @@ function bindUI() {
   });
 
   setInterval(tickTimer, 1000);
+}
+
+/* ---------------- 設定とその他（めったに使わないもの） ---------------- */
+
+function openMenu() {
+  el.menuModal.hidden = false;
+  el.closeMenu.focus();
+}
+
+function closeMenu() {
+  if (el.menuModal.hidden) return;
+  el.menuModal.hidden = true;
+  el.menuBtn.focus();
+}
+
+/** 「7 × 7 ・ ふつう」のように、いま選んでいる大きさとむずかしさを出す。 */
+function updatePuzzleSummary() {
+  const size = el.size.selectedOptions[0]?.textContent ?? '';
+  const diff = el.difficulty.selectedOptions[0]?.textContent ?? '';
+  el.puzzleSummary.textContent = `${size} ・ ${diff}`;
 }
 
 /* ---------------- 定石ドロワー ---------------- */
@@ -422,6 +463,7 @@ function restoreSaved() {
     ensureSizeOption(`${decoded.rows}x${decoded.cols}`);
     el.size.value = `${decoded.rows}x${decoded.cols}`;
     el.difficulty.value = decoded.difficulty;
+    updatePuzzleSummary();
     startPuzzle({
       ...decoded,
       solution,
@@ -446,6 +488,7 @@ function tryLoadCode(code, fromUrl) {
     ensureSizeOption(`${decoded.rows}x${decoded.cols}`);
     el.size.value = `${decoded.rows}x${decoded.cols}`;
     el.difficulty.value = decoded.difficulty;
+    updatePuzzleSummary();
     startPuzzle({
       ...decoded,
       solution,
@@ -561,7 +604,7 @@ function clearBoard() {
   hideOverlay();
   refreshAll();
   persist();
-  say('盤面を消しました');
+  say('盤面を消しました。「もどす」で元に戻せます');
 }
 
 /* ---------------- 表示の更新 ---------------- */
@@ -812,6 +855,9 @@ async function copyCode() {
   try {
     await navigator.clipboard.writeText(text);
     say('共有リンクをコピーしました');
+    // メニューの中では下のメッセージが見えないので、ボタンでも知らせる
+    el.copy.textContent = 'コピーしました';
+    setTimeout(() => { el.copy.textContent = 'コピー'; }, 1600);
   } catch {
     el.code.select();
     say('コピーできませんでした。手動で選択してください', true);
