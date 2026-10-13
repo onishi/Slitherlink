@@ -21,11 +21,16 @@ const el = (tag, className, text) => {
   return node;
 };
 
-/** 出番の多さで 3 段に分ける（usage は 1 問あたりに決められる辺の本数）。 */
+/**
+ * 段に分ける。先頭は定番（よく知られた形）、そのあとは出番の多さ
+ * （usage は 1 問あたりに決められる辺の本数）。
+ */
 const TIERS = [
-  { id: 'often', title: 'よく使う', min: 5, lead: 'ほぼ毎問、何度も出てきます。まずはここから。' },
-  { id: 'sometimes', title: 'ときどき使う', min: 1, lead: '行き詰まったら探してみる形です。' },
-  { id: 'rare', title: 'たまに使う', min: -Infinity, lead: '出番は少ないものの、見つかると一気に進みます。', folded: true },
+  { id: 'popular', title: '定番', test: (p) => p.popular,
+    lead: 'スリザーリンクでよく知られた形です。ほかの定石と結論が重なるものもありますが、ひと目で分かるので先に並べています。' },
+  { id: 'often', title: 'よく使う', test: (p) => !p.popular && p.usage >= 5, lead: 'ほぼ毎問、何度も出てきます。' },
+  { id: 'sometimes', title: 'ときどき使う', test: (p) => !p.popular && p.usage >= 1 && p.usage < 5, lead: '行き詰まったら探してみる形です。' },
+  { id: 'rare', title: 'たまに使う', test: (p) => !p.popular && p.usage < 1, lead: '出番は少ないものの、見つかると一気に進みます。', folded: true },
 ];
 
 /**
@@ -68,7 +73,7 @@ export function renderPatternsInto(container, options = {}) {
   container.appendChild(legend(!inGame));
 
   for (const tier of TIERS) {
-    const items = PATTERNS.filter((p) => p.usage >= tier.min && !TIERS.some((t) => t.min > tier.min && p.usage >= t.min));
+    const items = PATTERNS.filter(tier.test);
     if (!items.length) continue;
     const node = document.createElement('details');
     node.className = 'pat-tier';
