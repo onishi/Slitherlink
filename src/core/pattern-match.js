@@ -189,6 +189,9 @@ export function findMatches(grid, clues, state, pattern) {
   if (pattern.match === 'loop') return findLoopMatches(grid, clues, state);
   if (pattern.match === 'vertex') return findVertexMatches(grid, state);
   if (pattern.match === 'bridge') return findBridgeMatches(grid, state);
+  if (pattern.match === 'clue-full' || pattern.match === 'clue-rest') {
+    return findClueMatches(grid, clues, state, pattern.match === 'clue-full');
+  }
 
   const fills = new Map();
   let conflicts = 0;
@@ -284,6 +287,36 @@ function findVertexMatches(grid, state) {
     for (const e of unknown) fills.push({ edge: e, value });
   }
   return { fills: dedupe(fills), conflicts, places };
+}
+
+/**
+ * 数字の本数のルールを盤面全体に当てはめる。
+ * full なら「線が数字に達したマスの残りは ×」、そうでなければ
+ * 「残りを全部使わないと数字に届かないマスの残りは線」。
+ * 型の照合では数字・向きごとに型が要るので、ルールそのものを適用する。
+ */
+function findClueMatches(grid, clues, state, full) {
+  const fills = [];
+  let conflicts = 0;
+  let places = 0;
+  for (let cell = 0; cell < grid.cellCount; cell++) {
+    const clue = clues[cell];
+    if (clue < 0) continue;
+    let lines = 0;
+    const unknown = [];
+    for (let k = 0; k < 4; k++) {
+      const e = grid.cellEdges[cell * 4 + k];
+      if (state[e] === LINE) lines++;
+      else if (state[e] === UNKNOWN) unknown.push(e);
+    }
+    if (lines > clue || lines + unknown.length < clue) { conflicts++; continue; }
+    if (unknown.length === 0) continue;
+    if (full ? lines === clue : lines + unknown.length === clue) {
+      places++;
+      for (const e of unknown) fills.push({ edge: e, value: full ? CROSS : LINE });
+    }
+  }
+  return { fills, conflicts, places };
 }
 
 /**

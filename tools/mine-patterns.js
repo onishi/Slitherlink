@@ -3,6 +3,7 @@
  *   node tools/mine-patterns.js [1 条件あたりの問題数] [表示する候補数]
  *
  * 1. 作問した問題をヒントどおりに解き進める
+ *    （盤面だけで直接決まるヒントが定石で拾えなければ、それも数える。基本ルールの抜け）
  * 2. 背理法のヒントのうち、いまの定石を繰り返し当てはめても届かない辺を拾う
  * 3. 証明が実際に使った数字と印だけを取り出し、回転・反転をそろえて数える
  *    （「輪はひとつだけ」を使う証明は盤面全体に依存するので除く。
@@ -113,6 +114,8 @@ export function draw(p) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const found = new Map();
   let hints = 0, beyond = 0, loopOnes = 0, borderOnes = 0, puzzles = 0;
+  // 盤面だけで直接決まるのに定石で拾えない手（基本ルールの抜けを見つけるため）
+  const directMissed = new Map();
 
   for (const [rows, cols, difficulty] of SETS) {
     for (let i = 0; i < reps; i++) {
@@ -125,6 +128,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         const hint = findHint(grid, p.clues, state, p.solution);
         if (hint.type !== 'move') break;
         hints++;
+        if (hint.proof.kind === 'direct' && closure(grid, p.clues, state)[hint.edge] === UNKNOWN) {
+          const rule = hint.proof.step.rule;
+          directMissed.set(rule, (directMissed.get(rule) ?? 0) + 1);
+        }
         if (hint.proof.kind === 'contradiction' && closure(grid, p.clues, state)[hint.edge] === UNKNOWN) {
           beyond++;
           const used = collect(hint.proof);
@@ -144,6 +151,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 
   console.log(`${puzzles} 問 / ヒント ${hints} 手 / 定石では届かない背理法 ${beyond} 手`);
+  console.log(`盤面だけで直接決まるのに定石で拾えない手: ${[...directMissed].map(([r, n]) => `${r} ${n}`).join('・') || 'なし'}`);
   console.log(`  うち 輪のルールを使う ${loopOnes}・縁の点を使う ${borderOnes}・内側の形 ${beyond - loopOnes - borderOnes}（${found.size} 種類）\n`);
 
   const ranked = [...found.values()].sort((a, b) => b.puzzles.size - a.puzzles.size || b.count - a.count);
