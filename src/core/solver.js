@@ -90,6 +90,9 @@ export class SolveState {
     this.queueCells = [];
     this.queueVertices = [];
     this.reasons = trackReasons ? new Array(edgeCount).fill(null) : null;
+    // 理由を記録するときは、確定した順番も残す（根拠の連鎖をたどるため）
+    this.order = trackReasons ? new Int32Array(edgeCount).fill(-1) : null;
+    this.seq = 0;
   }
 
   clone() {
@@ -112,6 +115,8 @@ export class SolveState {
     s.queueCells = this.queueCells.slice();
     s.queueVertices = this.queueVertices.slice();
     s.reasons = this.reasons ? this.reasons.slice() : null;
+    s.order = this.order ? this.order.slice() : null;
+    s.seq = this.seq;
     return s;
   }
 
@@ -119,14 +124,23 @@ export class SolveState {
   setEdge(e, value, reason) {
     if (this.edges[e] === value) return !this.contradiction;
     if (this.edges[e] !== UNKNOWN) {
+      if (this.reasons && reason) {
+        const r = this.withPremises(e, typeof reason === 'string' ? { rule: reason } : reason);
+        this.clash = { kind: 'conflict', edge: e, value, reason: r, premises: [e, ...r.premises] };
+      }
       this.contradiction = true;
       return false;
     }
     const g = this.grid;
+    // 前提は、この辺が決まる直前の盤面から取る
+    const tracked = this.reasons && reason
+      ? this.withPremises(e, typeof reason === 'string' ? { rule: reason } : reason)
+      : null;
     this.edges[e] = value;
     this.unknownCount--;
-    if (this.reasons && reason && !this.reasons[e]) {
-      this.reasons[e] = typeof reason === 'string' ? { rule: reason } : reason;
+    if (this.reasons) {
+      this.order[e] = this.seq++;
+      if (tracked && !this.reasons[e]) this.reasons[e] = tracked;
     }
 
     for (const cell of g.edgeCells[e]) {
@@ -159,6 +173,11 @@ export class SolveState {
         // ループが閉じた。全体の完成でなければ矛盾。
         if (this.openEnds !== 0 || this.unsatisfied !== 0 || this.lineCount === 0) {
           this.clash = { kind: 'loop' };
+          if (this.reasons) {
+            const cycle = [...this.linePath(a, b, e), e];
+            const witness = this.loopWitness(cycle);
+            this.clash = { kind: 'loop', cycle, witness, premises: [...cycle, ...witnessEdges(witness)] };
+          }
           this.contradiction = true;
           return false;
         }
@@ -181,6 +200,9 @@ export class SolveState {
           const unknown = this.cellUnknown[cell];
           if (line > clue || line + unknown < clue) {
             this.clash = { kind: 'cell', index: cell, clue, line, unknown };
+            if (this.reasons) {
+              this.clash.premises = this.cellEdgesWith(cell, line > clue ? LINE : CROSS, -1);
+            }
             this.contradiction = true;
             return false;
           }
@@ -202,11 +224,13 @@ export class SolveState {
         const unknown = this.vertexUnknown[v];
         if (line > 2) {
           this.clash = { kind: 'vertex', index: v, line };
+          if (this.reasons) this.clash.premises = this.vertexEdgesWith(v, LINE, -1);
           this.contradiction = true;
           return false;
         }
         if (line === 1 && unknown === 0) {
           this.clash = { kind: 'vertex', index: v, line, dead: true };
+          if (this.reasons) this.clash.premises = g.vertexEdges[v].slice();
           this.contradiction = true;
           return false;
         }
@@ -250,7 +274,12 @@ export class SolveState {
         this.vertexLine[b] === 1 &&
         this.wouldSatisfyAllClues(e);
       if (!closesAll) {
-        if (!this.setEdge(e, CROSS, { rule: 'loop_closed' })) return false;
+        let reason = { rule: 'loop_closed' };
+        if (this.reasons) {
+          const cycle = [...this.linePath(a, b, -1), e];
+          reason = { rule: 'loop_closed', cycle, witness: this.loopWitness(cycle) };
+        }
+        if (!this.setEdge(e, CROSS, reason)) return false;
       }
     }
     return true;
@@ -263,10 +292,94 @@ export class SolveState {
   applyCompletionRule() {
     if (this.unknownCount === 0) return true;
     if (this.lineCount === 0 || this.openEnds !== 0 || this.unsatisfied !== 0) return true;
+    let reason = { rule: 'loop_done' };
+    if (this.reasons) {
+      const cycle = [];
+      for (let e = 0; e < this.grid.edgeCount; e++) if (this.edges[e] === LINE) cycle.push(e);
+      reason = { rule: 'loop_done', cycle };
+    }
     for (let e = 0; e < this.grid.edgeCount; e++) {
-      if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, { rule: 'loop_done' })) return false;
+      if (this.edges[e] === UNKNOWN && !this.setEdge(e, CROSS, reason)) return false;
     }
     return true;
+  }
+
+  /**
+   * 理由に「何が分かっていたからそう決まったか」（前提の辺）を付ける。
+   * 前提は理由の種類ごとに最小限に絞る。ヒントの説明と検算に使う。
+   */
+  withPremises(e, reason) {
+    if (reason.premises) return reason;
+    const { rule } = reason;
+    let premises = [];
+    if (rule === 'clue_full') premises = this.cellEdgesWith(reason.cell, LINE, e);
+    else if (rule === 'clue_rest') premises = this.cellEdgesWith(reason.cell, CROSS, e);
+    else if (rule === 'vertex_two') premises = this.vertexEdgesWith(reason.vertex, LINE, e);
+    else if (rule === 'vertex_pair' || rule === 'vertex_dead') {
+      premises = this.grid.vertexEdges[reason.vertex].filter((x) => x !== e && this.edges[x] !== UNKNOWN);
+    } else if (rule === 'loop_closed') {
+      premises = [...reason.cycle.filter((x) => x !== e), ...witnessEdges(reason.witness)];
+    } else if (rule === 'loop_done') premises = reason.cycle;
+    return { ...reason, premises };
+  }
+
+  cellEdgesWith(cell, value, except) {
+    const list = [];
+    for (let k = 0; k < 4; k++) {
+      const x = this.grid.cellEdges[cell * 4 + k];
+      if (x !== except && this.edges[x] === value) list.push(x);
+    }
+    return list;
+  }
+
+  vertexEdgesWith(v, value, except) {
+    return this.grid.vertexEdges[v].filter((x) => x !== except && this.edges[x] === value);
+  }
+
+  /** 線だけをたどって a から b へ行く道（辺の列）。skip の辺は通らない。 */
+  linePath(a, b, skip) {
+    const g = this.grid;
+    const prev = new Map([[a, -1]]);
+    const queue = [a];
+    while (queue.length) {
+      const v = queue.shift();
+      if (v === b) break;
+      for (const x of g.vertexEdges[v]) {
+        if (x === skip || this.edges[x] !== LINE) continue;
+        const to = g.edgeEnds[x * 2] === v ? g.edgeEnds[x * 2 + 1] : g.edgeEnds[x * 2];
+        if (prev.has(to)) continue;
+        prev.set(to, x);
+        queue.push(to);
+      }
+    }
+    const path = [];
+    for (let v = b; v !== a;) {
+      const x = prev.get(v);
+      if (x === undefined || x < 0) return path;
+      path.push(x);
+      v = g.edgeEnds[x * 2] === v ? g.edgeEnds[x * 2 + 1] : g.edgeEnds[x * 2];
+    }
+    return path;
+  }
+
+  /**
+   * 輪 cycle が答えそのものになれない証拠を 1 つ探す。
+   * 輪の外にある線（{edge}）か、輪だけでは本数が合わない数字（{cell}）。
+   */
+  loopWitness(cycle) {
+    const g = this.grid;
+    const onCycle = new Set(cycle);
+    for (let x = 0; x < g.edgeCount; x++) {
+      if (this.edges[x] === LINE && !onCycle.has(x)) return { edge: x };
+    }
+    for (let cell = 0; cell < g.cellCount; cell++) {
+      const clue = this.clues[cell];
+      if (clue < 0) continue;
+      let n = 0;
+      for (let k = 0; k < 4; k++) if (onCycle.has(g.cellEdges[cell * 4 + k])) n++;
+      if (n !== clue) return { cell, count: n };
+    }
+    return null;
   }
 
   /** 辺 e を線にしたとき、すべての数字が過不足なく満たされるか。 */
@@ -411,8 +524,13 @@ function deepCheck(state, depth, budget) {
   return true;
 }
 
+/** 輪の証拠のうち、前提として使う辺。 */
+function witnessEdges(witness) {
+  return witness && witness.edge != null ? [witness.edge] : [];
+}
+
 /** 確定済みの辺に隣接する未確定辺 (= 推論が進みやすい場所) を集める。 */
-function frontierEdges(state) {
+export function frontierEdges(state) {
   const g = state.grid;
   const seen = new Uint8Array(g.edgeCount);
   const list = [];
