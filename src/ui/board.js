@@ -267,23 +267,14 @@ export class Board {
       const value = (ev.button === 2 || ev.ctrlKey)
         ? (current === secondary ? UNKNOWN : secondary)
         : nextValue(current, this.inputMode);
-      this._stroke = { value, touched: new Set([e]), pointerId: ev.pointerId };
+      // なぞっても広い範囲に続けて引くことはないので、反応するのは最初に触れた 1 辺だけ。
+      // 指がずれて隣の辺まで変わってしまう誤操作も防げる。
+      this._stroke = { pointerId: ev.pointerId };
       // 指やマウスで触ったときは点線を出さない（キーボード再開位置だけ覚える）
       this.cursor = e;
       this.showCursor = false;
       this._drawCursor();
       this.handlers.onPaint(e, value);
-    });
-
-    svg.addEventListener('pointermove', (ev) => {
-      if (!this._stroke || ev.pointerId !== this._stroke.pointerId) return;
-      const e = this._pick(ev);
-      if (e < 0 || this._stroke.touched.has(e)) return;
-      this._stroke.touched.add(e);
-      this.cursor = e;
-      // なぞった先は「消す」操作以外では上書きしない (誤操作防止)
-      if (this._stroke.value !== UNKNOWN && this.state[e] !== UNKNOWN) return;
-      this.handlers.onPaint(e, this._stroke.value);
     });
 
     const end = (ev) => {
