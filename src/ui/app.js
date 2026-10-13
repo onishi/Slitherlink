@@ -8,6 +8,7 @@ import { findMatches } from '../core/pattern-match.js';
 import { PATTERNS } from '../core/patterns.js';
 import { PuzzleService } from './puzzle-service.js';
 import { PatternCards } from './pattern-cards.js';
+import { PhotoImport } from './photo-import.js';
 import { store } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
@@ -59,6 +60,10 @@ const el = {
   patternsBtn: $('btn-patterns'),
   quickPatterns: $('btn-quick-patterns'),
   zoomCtl: $('zoom-ctl'),
+  photoCamera: $('photo-camera'),
+  photoPick: $('photo-pick'),
+  libraryList: $('library-list'),
+  saveCurrent: $('btn-save-current'),
   zoomIn: $('zoom-in'),
   zoomOut: $('zoom-out'),
   zoomFit: $('zoom-fit'),
@@ -138,6 +143,7 @@ function init() {
   setInputMode(prefs.inputMode === 'cross' ? 'cross' : 'line');
 
   bindUI();
+  setupPhotoImport();
   if (wantDrawerOpen) openDrawer({ instant: true });
 
   const fromUrl = new URLSearchParams(location.search).get('p');
@@ -271,6 +277,7 @@ function bindUI() {
 /* ---------------- 設定とその他（めったに使わないもの） ---------------- */
 
 function openMenu() {
+  renderLibrary();
   el.menuModal.hidden = false;
   el.closeMenu.focus();
 }
@@ -282,6 +289,113 @@ function closeMenu() {
 }
 
 
+
+/* ---------------- 写真から作問・問題リスト ---------------- */
+
+let photoImport = null;
+
+function setupPhotoImport() {
+  photoImport = new PhotoImport({
+    modal: $('photo-modal'),
+    canvas: $('photo-canvas'),
+    rowsInput: $('photo-rows'),
+    colsInput: $('photo-cols'),
+    readBtn: $('photo-read'),
+    alignStep: $('photo-step-align'),
+    editStep: $('photo-step-edit'),
+    grid: $('photo-grid'),
+    status: $('photo-status'),
+    backBtn: $('photo-back'),
+    saveBtn: $('photo-save'),
+    playBtn: $('photo-play'),
+    closeBtn: $('photo-close'),
+  }, {
+    onPlay: (p) => {
+      photoImport.close();
+      startChecked(p);
+      say('写真から作った問題です');
+    },
+    onSave: (p) => saveToLibrary(p, 'photo'),
+  });
+  for (const input of [el.photoCamera, el.photoPick]) {
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      closeMenu();
+      try {
+        await photoImport.open(file);
+      } catch (err) {
+        say(err.message || '画像を読み込めませんでした', true);
+      }
+    });
+  }
+  el.saveCurrent.addEventListener('click', () => {
+    if (!game.puzzle) return;
+    saveToLibrary(game.puzzle, 'saved');
+    renderLibrary();
+  });
+}
+
+/** 確かめ済み（解が分かっている）問題を始める。 */
+function startChecked(p) {
+  ensureSizeOption(`${p.rows}x${p.cols}`);
+  el.size.value = `${p.rows}x${p.cols}`;
+  el.difficulty.value = p.difficulty;
+  startPuzzle({ ...p, code: p.code || encodePuzzle(p), clueCount: countClues(p.clues) });
+}
+
+function saveToLibrary(p, source) {
+  store.saveToLibrary({
+    code: p.code || encodePuzzle(p),
+    rows: p.rows,
+    cols: p.cols,
+    difficulty: p.difficulty,
+    clueCount: countClues(p.clues),
+    source,
+  });
+  say('問題リストに入れました');
+}
+
+/** メニューの「問題リスト」を描く。 */
+function renderLibrary() {
+  const list = store.library();
+  el.libraryList.textContent = '';
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'library-empty';
+    li.textContent = 'まだありません。写真から作った問題や、気に入った問題を入れておけます。';
+    el.libraryList.appendChild(li);
+    return;
+  }
+  for (const entry of list) {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.className = 'library-label';
+    const date = new Date(entry.addedAt);
+    const text = document.createElement('span');
+    text.className = 'library-text';
+    const main = document.createElement('b');
+    main.textContent = `${entry.rows}×${entry.cols} ${DIFFICULTIES[entry.difficulty]?.label ?? ''}`;
+    const sub = document.createElement('small');
+    sub.textContent = `数字 ${entry.clueCount}・${date.getMonth() + 1}/${date.getDate()}${entry.source === 'photo' ? '・写真から' : ''}`;
+    text.append(main, sub);
+    label.append(icon(entry.source === 'photo' ? 'photo_camera' : 'bookmark'), text);
+    const play = document.createElement('button');
+    play.type = 'button';
+    play.className = 'with-icon';
+    play.append(icon('play_arrow'), '遊ぶ');
+    play.addEventListener('click', () => { if (tryLoadCode(entry.code, false)) closeMenu(); });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon-btn';
+    remove.setAttribute('aria-label', 'リストから外す');
+    remove.appendChild(icon('delete'));
+    remove.addEventListener('click', () => { store.removeFromLibrary(entry.code); renderLibrary(); });
+    li.append(label, play, remove);
+    el.libraryList.appendChild(li);
+  }
+}
 
 /* ---------------- 定石ドロワー ---------------- */
 
@@ -569,7 +683,7 @@ function restoreSaved() {
     ensureSizeOption(`${decoded.rows}x${decoded.cols}`);
     el.size.value = `${decoded.rows}x${decoded.cols}`;
     el.difficulty.value = decoded.difficulty;
-      startPuzzle({
+    startPuzzle({
       ...decoded,
       solution,
       code: saved.code,
@@ -593,7 +707,7 @@ function tryLoadCode(code, fromUrl) {
     ensureSizeOption(`${decoded.rows}x${decoded.cols}`);
     el.size.value = `${decoded.rows}x${decoded.cols}`;
     el.difficulty.value = decoded.difficulty;
-      startPuzzle({
+    startPuzzle({
       ...decoded,
       solution,
       code: encodePuzzle(decoded),

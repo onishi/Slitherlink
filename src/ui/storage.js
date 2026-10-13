@@ -20,6 +20,17 @@ export const store = {
   saveGame: (g) => write('game', g),
   clearGame: () => { try { localStorage.removeItem(PREFIX + 'game'); } catch { /* 無視 */ } },
   records: () => read('records', {}),
+  /** 問題リスト（写真から作った問題や、とっておいた問題）。新しいものが先頭。 */
+  library: () => read('library', []),
+  saveToLibrary(entry) {
+    const list = read('library', []).filter((e) => e.code !== entry.code);
+    list.unshift({ ...entry, addedAt: Date.now() });
+    write('library', list.slice(0, 200));
+    return list.length;
+  },
+  removeFromLibrary(code) {
+    write('library', read('library', []).filter((e) => e.code !== code));
+  },
   saveRecord(key, seconds) {
     const all = read('records', {});
     if (all[key] == null || seconds < all[key]) {
