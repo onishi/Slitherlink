@@ -1,5 +1,5 @@
 import { getGrid, UNKNOWN, LINE, CROSS } from '../core/grid.js';
-import { analyze, autoCrossEdges, findHint } from '../core/game.js';
+import { analyze, autoCrossEdges, findHints } from '../core/game.js';
 import { decodePuzzle, encodePuzzle, solutionFor } from '../core/puzzle.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { Board } from './board.js';
@@ -46,6 +46,10 @@ const el = {
   hintProof: $('hint-proof'),
   hintSteps: $('hint-steps'),
   hintClose: $('hint-close'),
+  hintNav: $('hint-nav'),
+  hintPrev: $('hint-prev'),
+  hintNext: $('hint-next'),
+  hintPos: $('hint-pos'),
   patternsBtn: $('btn-patterns'),
   quickPatterns: $('btn-quick-patterns'),
   patPanel: $('pat-panel'),
@@ -192,6 +196,9 @@ function bindUI() {
     openDrawer();
   });
   el.hintClose.addEventListener('click', () => hideHint());
+  el.hintPrev.addEventListener('click', () => showHintAt(hintIndex - 1));
+  el.hintNext.addEventListener('click', () => showHintAt(hintIndex + 1));
+  bindSwipe(el.hintPanel, (dir) => showHintAt(hintIndex + dir));
   el.drawerClose.addEventListener('click', () => closeDrawer());
   el.drawerScrim.addEventListener('click', () => closeDrawer());
 
@@ -746,6 +753,7 @@ function showOverlay(isBest) {
     b.textContent = '🏅 自己ベスト更新！';
     el.overlayCard.appendChild(b);
   }
+  el.overlayCard.appendChild(nextSettings());
   const row = document.createElement('div');
   row.className = 'row';
   const again = document.createElement('button');
@@ -762,6 +770,32 @@ function showOverlay(isBest) {
   el.overlayCard.appendChild(row);
   el.overlay.hidden = false;
   again.focus();
+}
+
+/**
+ * 完成のお知らせの中に置く「次の問題」の大きさ・むずかしさ。
+ * メニューの選択と同じ値を持ち、変えたらメニューの側にも反映する。
+ */
+function nextSettings() {
+  const box = document.createElement('div');
+  box.className = 'next-settings';
+  for (const [source, label] of [[el.size, '大きさ'], [el.difficulty, 'むずかしさ']]) {
+    const field = document.createElement('label');
+    field.className = 'field';
+    const caption = document.createElement('span');
+    caption.textContent = `次の${label}`;
+    const select = document.createElement('select');
+    for (const option of source.options) select.appendChild(option.cloneNode(true));
+    select.value = source.value;
+    select.addEventListener('change', () => {
+      source.value = select.value;
+      savePrefs();
+      prefetchCurrent();
+    });
+    field.append(caption, select);
+    box.appendChild(field);
+  }
+  return box;
 }
 
 function hideOverlay() {
@@ -783,10 +817,27 @@ function say(text, warn = false) {
 
 /* ---------------- ヒントとチェック ---------------- */
 
+// いま示せるヒントの列と、そのうち何番目を見せているか
+let hints = [];
+let hintIndex = 0;
+
 function showHint() {
   if (game.solved) return;
   hidePatterns();
-  const hint = findHint(game.grid, game.puzzle.clues, game.state, game.puzzle.solution);
+  hints = findHints(game.grid, game.puzzle.clues, game.state, game.puzzle.solution);
+  showHintAt(0);
+}
+
+/** ヒントの列の i 番目を見せる。ほかにもヒントがあれば ‹ › で切り替えられる。 */
+function showHintAt(i) {
+  if (!hints.length) return;
+  hintIndex = Math.max(0, Math.min(hints.length - 1, i));
+  const hint = hints[hintIndex];
+  const many = hints.length > 1 && hint.type === 'move';
+  el.hintNav.hidden = !many;
+  el.hintPos.textContent = many ? `${hintIndex + 1} / ${hints.length}` : '';
+  el.hintPrev.disabled = hintIndex === 0;
+  el.hintNext.disabled = hintIndex === hints.length - 1;
 
   if (hint.type === 'none') {
     renderHint(hint, []);
@@ -815,6 +866,23 @@ function showHint() {
     { label: `この${hint.value === LINE ? '線' : '×'}を置く`, primary: true, run: () => placeHint(hint) },
     { label: '自分で考える', run: () => { hideHint(); board.clearHints(); } },
   ]);
+}
+
+/** 横にはらう操作で前後へ送る（ボタンや文字の選択とぶつからないよう、はっきり横に動いたときだけ）。 */
+function bindSwipe(target, onSwipe) {
+  let start = null;
+  target.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType === 'mouse') return;
+    start = { x: ev.clientX, y: ev.clientY };
+  });
+  target.addEventListener('pointerup', (ev) => {
+    if (!start) return;
+    const dx = ev.clientX - start.x;
+    const dy = ev.clientY - start.y;
+    start = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe(dx < 0 ? 1 : -1);
+  });
+  target.addEventListener('pointercancel', () => { start = null; });
 }
 
 /** ヒントの内容をパネルに出す。 */

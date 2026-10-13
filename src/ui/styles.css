@@ -271,6 +271,14 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 .overlay-card p { margin: 4px 0; color: var(--ink-soft); font-size: .9rem; }
 .overlay-card .big { font-size: 1.55rem; font-weight: 700; color: var(--accent); margin: 6px 0; }
 .overlay-card .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+.overlay-card .next-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  text-align: left;
+}
+.overlay-card .next-settings select { font-size: .85rem; padding: 7px 8px; }
 
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise {
@@ -837,6 +845,8 @@ body.no-anim .app { transition: none !important; }
   animation: rise .22s cubic-bezier(.2, .8, .3, 1);
 }
 .hint-panel[hidden] { display: none; }
+/* 横にはらってヒントを送れるよう、横方向の操作はページに渡さない */
+.hint-panel { touch-action: pan-y; }
 .hint-panel.is-warn { border-color: var(--danger); border-left-color: var(--danger); }
 
 .hint-head {

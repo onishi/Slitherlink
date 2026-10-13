@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { getGrid, UNKNOWN, LINE, CROSS } from '../src/core/grid.js';
 import { generatePuzzle, DIFFICULTIES } from '../src/core/generator.js';
 import { decodePuzzle, solutionFor } from '../src/core/puzzle.js';
-import { analyze, findHint } from '../src/core/game.js';
+import { analyze, findHint, findHints } from '../src/core/game.js';
 import {
   boardState, checkProof, findProof, refute, solveWithProofs,
 } from '../src/core/proof.js';
@@ -134,4 +134,33 @@ test('論理だけでは解けない問題コードは受け付けない', () =>
   // 生成した問題は受け付けて、正解を返す
   const p = generatePuzzle({ rows: 6, cols: 6, difficulty: 'hard', seed: 5 });
   assert.deepEqual([...solutionFor(p)], [...p.solution]);
+});
+
+test('ヒントの候補は複数返り、どれも検算に通り、同じ理由の手は重ならない', () => {
+  const p = generatePuzzle({ rows: 7, cols: 7, difficulty: 'normal', seed: 4242 });
+  const g = getGrid(7, 7);
+  const state = new Int8Array(g.edgeCount);
+  let pagedAt = 0;
+  for (let i = 0; i < 200; i++) {
+    if (analyze(g, p.clues, state).solved) break;
+    const list = findHints(g, p.clues, state, p.solution);
+    assert.ok(list.length >= 1 && list.length <= 10);
+    assert.equal(list[0].edge, findHint(g, p.clues, state, p.solution).edge, '先頭が findHint と違う');
+    if (list[0].type !== 'move') break;
+    if (list.length > 1) pagedAt++;
+    const keys = new Set();
+    for (const hint of list) {
+      assert.equal(hint.type, 'move');
+      assert.ok(checkProof(g, p.clues, state, hint.proof), '検算に通らないヒントが混じった');
+      assert.equal(hint.value, p.solution[hint.edge]);
+      const s = hint.proof.step;
+      const key = hint.proof.kind === 'direct'
+        ? `${s.rule}:${s.cell ?? ''}:${s.vertex ?? ''}:${s.cell == null && s.vertex == null ? hint.edge : ''}`
+        : `edge:${hint.edge}`;
+      assert.ok(!keys.has(key), `同じ理由の手が 2 回出た: ${key}`);
+      keys.add(key);
+    }
+    state[list[0].edge] = list[0].value;
+  }
+  assert.ok(pagedAt > 10, `ほかのヒントを出せた場面が ${pagedAt} 回しかない`);
 });
