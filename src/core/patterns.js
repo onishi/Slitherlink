@@ -20,6 +20,9 @@
  * 'loop' は「輪はひとつだけ」、'bridge' は「戻ってこられない辺は通れない」を
  * 盤面全体に適用する特別扱い（型ではなくルールそのものを当てはめる）。
  *
+ * alt は、同じ定石の別の形（回転・反転では作れない向き）。照合ではどれかに合えば当てはまる。
+ * 図は本体の形だけを描き、テストは expandForms で全部の形を確かめる。
+ *
  * origin: 'hint' は、ヒントの証明から見つけて足した定石（tools/mine-patterns.js）。
  * ほかの定石をどう組み合わせても届かない結論を持つことをテストで確かめている。
  *
@@ -533,7 +536,12 @@ const DEFINITIONS = [
     clues: [[1, 1, 2]],
     given: [['h', 1, 1, 'cross'], ['v', 2, 2, 'line']],
     conclude: [['h', 2, 2, 'cross'], ['v', 1, 1, 'line']],
-    why: '下から来た線が、この角で右へ折れて 2 から離れていくと、角に線が 2 本そろって 2 の下と右が × になります。上も × なので、2 に残るのは左の 1 辺だけで足りません。だから右へは進めず（×）、線は 2 の下か右のどちらか 1 辺に入ります。2 はこの角で 1 本しか使えないので、残りの 1 本は × でない左の辺です。',
+    // 線が横（× の辺と同じ向き）から来る形。回転・反転では作れないので別に持つ
+    alt: [{
+      given: [['h', 1, 1, 'cross'], ['h', 2, 2, 'line']],
+      conclude: [['v', 2, 2, 'cross'], ['v', 1, 1, 'line']],
+    }],
+    why: '下から（または右から）来た線が、この角で 2 から離れる向きへ折れると、角に線が 2 本そろって 2 の下と右が × になります。上も × なので、2 に残るのは左の 1 辺だけで足りません。だから 2 から離れる向きへは進めず（×）、線は 2 の下か右のどちらか 1 辺に入ります。2 はこの角で 1 本しか使えないので、残りの 1 本は × でない左の辺です。',
   },
   {
     id: 'blocked-corner-crossed-two',
@@ -595,6 +603,13 @@ export const PATTERNS = DEFINITIONS
   .map((pattern, index) => ({ ...pattern, usage: PATTERN_USAGE[pattern.id] ?? 0, index }))
   .sort((a, b) => b.usage - a.usage || a.level - b.level || a.index - b.index)
   .map(({ index, ...pattern }) => pattern);
+
+/** 本体の形と alt の形を、それぞれ 1 つの形だけを持つ定石として並べる。 */
+export function expandForms(pattern) {
+  const { alt, ...main } = pattern;
+  if (!alt) return [pattern];
+  return [main, ...alt.map((form, i) => ({ ...main, id: `${pattern.id}#${i + 1}`, ...form }))];
+}
 
 /** 定義から盤面を組み立てる。 */
 export function buildPattern(pattern) {
