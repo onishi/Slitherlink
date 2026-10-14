@@ -142,7 +142,7 @@ export class PatternCards {
     const button = (className, iconName, label) => {
       const b = el('button', className);
       b.type = 'button';
-      b.append(el('span', 'mi', iconName), label);
+      b.append(el('span', 'mi', iconName), el('span', 'pc-label', label));
       b.firstChild.setAttribute('aria-hidden', 'true');
       return b;
     };
@@ -153,6 +153,8 @@ export class PatternCards {
     const apply = button('primary pc-apply', 'done_all', `当てはめる（${fills.length} 本）`);
     apply.addEventListener('click', () => this.onApply(item));
     const close = button('pc-close', 'close', 'やめる');
+    close.setAttribute('aria-label', 'やめる');
+    close.title = 'やめる';
     close.addEventListener('click', () => this.onClose());
     actions.append(reveal, apply, close);
 

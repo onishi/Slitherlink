@@ -225,8 +225,8 @@ function bindUI() {
   });
   // ✕ は「自分で考える」と同じ。説明を閉じて、盤面の光りも消す
   el.hintClose.addEventListener('click', () => { hideHint(); board.clearHints(); });
-  el.hintProof.addEventListener('toggle', fitHint);
-  window.addEventListener('resize', fitHint);
+  el.hintProof.addEventListener('toggle', fitScreen);
+  window.addEventListener('resize', fitScreen);
   el.hintPrev.addEventListener('click', () => showHintAt(hintIndex - 1));
   el.hintNext.addEventListener('click', () => showHintAt(hintIndex + 1));
   bindSwipe(el.hintPanel, (dir) => showHintAt(hintIndex + dir));
@@ -534,6 +534,7 @@ function showPatterns() {
   el.quickPatterns.setAttribute('aria-expanded', 'true');
   el.quickPatterns.classList.add('is-on');
   refreshPatternCards(null);
+  fitScreen();
 }
 
 function hidePatterns() {
@@ -542,6 +543,7 @@ function hidePatterns() {
   el.quickPatterns.setAttribute('aria-expanded', 'false');
   el.quickPatterns.classList.remove('is-on');
   board.clearHints();
+  fitScreen();
 }
 
 /** 盤面が変わったら数え直す。見ていたカードがまだ使えるなら、そのカードのまま。 */
@@ -698,6 +700,7 @@ function startPuzzle(puzzle, saved) {
 
   if (!saved) applyZeroCrosses();
   board.setPuzzle(puzzle, game.state);
+  fitScreen();
   updateZoomControls(board.zoom.scale, board.maxScale());
   board.setSolved(false);
   hideOverlay();
@@ -1082,6 +1085,36 @@ function bindSwipe(target, onSwipe) {
 
 // ヒントの文字はここまで小さくしてよい（これより小さいと読めない）
 const HINT_MIN_SCALE = 0.7;
+// 盤面は画面の高さのこの割合までなら縮めてよい（これより小さいと線を引きにくい）
+const BOARD_MIN_SHARE = 0.3;
+
+/** ヒント・定石の欄を開け閉めしたときや、画面の大きさが変わったときに、画面 1 枚に収め直す。 */
+function fitScreen() {
+  fitBoard();
+  fitHint();
+}
+
+/**
+ * 縦 1 列の画面で下の欄まで入りきらないときは、はみ出す分だけ盤面を小さくして、ページを送らずに済むようにする。
+ * 盤面は縦横の比を保ったまま幅を絞って縮める（高さだけ絞ると、触った位置と線がずれる）。
+ */
+function fitBoard() {
+  const svg = el.board;
+  svg.style.maxWidth = '';
+  if (getComputedStyle(svg.closest('.app')).display !== 'flex') return; // 横に並ぶ画面は別の決め方
+  const hint = el.hintPanel;
+  if (!hint.hidden) {
+    // ヒントは文字を縮める前の大きさで場所を取る
+    hint.classList.remove('is-overflow');
+    hint.style.maxHeight = '';
+    hint.style.setProperty('--hint-scale', '1');
+  }
+  const over = document.documentElement.scrollHeight - window.innerHeight;
+  const rect = svg.getBoundingClientRect();
+  if (over <= 0 || !rect.height) return;
+  const height = Math.max(Math.min(rect.height, window.innerHeight * BOARD_MIN_SHARE), rect.height - over);
+  svg.style.maxWidth = `${Math.floor(height * rect.width / rect.height)}px`;
+}
 
 /**
  * ヒントの欄を、スクロールせずに画面の下端までに収める。
@@ -1139,7 +1172,7 @@ function renderHint(hint, actions) {
     el.hintActions.appendChild(button);
   }
   say('');
-  fitHint();
+  fitScreen();
 }
 
 function hideHint() {
@@ -1147,6 +1180,7 @@ function hideHint() {
   el.hintActions.textContent = '';
   el.hint.classList.remove('is-on');
   el.hint.setAttribute('aria-expanded', 'false');
+  fitScreen();
 }
 
 /** ヒントが示した一手を実際に置く。 */

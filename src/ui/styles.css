@@ -1026,7 +1026,16 @@ body.no-anim .app { transition: none !important; }
   font-size: .8rem; padding: 7px 10px; margin: 0; width: auto; white-space: nowrap;
 }
 .pc-actions .mi { font-size: 1.05rem; }
-.pc-actions .pc-apply { flex: 1; }
+.pc-actions .pc-apply { flex: 1; min-width: 0; }
+/* 狭い画面では 3 つが横に入りきらないので、「やめる」は × だけにする（見出しの ✕ と同じ働き） */
+@media (max-width: 420px) {
+  .pc-actions button { padding: 7px 8px; }
+  .pc-close .pc-label { display: none; }
+  .pat-panel .hint-badge { display: none; } /* 見出しの定石名に幅を回す */
+}
+@media (max-width: 340px) {
+  .pc-apply .mi { display: none; }
+}
 .pc-reveal.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .pc-empty { align-items: flex-start; }
 .pc-empty p { margin: 0; font-size: .86rem; color: var(--ink-soft); }
@@ -1184,7 +1193,7 @@ body.no-anim .app { transition: none !important; }
     grid-row: 1 / span 20;
     position: sticky;
     top: 6px;
-    height: calc(100dvh - 12px - env(safe-area-inset-bottom));
+    height: calc(100dvh - 14px - env(safe-area-inset-bottom)); /* 上下の余白 6px + 8px を引いて、ページを送らずに済ませる */
     align-items: center;
   }
   .app:not(.doc) > :not(.board-area) { grid-column: 2; margin-bottom: 8px; }
