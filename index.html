@@ -100,6 +100,9 @@
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="menu-title">
     <h2 id="menu-title">メニュー</h2>
 
+    <h3>この問題の難易度</h3>
+    <div class="puzzle-report" id="puzzle-report" aria-live="polite"></div>
+
     <h3>新しい問題</h3>
     <div class="new-row">
       <label class="field">
@@ -121,7 +124,6 @@
         </select>
       </label>
     </div>
-    <p class="hint-text difficulty-about" id="difficulty-about" aria-live="polite"></p>
     <div class="photo-row">
       <label class="photo-btn"><span class="mi" aria-hidden="true">photo_camera</span><span>カメラで撮る</span>
         <input type="file" accept="image/*" capture="environment" id="photo-camera" hidden></label>

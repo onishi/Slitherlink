@@ -9,6 +9,7 @@ import { PATTERNS } from '../core/patterns.js';
 import { PuzzleService } from './puzzle-service.js';
 import { PatternCards } from './pattern-cards.js';
 import { PhotoImport } from './photo-import.js';
+import { PuzzleReport } from './puzzle-report.js';
 import { store } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,10 +24,10 @@ function icon(name) {
 }
 
 const el = {
+  puzzleReport: $('puzzle-report'),
   board: $('board'),
   size: $('sel-size'),
   difficulty: $('sel-difficulty'),
-  difficultyAbout: $('difficulty-about'),
   newBtn: $('btn-new'),
   undo: $('btn-undo'),
   redo: $('btn-redo'),
@@ -155,22 +156,11 @@ function init() {
   newPuzzle();
 }
 
-/** メニューで選んでいる難易度が、どんな読みの要る問題かをことばで出す。 */
-function describeDifficulty() {
-  const d = DIFFICULTIES[el.difficulty.value];
-  el.difficultyAbout.textContent = '';
-  if (!d) return;
-  const b = document.createElement('b');
-  b.textContent = d.summary;
-  el.difficultyAbout.append(b, `：${d.about}`);
-}
-
 function bindUI() {
   el.newBtn.addEventListener('click', () => { closeMenu(); newPuzzle(); });
   for (const select of [el.size, el.difficulty]) {
-    select.addEventListener('change', () => { savePrefs(); prefetchCurrent(); describeDifficulty(); });
+    select.addEventListener('change', () => { savePrefs(); prefetchCurrent(); });
   }
-  describeDifficulty();
 
   // 完成後に「盤面を見る」で結果を閉じても、盤面をタップすればまた出せるようにする
   el.board.addEventListener('click', () => {
@@ -290,9 +280,12 @@ function bindUI() {
 
 /* ---------------- 設定とその他（めったに使わないもの） ---------------- */
 
+let puzzleReport = null;
+
 function openMenu() {
   renderLibrary();
-  describeDifficulty();
+  puzzleReport ??= new PuzzleReport(el.puzzleReport);
+  puzzleReport.show(game.puzzle);
   el.menuModal.hidden = false;
   el.closeMenu.focus();
 }
