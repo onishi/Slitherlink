@@ -2,7 +2,7 @@
 
 import { renderPatternsInto } from './patterns-view.js';
 
-const PREFS_KEY = 'slitherlink:prefs';
+const PREFS_KEY = 'gridloop:prefs';
 
 function readPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'); }

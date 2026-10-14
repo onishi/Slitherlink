@@ -1,7 +1,7 @@
 {
-  "name": "slitherlink",
+  "name": "grid-loop",
   "version": "1.0.0",
-  "description": "ブラウザで遊べるスリザーリンク。必ず論理だけで解ける問題を自動生成します。",
+  "description": "Grid Loop：ブラウザで遊べる、点と点を線でつないで輪を作るパズル。必ず論理だけで解ける問題を自動生成します。",
   "type": "module",
   "private": true,
   "scripts": {

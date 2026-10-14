@@ -27,7 +27,7 @@ const el = (tag, className, text) => {
  */
 const TIERS = [
   { id: 'popular', title: '定番', test: (p) => p.popular,
-    lead: 'スリザーリンクでよく知られた形です。ほかの定石と結論が重なるものもありますが、ひと目で分かるので先に並べています。' },
+    lead: 'このパズルでよく知られた形です。ほかの定石と結論が重なるものもありますが、ひと目で分かるので先に並べています。' },
   { id: 'often', title: 'よく使う', test: (p) => !p.popular && p.usage >= 5, lead: 'ほぼ毎問、何度も出てきます。' },
   { id: 'sometimes', title: 'ときどき使う', test: (p) => !p.popular && p.usage >= 1 && p.usage < 5, lead: '行き詰まったら探してみる形です。' },
   { id: 'rare', title: 'たまに使う', test: (p) => !p.popular && p.usage < 1, lead: '出番は少ないものの、見つかると一気に進みます。', folded: true },
