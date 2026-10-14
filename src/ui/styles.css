@@ -1001,9 +1001,10 @@ body.no-anim .app { transition: none !important; }
   padding: 2px 2px 4px;
   min-width: 0;
 }
-.pc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.pc-head h3 { margin: 0; font-size: .9rem; line-height: 1.5; }
-.pc-count { flex: none; font-size: .74rem; color: var(--ink-faint); }
+/* 見出しは 1 行に収め、長い定石名は末尾を省く。「N か所」は削らない */
+.pat-panel .hint-head h2 { display: flex; align-items: baseline; gap: 8px; }
+.pc-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-count { flex: none; font-size: .74rem; font-weight: 400; color: var(--ink-faint); white-space: nowrap; }
 .pc-body { display: flex; gap: 12px; align-items: flex-start; }
 .pc-figure { flex: 0 0 104px; display: flex; justify-content: center; }
 .pc-figure .pat-svg { width: 100%; max-height: 110px; }
@@ -1205,9 +1206,8 @@ body.no-anim .app { transition: none !important; }
   /* ヒントと定石のカードは、狭い右の列に合わせて詰める */
   .hint-panel { padding: 9px 11px; }
   .pat-panel .hint-badge { display: none; }
-  .pat-panel .hint-head h2 { font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pat-panel .hint-head h2 { font-size: .84rem; }
   .pat-list-btn { padding: 4px 9px; font-size: .74rem; }
-  .pc-head h3 { font-size: .84rem; }
   .pc-body { gap: 8px; }
   .pc-figure { flex-basis: 68px; }
   .pc-figure .pat-svg { max-height: 72px; }

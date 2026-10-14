@@ -138,7 +138,7 @@ function init() {
     onApply: (item) => applyPattern(item.pattern),
     onReveal: revealPatternCard,
     onClose: () => hidePatterns(),
-    onFocus: () => {},
+    onFocus: showPatternTitle,
     emptyActions: [
       { label: 'ヒントを見る', run: () => showHint() },
       { label: '定石の一覧', run: () => openDrawer() },
@@ -547,10 +547,20 @@ function hidePatterns() {
 /** 盤面が変わったら数え直す。見ていたカードがまだ使えるなら、そのカードのまま。 */
 function refreshPatternCards(keep) {
   const items = usablePatterns();
-  el.patPanel.querySelector('h2').textContent = items.length
-    ? `いま使える定石 ${items.length} 個`
-    : 'いま使える定石';
   cards.render(items, keep === undefined ? cards.focusedId : keep);
+}
+
+/** 欄の見出しに、見ているカードの定石名と当てはまる場所の数を出す。 */
+function showPatternTitle(item) {
+  const h2 = el.patPanel.querySelector('h2');
+  if (!item) { h2.textContent = '定石'; return; }
+  const title = document.createElement('span');
+  title.className = 'pc-title';
+  title.textContent = item.pattern.title;
+  const count = document.createElement('span');
+  count.className = 'pc-count';
+  count.textContent = `${item.places} か所`;
+  h2.replaceChildren(title, count);
 }
 
 /** 「候補」を押したカードの定石が当てはまる位置と、そこに入る線か × かを光らせる。 */
