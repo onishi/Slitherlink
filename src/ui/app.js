@@ -287,7 +287,9 @@ function openMenu() {
   puzzleReport ??= new PuzzleReport(el.puzzleReport);
   puzzleReport.show(game.puzzle);
   el.menuModal.hidden = false;
-  el.closeMenu.focus();
+  // とじるボタンは最後にあるので、そこへ送られないようにして、いつも先頭から見せる
+  el.closeMenu.focus({ preventScroll: true });
+  el.menuModal.querySelector('.modal-card').scrollTop = 0;
 }
 
 function closeMenu() {

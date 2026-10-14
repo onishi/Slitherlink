@@ -1161,3 +1161,65 @@ body.no-anim .app { transition: none !important; }
 .seg-assume2 { background: var(--danger); }
 .report-notes { margin: 0; padding-left: 1.2em; }
 .report-notes li { margin: 2px 0; }
+
+/* ---------- スマホの横画面：盤面を左いっぱいに、ボタン・ヒント・定石を右の列にまとめる ---------- */
+@media (orientation: landscape) and (max-height: 540px) {
+  .app:not(.doc) {
+    max-width: none;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(250px, 38vw, 360px);
+    grid-auto-rows: min-content;
+    column-gap: 12px;
+    row-gap: 0; /* 盤面が全行にまたがるので、行の間は右の列の余白で空ける */
+    align-items: start;
+    padding: 6px max(10px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  }
+  /* 盤面は左の列で全行にまたがり、右の列を送っても動かない */
+  .app:not(.doc) > .board-area {
+    grid-column: 1;
+    grid-row: 1 / span 20;
+    position: sticky;
+    top: 6px;
+    height: calc(100dvh - 12px - env(safe-area-inset-bottom));
+    align-items: center;
+  }
+  .app:not(.doc) > :not(.board-area) { grid-column: 2; margin-bottom: 8px; }
+  .app:not(.doc) > .topbar { grid-row: 1; }
+  .board-wrap { height: 100%; padding: 4px; }
+  .app:not(.doc) #board { max-height: 100%; height: 100%; }
+
+  /* 見出しは小さく */
+  .logo { font-size: .98rem; gap: 7px; }
+  .logo-mark { width: 19px; height: 19px; }
+  .topbar .icon-btn { width: 30px; height: 30px; }
+
+  /* 右の列は狭いので、線／バツを 1 行目、ほかのボタンを 2 行目にする */
+  .play-bar { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  .play-bar .modes { grid-column: 1 / -1; }
+  .modes button { flex-direction: row; gap: 6px; font-size: .82rem; padding: 5px 4px; }
+  .tool { padding: 5px 2px; font-size: .68rem; min-height: 46px; }
+  .tool .ico { font-size: 1.2rem; }
+  .message { font-size: .8rem; min-height: 0; }
+
+  /* ヒントと定石のカードは、狭い右の列に合わせて詰める */
+  .hint-panel { padding: 9px 11px; }
+  .pat-panel .hint-badge { display: none; }
+  .pat-panel .hint-head h2 { font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pat-list-btn { padding: 4px 9px; font-size: .74rem; }
+  .pc-head h3 { font-size: .84rem; }
+  .pc-body { gap: 8px; }
+  .pc-figure { flex-basis: 68px; }
+  .pc-figure .pat-svg { max-height: 72px; }
+  .pc-why { font-size: .76rem; -webkit-line-clamp: 3; }
+  .pc-actions { gap: 4px; }
+  .pc-actions button { padding: 6px 7px; font-size: .74rem; }
+  .pc-actions .mi { display: none; } /* 幅が足りないので文字だけにする */
+  .pc-actions .pc-apply { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .pat-list-btn .mi { display: none; }
+  .pc-nav { margin-top: 2px; }
+
+  /* 完成のお知らせやメニューは、低い画面に収める */
+  .modal-card { max-height: 92dvh; padding: 14px 18px; }
+  .overlay-card { max-height: calc(100% - 8px); overflow: auto; }
+}
