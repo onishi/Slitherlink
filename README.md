@@ -1,6 +1,6 @@
-# スリザーリンク
+# Grid Loop
 
-ブラウザで遊べるスリザーリンク（ループ・ザ・ループ）です。
+ブラウザで遊べる、点と点を線でつないでひとつながりの輪を作るパズル「Grid Loop」です。
 出題される問題は **すべて、当てずっぽう無しで論理だけで解けること** を確認してから配信されます。
 
 - フレームワーク・ビルド・依存パッケージなし（バニラ ES Modules + SVG）
@@ -334,7 +334,7 @@ npm start          # http://localhost:8080/ で開く
 
 API トークンは Cloudflare の **My Profile → API Tokens → Create Token** から、
 テンプレート **Edit Cloudflare Workers** で作れます。
-公開先は `https://slitherlink.<サブドメイン>.workers.dev` です。
+公開先は `https://gridloop.<サブドメイン>.workers.dev` です。
 
 シークレットが未設定のあいだは、デプロイ手順だけを黙ってスキップします（CI は緑のまま）。
 
