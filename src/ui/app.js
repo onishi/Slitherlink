@@ -517,13 +517,10 @@ function refreshPatternCards(keep) {
   cards.render(items, keep === undefined ? cards.focusedId : keep);
 }
 
-/**
- * 「候補」を押したカードの定石が当てはまる位置を光らせる。
- * 線か × かは出さない（位置だけ教えて、何が決まるかは自分で考えられるように）。
- */
+/** 「候補」を押したカードの定石が当てはまる位置と、そこに入る線か × かを光らせる。 */
 function revealPatternCard(item) {
   if (!item) { board.clearHints(); return; }
-  board.setHints(item.fills.map((f) => f.edge));
+  board.setHints(item.fills.map((f) => f.edge), null, new Map(item.fills.map((f) => [f.edge, f.value])));
   board.ensureVisible(item.fills[0].edge);
 }
 
