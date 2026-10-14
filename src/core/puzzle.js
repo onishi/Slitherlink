@@ -9,8 +9,8 @@ import { getGrid } from './grid.js';
 import { solveLogical } from './solver.js';
 import { solveWithProofs } from './proof.js';
 
-const DIFF_CODE = { easy: 'e', normal: 'n', hard: 'h' };
-const CODE_DIFF = { e: 'easy', n: 'normal', h: 'hard' };
+const DIFF_CODE = { intro: 'b', easy: 'e', normal: 'n', hard: 'h', expert: 'x' };
+const CODE_DIFF = { b: 'intro', e: 'easy', n: 'normal', h: 'hard', x: 'expert' };
 
 export function encodePuzzle(puzzle) {
   let body = '';
@@ -32,7 +32,7 @@ export function encodePuzzle(puzzle) {
 }
 
 export function decodePuzzle(text) {
-  const m = /^(\d+)x(\d+):([enh]):([0-4a-z]*)$/.exec(String(text).trim());
+  const m = /^(\d+)x(\d+):([benhx]):([0-4a-z]*)$/.exec(String(text).trim());
   if (!m) throw new Error('問題コードの形式が正しくありません');
   const rows = Number(m[1]);
   const cols = Number(m[2]);
@@ -74,20 +74,19 @@ export function solutionFor(puzzle) {
  * - 'ok'           : 証明つきの手だけで最後まで解ける（＝答えが 1 つに決まる）
  * - 'contradiction': 数字どうしが矛盾していて、答えが無い
  * - 'stuck'        : 論理だけでは解き切れない（答えが複数あるか、当てずっぽうが要る）
- * ok のときは、何段の背理法まで要るかで、むずかしさの目安も返す。
- * @returns {{status:string, solution?:Int8Array, difficulty?:string, clueCount:number}}
+ * むずかしさ（解き味）は difficulty-report.js の rateImported で付ける。
+ * @returns {{status:string, solution?:Int8Array, clueCount:number}}
  */
 export function checkPuzzle(puzzle) {
   const grid = getGrid(puzzle.rows, puzzle.cols);
   let clueCount = 0;
   for (const c of puzzle.clues) if (c >= 0) clueCount++;
-  let difficulty = null;
-  for (const [depth, label] of [[0, 'easy'], [1, 'normal'], [2, 'hard']]) {
+  for (const depth of [0, 1, 2]) {
     const res = solveLogical(grid, puzzle.clues, { maxDepth: depth });
     if (res.status === 'contradiction') return { status: 'contradiction', clueCount };
-    if (res.status === 'solved') { difficulty = label; break; }
+    if (res.status === 'solved') break;
   }
   const solution = solutionFor(puzzle);
   if (!solution) return { status: 'stuck', clueCount };
-  return { status: 'ok', solution, difficulty: difficulty ?? 'hard', clueCount };
+  return { status: 'ok', solution, clueCount };
 }

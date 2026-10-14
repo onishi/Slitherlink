@@ -1146,6 +1146,8 @@ body.no-anim .app { transition: none !important; }
 .puzzle-report { font-size: .84rem; color: var(--ink-soft); line-height: 1.6; }
 .puzzle-report p { margin: 0 0 6px; }
 .report-wait { color: var(--ink-faint); }
+.report-level { color: var(--ink-soft); }
+.report-level b { color: var(--accent); }
 .report-verdict { color: var(--ink); font-weight: 600; }
 .report-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: 8px 0 6px; background: var(--border); }
 .report-seg { display: block; min-width: 3px; }

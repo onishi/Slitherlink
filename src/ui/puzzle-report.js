@@ -4,7 +4,8 @@
  * 調べるのは裏のワーカー（重い問題でも画面を止めない）。結果は問題ごとに覚えておく。
  */
 import { encodePuzzle } from '../core/puzzle.js';
-import { difficultyReport } from '../core/difficulty-report.js';
+import { difficultyReport, levelOf } from '../core/difficulty-report.js';
+import { DIFFICULTIES } from '../core/generator.js';
 
 const WORKER_URL = new URL('../worker/check-worker.js', import.meta.url);
 
@@ -75,7 +76,10 @@ export class PuzzleReport {
   _render(r) {
     const box = this.container;
     box.textContent = '';
-    box.append(el('p', 'report-verdict', verdict(r)));
+    const level = DIFFICULTIES[levelOf(r)];
+    const badge = el('p', 'report-level');
+    badge.append('解き味は ', el('b', null, `「${level.label}」`));
+    box.append(badge, el('p', 'report-verdict', verdict(r)));
 
     // 帯グラフ：決まった辺を、どの考え方で決めたか
     const bar = el('div', 'report-bar');

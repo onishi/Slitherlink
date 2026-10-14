@@ -42,7 +42,6 @@ test('持ち込まれた問題を確かめる：解ける・矛盾・解き切�
   const ok = checkPuzzle({ rows: 6, cols: 6, clues: p.clues });
   assert.equal(ok.status, 'ok');
   assert.deepEqual(Array.from(ok.solution), Array.from(p.solution));
-  assert.ok(['easy', 'normal', 'hard'].includes(ok.difficulty));
   // 0 のとなりの 3 は、共有する辺を引けないので矛盾
   const bad = checkPuzzle({ rows: 2, cols: 2, clues: Int8Array.from([0, 3, -1, -1]) });
   assert.equal(bad.status, 'contradiction');

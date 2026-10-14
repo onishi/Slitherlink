@@ -5,9 +5,10 @@
  */
 
 import { loadPhoto, guessCorners, readClues, homography, project, rectify } from './image-reader.js';
-import { checkPuzzle, encodePuzzle } from '../core/puzzle.js';
+import { encodePuzzle } from '../core/puzzle.js';
+import { rateImported } from '../core/difficulty-report.js';
+import { DIFFICULTIES } from '../core/generator.js';
 
-const DIFF_LABEL = { easy: 'やさしい', normal: 'ふつう', hard: 'むずかしい' };
 const WORKER_URL = new URL('../worker/check-worker.js', import.meta.url);
 
 export class PhotoImport {
@@ -226,7 +227,7 @@ export class PhotoImport {
       if (this.worker) this.worker.postMessage({ id, rows, cols, clues });
       else {
         const puzzle = { rows, cols, difficulty: 'normal', clues: Int8Array.from(clues) };
-        const r = checkPuzzle(puzzle);
+        const r = rateImported(puzzle);
         const difficulty = r.difficulty ?? 'normal';
         this._onChecked({
           id, ok: true, status: r.status, difficulty, clueCount: r.clueCount,
@@ -249,7 +250,7 @@ export class PhotoImport {
         clues: Int8Array.from(this.clues), solution: Int8Array.from(msg.solution), clueCount: msg.clueCount,
       };
       s.className = 'photo-status ok';
-      s.textContent = `論理だけで解けます（答えは 1 つ）。むずかしさの目安: ${DIFF_LABEL[msg.difficulty]}・数字 ${msg.clueCount} 個`;
+      s.textContent = `論理だけで解けます（答えは 1 つ）。むずかしさ: ${DIFFICULTIES[msg.difficulty]?.label ?? ''}（${DIFFICULTIES[msg.difficulty]?.about ?? ''}）・数字 ${msg.clueCount} 個`;
       this.playBtn.disabled = false;
       this.saveBtn.disabled = false;
     } else if (msg.status === 'contradiction') {

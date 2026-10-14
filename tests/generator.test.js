@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { getGrid, isSingleLoop, cluesFromEdges, LINE } from '../src/core/grid.js';
 import { solveLogical, countSolutions } from '../src/core/solver.js';
 import { generatePuzzle, randomLoop, makeRng, DIFFICULTIES } from '../src/core/generator.js';
+import { difficultyReport, levelOf } from '../src/core/difficulty-report.js';
 
 test('randomLoop は必ず単一ループを返す', () => {
   for (let seed = 1; seed <= 12; seed++) {
@@ -14,11 +15,13 @@ test('randomLoop は必ず単一ループを返す', () => {
 });
 
 const cases = [
+  { rows: 5, cols: 5, difficulty: 'intro' },
   { rows: 5, cols: 5, difficulty: 'easy' },
   { rows: 7, cols: 7, difficulty: 'easy' },
   { rows: 6, cols: 8, difficulty: 'normal' },
   { rows: 7, cols: 7, difficulty: 'normal' },
   { rows: 6, cols: 6, difficulty: 'hard' },
+  { rows: 5, cols: 5, difficulty: 'expert' },
 ];
 
 for (const c of cases) {
@@ -45,6 +48,10 @@ for (const c of cases) {
       for (let e = 0; e < g.edgeCount; e++) {
         assert.equal(res.state.edges[e], p.solution[e], '論理解と正解が食い違う');
       }
+
+      // 解き味の分析で、ちょうど宣言した難易度になっている
+      assert.equal(p.difficulty, c.difficulty, '狙いの難易度が作れなかった');
+      assert.equal(levelOf(difficultyReport(p)), c.difficulty, '解き味が難易度と合わない');
 
       // 解は一意
       assert.equal(countSolutions(g, p.clues, 2), 1, '解が一意でない');

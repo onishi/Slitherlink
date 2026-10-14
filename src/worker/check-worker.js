@@ -1,6 +1,6 @@
 /** 持ち込まれた問題が論理だけで解けるか・いまの問題の解き味を、画面を止めずに調べるワーカー。 */
 import { checkPuzzle, encodePuzzle } from '../core/puzzle.js';
-import { difficultyReport } from '../core/difficulty-report.js';
+import { difficultyReport, rateImported } from '../core/difficulty-report.js';
 
 self.onmessage = (ev) => {
   const { id, rows, cols, clues, type } = ev.data || {};
@@ -22,7 +22,7 @@ self.onmessage = (ev) => {
   }
   try {
     const puzzle = { rows, cols, difficulty: 'normal', clues: Int8Array.from(clues) };
-    const result = checkPuzzle(puzzle);
+    const result = rateImported(puzzle);
     const difficulty = result.difficulty ?? 'normal';
     self.postMessage({
       id,

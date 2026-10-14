@@ -13,7 +13,7 @@ import { getGrid, UNKNOWN } from './grid.js';
 import { PATTERNS, isSearchPattern } from './patterns.js';
 import { findMatches } from './pattern-match.js';
 import { collectProofs, proofSize } from './proof.js';
-import { solutionFor } from './puzzle.js';
+import { solutionFor, checkPuzzle } from './puzzle.js';
 
 /** 証明の中で、仮定が何段重なっているか（仮定 1 つなら 1）。 */
 function assumeDepth(proof) {
@@ -111,4 +111,30 @@ export function difficultyReport(puzzle) {
     longest: assumes.reduce((m, s) => Math.max(m, s.steps), 0),
     usedPatterns: [...used.values()].sort((a, b) => b.edges - a.edges),
   };
+}
+
+/** 解き味の段（やさしい順）。難易度は「どの段まで要るか」で決める。 */
+export const LEVELS = ['intro', 'easy', 'normal', 'hard', 'expert'];
+
+/**
+ * 分析の結果から難易度を決める。
+ * intro 定石だけ ／ easy ＋基本ルールの組み合わせ ／ normal ＋読みの定石 ／ hard ＋仮定 1 段 ／ expert ＋仮定 2 段
+ */
+export function levelOf(report) {
+  if (report.deepCount) return 'expert';
+  if (report.assumeCount) return 'hard';
+  if (report.decided.search) return 'normal';
+  if (report.decided.rule) return 'easy';
+  return 'intro';
+}
+
+/**
+ * 持ち込まれた問題（写真から読み取ったものなど）を確かめ、解けるなら解き味から難易度も付ける。
+ * @returns {{status:string, solution?:Int8Array, difficulty?:string, clueCount:number}}
+ */
+export function rateImported(puzzle) {
+  const result = checkPuzzle(puzzle);
+  if (result.status !== 'ok') return result;
+  const report = difficultyReport({ ...puzzle, solution: result.solution });
+  return { ...result, difficulty: levelOf(report) };
 }
