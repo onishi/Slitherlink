@@ -1184,7 +1184,7 @@ body.no-anim .app { transition: none !important; }
     grid-row: 1 / span 20;
     position: sticky;
     top: 6px;
-    height: calc(100dvh - 12px - env(safe-area-inset-bottom));
+    height: calc(100dvh - 14px - env(safe-area-inset-bottom)); /* 上下の余白 6px + 8px を引いて、ページを送らずに済ませる */
     align-items: center;
   }
   .app:not(.doc) > :not(.board-area) { grid-column: 2; margin-bottom: 8px; }
