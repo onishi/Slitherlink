@@ -97,69 +97,119 @@
 
 <!-- 解いている最中には使わないもの：新しい問題・表示の設定・問題コード・テーマ・盤面をぜんぶ消す -->
 <div class="modal" id="menu-modal" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="menu-title">
-    <h2 id="menu-title">メニュー</h2>
+  <div class="modal-card menu-card" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+    <!-- メニューの最初の画面。よく使うものだけを置き、ほかは下の画面へ送る -->
+    <section class="menu-view" data-view="main">
+      <h2 id="menu-title">メニュー</h2>
 
-    <h3>この問題の難易度</h3>
-    <div class="puzzle-report" id="puzzle-report" aria-live="polite"></div>
+      <button type="button" class="menu-row menu-nav report-row" data-go="report">
+        <span class="mi" aria-hidden="true">insights</span>
+        <span class="menu-row-text">この問題の難易度 <b id="report-summary"></b></span>
+        <span class="mi chev" aria-hidden="true">chevron_right</span>
+      </button>
 
-    <h3>新しい問題</h3>
-    <div class="new-row">
-      <label class="field">
-        <span>大きさ</span>
-        <select id="sel-size">
-          <option value="5x5">5 × 5</option>
-          <option value="7x7" selected>7 × 7</option>
-          <option value="10x10">10 × 10</option>
-          <option value="12x12">12 × 12</option>
-          <option value="15x15">15 × 15</option>
-        </select>
-      </label>
-      <label class="field">
-        <span>むずかしさ</span>
-        <select id="sel-difficulty">
-          <option value="intro">入門</option>
-          <option value="easy">やさしい</option>
-          <option value="normal" selected>ふつう</option>
-          <option value="hard">むずかしい</option>
-          <option value="expert">鬼</option>
-        </select>
-      </label>
-    </div>
-    <div class="photo-row">
-      <label class="photo-btn"><span class="mi" aria-hidden="true">photo_camera</span><span>カメラで撮る</span>
-        <input type="file" accept="image/*" capture="environment" id="photo-camera" hidden></label>
-      <label class="photo-btn"><span class="mi" aria-hidden="true">photo_library</span><span>写真から選ぶ</span>
-        <input type="file" accept="image/*" id="photo-pick" hidden></label>
-    </div>
-    <p class="hint-text">紙や画面に写った問題を読み取って、論理だけで解けるかを確かめてから遊べます。</p>
-    <button type="button" class="primary wide" id="btn-new"><span class="mi" aria-hidden="true">add</span>この設定で新しい問題を作る</button>
+      <h3>新しい問題</h3>
+      <div class="new-row">
+        <label class="field">
+          <span>大きさ</span>
+          <select id="sel-size">
+            <option value="5x5">5 × 5</option>
+            <option value="7x7" selected>7 × 7</option>
+            <option value="10x10">10 × 10</option>
+            <option value="12x12">12 × 12</option>
+            <option value="15x15">15 × 15</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>むずかしさ</span>
+          <select id="sel-difficulty">
+            <option value="intro">入門</option>
+            <option value="easy">やさしい</option>
+            <option value="normal" selected>ふつう</option>
+            <option value="hard">むずかしい</option>
+            <option value="expert">鬼</option>
+          </select>
+        </label>
+      </div>
+      <button type="button" class="primary wide" id="btn-new"><span class="mi" aria-hidden="true">add</span>この設定で新しい問題を作る</button>
+      <div class="photo-row">
+        <label class="photo-btn"><span class="mi" aria-hidden="true">photo_camera</span><span>写真を撮って作る</span>
+          <input type="file" accept="image/*" capture="environment" id="photo-camera" hidden></label>
+        <label class="photo-btn"><span class="mi" aria-hidden="true">photo_library</span><span>写真から作る</span>
+          <input type="file" accept="image/*" id="photo-pick" hidden></label>
+      </div>
 
-    <h3>問題リスト</h3>
-    <ul class="library" id="library-list"></ul>
-    <button type="button" class="menu-row" id="btn-save-current"><span class="mi" aria-hidden="true">bookmark_add</span>いまの問題をリストに入れる</button>
+      <div class="menu-list">
+        <button type="button" class="menu-row menu-nav" data-go="library">
+          <span class="mi" aria-hidden="true">bookmarks</span><span class="menu-row-text">問題リスト <small id="library-count"></small></span>
+          <span class="mi chev" aria-hidden="true">chevron_right</span>
+        </button>
+        <button type="button" class="menu-row menu-nav" data-go="code">
+          <span class="mi" aria-hidden="true">qr_code_2</span><span class="menu-row-text">問題コード <small>共有・読み込み</small></span>
+          <span class="mi chev" aria-hidden="true">chevron_right</span>
+        </button>
+        <button type="button" class="menu-row menu-nav" data-go="settings">
+          <span class="mi" aria-hidden="true">tune</span><span class="menu-row-text">設定 <small>入力・表示・テーマ</small></span>
+          <span class="mi chev" aria-hidden="true">chevron_right</span>
+        </button>
+        <button type="button" class="menu-row danger" id="btn-clear"><span class="mi" aria-hidden="true">delete</span><span class="menu-row-text">書き込みをぜんぶ消す <small>「もどす」で戻せます</small></span></button>
+      </div>
 
-    <h3>入力と表示</h3>
-    <div class="options">
-      <label><input type="checkbox" id="opt-autocross"> 数字が埋まったら自動で ×</label>
-      <label><input type="checkbox" id="opt-errors"> 明らかな矛盾を赤く表示</label>
-      <label><input type="checkbox" id="opt-fade" checked> 使い終わった数字を薄くする</label>
-    </div>
-    <button type="button" class="menu-row" id="btn-theme"><span class="mi" aria-hidden="true">dark_mode</span>ライト／ダークを切り替える</button>
+      <button type="button" class="close-btn" id="btn-close-menu">とじる</button>
+    </section>
 
-    <h3>問題コード</h3>
-    <div class="code-row">
-      <input type="text" id="puzzle-code" spellcheck="false" autocomplete="off" aria-label="問題コード">
-      <button type="button" class="with-icon" id="btn-copy"><span class="mi" aria-hidden="true">content_copy</span><span>コピー</span></button>
-      <button type="button" class="with-icon" id="btn-load"><span class="mi" aria-hidden="true">file_open</span><span>読み込む</span></button>
-    </div>
-    <p class="hint-text">同じコードからいつでも同じ問題を開けます。人に送れば同じ問題で遊べます。</p>
+    <!-- この問題の難易度（くわしく） -->
+    <section class="menu-view" data-view="report" hidden>
+      <div class="menu-sub-head">
+        <button type="button" class="icon-btn" data-back aria-label="メニューにもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
+        <h2>この問題の難易度</h2>
+        <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
+      </div>
+      <div class="puzzle-report" id="puzzle-report" aria-live="polite"></div>
+    </section>
 
-    <h3>盤面</h3>
-    <button type="button" class="menu-row danger" id="btn-clear"><span class="mi" aria-hidden="true">delete</span>書き込みをぜんぶ消す</button>
-    <p class="hint-text">消したあとでも「もどす」で元に戻せます。</p>
+    <!-- 問題リスト -->
+    <section class="menu-view" data-view="library" hidden>
+      <div class="menu-sub-head">
+        <button type="button" class="icon-btn" data-back aria-label="メニューにもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
+        <h2>問題リスト</h2>
+        <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
+      </div>
+      <button type="button" class="menu-row" id="btn-save-current"><span class="mi" aria-hidden="true">bookmark_add</span>いまの問題をリストに入れる</button>
+      <ul class="library" id="library-list"></ul>
+    </section>
 
-    <button type="button" class="close-btn" id="btn-close-menu">とじる</button>
+    <!-- 問題コード -->
+    <section class="menu-view" data-view="code" hidden>
+      <div class="menu-sub-head">
+        <button type="button" class="icon-btn" data-back aria-label="メニューにもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
+        <h2>問題コード</h2>
+        <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
+      </div>
+      <div class="code-row">
+        <input type="text" id="puzzle-code" spellcheck="false" autocomplete="off" aria-label="問題コード">
+        <button type="button" class="with-icon" id="btn-copy"><span class="mi" aria-hidden="true">content_copy</span><span>コピー</span></button>
+        <button type="button" class="with-icon" id="btn-load"><span class="mi" aria-hidden="true">file_open</span><span>読み込む</span></button>
+      </div>
+      <p class="hint-text">同じコードからいつでも同じ問題を開けます。人に送れば同じ問題で遊べます。ほかの人のコードを貼りつけて「読み込む」と、その問題を開きます。</p>
+    </section>
+
+    <!-- 設定 -->
+    <section class="menu-view" data-view="settings" hidden>
+      <div class="menu-sub-head">
+        <button type="button" class="icon-btn" data-back aria-label="メニューにもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
+        <h2>設定</h2>
+        <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
+      </div>
+      <h3>入力と表示</h3>
+      <div class="options">
+        <label><input type="checkbox" id="opt-autocross"> 数字が埋まったら自動で ×</label>
+        <label><input type="checkbox" id="opt-errors"> 明らかな矛盾を赤く表示</label>
+        <label><input type="checkbox" id="opt-fade" checked> 使い終わった数字を薄くする</label>
+      </div>
+      <h3>テーマ</h3>
+      <button type="button" class="menu-row" id="btn-theme"><span class="mi" aria-hidden="true">dark_mode</span>ライト／ダークを切り替える</button>
+    </section>
   </div>
 </div>
 

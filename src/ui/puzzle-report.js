@@ -27,8 +27,13 @@ const el = (tag, className, text) => {
 };
 
 export class PuzzleReport {
-  constructor(container) {
+  /**
+   * @param {HTMLElement} container くわしい分析を出す場所
+   * @param {HTMLElement} [summary] 「ふつう」のように、ひとことだけ出す場所（メニューの最初の画面）
+   */
+  constructor(container, summary) {
     this.container = container;
+    this.summary = summary;
     this.cache = new Map();
     this.pending = null;
     this.id = 0;
@@ -49,6 +54,7 @@ export class PuzzleReport {
     if (known) { this._render(known); return; }
     this.container.textContent = '';
     this.container.append(el('p', 'report-wait', '解き進めて調べています…'));
+    if (this.summary) this.summary.textContent = '調べています…';
     if (this.pending === code) return;
     this.pending = code;
     const msg = {
@@ -66,7 +72,10 @@ export class PuzzleReport {
     const code = this.pending;
     this.pending = null;
     if (msg.error) {
-      if (this.current === code) this.container.textContent = `調べられませんでした（${msg.error}）`;
+      if (this.current === code) {
+        this.container.textContent = `調べられませんでした（${msg.error}）`;
+        if (this.summary) this.summary.textContent = '';
+      }
       return;
     }
     this.cache.set(code, msg.report);
@@ -77,6 +86,7 @@ export class PuzzleReport {
     const box = this.container;
     box.textContent = '';
     const level = DIFFICULTIES[levelOf(r)];
+    if (this.summary) this.summary.textContent = level.label;
     const badge = el('p', 'report-level');
     badge.append('解き味は ', el('b', null, `「${level.label}」`));
     box.append(badge, el('p', 'report-verdict', verdict(r)));
