@@ -167,7 +167,7 @@ function bindUI() {
 
   el.undo.addEventListener('click', undo);
   el.redo.addEventListener('click', redo);
-  el.hint.addEventListener('click', showHint);
+  el.hint.addEventListener('click', toggleHint);
   el.check.addEventListener('click', check);
   el.clear.addEventListener('click', () => { closeMenu(); clearBoard(); });
 
@@ -257,7 +257,7 @@ function bindUI() {
       redo();
     } else if (!mod && !isTyping(ev.target) && (ev.key === 'h' || ev.key === 'H')) {
       ev.preventDefault();
-      showHint();
+      toggleHint();
     } else if (!mod && !isTyping(ev.target) && (ev.key === 'p' || ev.key === 'P')) {
       ev.preventDefault();
       if (isPatternsOpen()) hidePatterns(); else showPatterns();
@@ -517,13 +517,10 @@ function refreshPatternCards(keep) {
   cards.render(items, keep === undefined ? cards.focusedId : keep);
 }
 
-/**
- * 「候補」を押したカードの定石が当てはまる位置を光らせる。
- * 線か × かは出さない（位置だけ教えて、何が決まるかは自分で考えられるように）。
- */
+/** 「候補」を押したカードの定石が当てはまる位置と、そこに入る線か × かを光らせる。 */
 function revealPatternCard(item) {
   if (!item) { board.clearHints(); return; }
-  board.setHints(item.fills.map((f) => f.edge));
+  board.setHints(item.fills.map((f) => f.edge), null, new Map(item.fills.map((f) => [f.edge, f.value])));
   board.ensureVisible(item.fills[0].edge);
 }
 
@@ -955,6 +952,16 @@ function say(text, warn = false) {
 let hints = [];
 let hintIndex = 0;
 
+/** ヒントのボタン：出ていなければ出し、出ていれば消す。 */
+function toggleHint() {
+  if (!el.hintPanel.hidden) {
+    hideHint();
+    board.clearHints();
+    return;
+  }
+  showHint();
+}
+
 function showHint() {
   if (game.solved) return;
   hidePatterns();
@@ -1049,6 +1056,8 @@ function fitHint() {
 function renderHint(hint, actions) {
   const warn = hint.type === 'mistake';
   el.hintPanel.hidden = false;
+  el.hint.classList.add('is-on');
+  el.hint.setAttribute('aria-expanded', 'true');
   el.hintPanel.classList.toggle('is-warn', warn);
   el.hintBadge.replaceChildren(icon(warn ? 'warning' : 'lightbulb'));
   el.hintTitle.textContent = hint.title;
@@ -1083,6 +1092,8 @@ function renderHint(hint, actions) {
 function hideHint() {
   el.hintPanel.hidden = true;
   el.hintActions.textContent = '';
+  el.hint.classList.remove('is-on');
+  el.hint.setAttribute('aria-expanded', 'false');
 }
 
 /** ヒントが示した一手を実際に置く。 */

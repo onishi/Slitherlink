@@ -382,6 +382,7 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
   font-weight: 600;
 }
 .tool-hint:hover:not(:disabled) { background: color-mix(in srgb, var(--line-hint) 26%, var(--surface)); }
+.tool-hint.is-on { background: color-mix(in srgb, var(--line-hint) 34%, var(--surface)); border-color: var(--line-hint); }
 
 .modes {
   display: grid;
