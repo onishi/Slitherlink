@@ -253,6 +253,7 @@ function bindUI() {
   // キーボード操作の一覧。Mac では Ctrl の代わりに ⌘ と書く
   if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
     for (const k of el.keysModal.querySelectorAll('.kbd-mod')) k.textContent = '⌘';
+    for (const m of el.keysModal.querySelectorAll('.mac-only')) m.hidden = false;
   }
   $('btn-rules-keys').addEventListener('click', () => {
     el.rulesModal.hidden = true;
@@ -671,6 +672,7 @@ function isTyping(target) {
 function setInputMode(mode) {
   const next = mode === 'cross' ? 'cross' : 'line';
   board.inputMode = next;
+  board.updatePointerLook();
   el.modeLine.setAttribute('aria-checked', String(next === 'line'));
   el.modeCross.setAttribute('aria-checked', String(next === 'cross'));
   savePrefs();

@@ -38,6 +38,7 @@ export class Board {
     this.showErrors = true;
     this.fadeDone = true;
     this.inputMode = 'line'; // 'line' か 'cross'。タップで最初に付く印が変わる
+    this.flipMode = false;   // ⌘ を押しているあいだは true（クリックの印を入れ替える）
     this.cursor = -1;
     this._pointers = new Map(); // 盤面に触れている指（pointerId → 位置）
     this._gesture = null;       // いまの操作：tap / pan / slide / pinch
@@ -259,6 +260,19 @@ export class Board {
     const svg = this.svg;
     svg.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
+    // ⌘ を押しているあいだは、クリックで付く印を一時的に入れ替える（線モードなら ×、×モードなら線）。
+    // マウスの形もその印にして、押しているのが分かるようにする
+    const setFlip = (on) => {
+      if (on === this.flipMode) return;
+      this.flipMode = on;
+      this.updatePointerLook();
+    };
+    window.addEventListener('keydown', (ev) => { if (ev.key === 'Meta') setFlip(true); });
+    window.addEventListener('keyup', (ev) => { if (ev.key === 'Meta') setFlip(false); });
+    window.addEventListener('blur', () => setFlip(false));
+    // 窓の外で ⌘ を離した・押したときも、盤面に戻ったところで合わせる
+    svg.addEventListener('pointermove', (ev) => { if (ev.pointerType === 'mouse') setFlip(ev.metaKey); });
+
     // 指 1 本で触って、ほとんど動かさずに離したら「タップ」として印を付ける。
     // 動かしたら（拡大中なら）盤面を動かす。指 2 本ならピンチで拡大・縮小する。
     // 印は指を離したときに付けるので、ピンチや移動のつもりが印になってしまうことはない。
@@ -287,6 +301,7 @@ export class Board {
         x: ev.clientX,
         y: ev.clientY,
         secondary: ev.button === 2 || ev.ctrlKey,
+        flip: ev.metaKey,
         center: { x: this.zoom.cx, y: this.zoom.cy },
       };
     });
@@ -356,15 +371,23 @@ export class Board {
     const current = this.state[e];
     // 右クリック (Ctrl+クリック) は、いまのモードで主役でない方の印を付け外しする
     const secondary = this.inputMode === 'cross' ? LINE : CROSS;
+    const mode = g.flip ? (this.inputMode === 'cross' ? 'line' : 'cross') : this.inputMode;
     const value = g.secondary
       ? (current === secondary ? UNKNOWN : secondary)
-      : nextValue(current, this.inputMode);
+      : nextValue(current, mode);
     // 指やマウスで触ったときは点線を出さない（キーボード再開位置だけ覚える）
     this.cursor = e;
     this.showCursor = false;
     this._drawCursor();
     this.handlers.onPaint(e, value);
     this.handlers.onStrokeEnd();
+  }
+
+  /** ⌘ を押しているあいだのマウスの形（クリックで付く印）を、いまのモードに合わせる。 */
+  updatePointerLook() {
+    const mark = this.flipMode ? (this.inputMode === 'cross' ? 'line' : 'cross') : null;
+    this.svg.classList.toggle('pointer-line', mark === 'line');
+    this.svg.classList.toggle('pointer-cross', mark === 'cross');
   }
 
   /* ---------------- 拡大・縮小 ---------------- */

@@ -298,6 +298,9 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 }
 .zoom-ctl .icon-btn:disabled { opacity: .35; }
 #board.zoomed { cursor: grab; }
+/* ⌘ を押しているあいだは、クリックで付く印の形にする */
+#board.pointer-line { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M4 14h20' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M4 14h20' stroke='%231d3b34' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, crosshair; }
+#board.pointer-cross { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M7 7l14 14M21 7L7 21' stroke='%23fff' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M7 7l14 14M21 7L7 21' stroke='%236d6659' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, crosshair; }
 
 .board-overlay {
   position: absolute;
