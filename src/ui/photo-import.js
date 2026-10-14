@@ -8,6 +8,7 @@ import { loadPhoto, guessCorners, readClues, homography, project, rectify } from
 import { encodePuzzle } from '../core/puzzle.js';
 import { rateImported } from '../core/difficulty-report.js';
 import { DIFFICULTIES } from '../core/generator.js';
+import { renderReport } from './puzzle-report.js';
 
 const WORKER_URL = new URL('../worker/check-worker.js', import.meta.url);
 
@@ -230,6 +231,8 @@ export class PhotoImport {
     this._setSaved(false); // 数字を直したら別の問題なので、また入れられる
     this.status.className = 'photo-status';
     this.status.textContent = '論理だけで解けるかを確かめています…';
+    this.report.hidden = true;
+    this.report.textContent = '';
     for (const el of this.grid.querySelectorAll('.suggest')) el.classList.remove('suggest');
     const id = ++this.checkId;
     const rows = this.rows;
@@ -242,7 +245,7 @@ export class PhotoImport {
         const r = rateImported(puzzle);
         const difficulty = r.difficulty ?? 'normal';
         this._onChecked({
-          id, ok: true, status: r.status, difficulty, clueCount: r.clueCount,
+          id, ok: true, status: r.status, difficulty, clueCount: r.clueCount, report: r.report,
           solution: r.solution ? Array.from(r.solution) : null, code: encodePuzzle({ ...puzzle, difficulty }),
         });
       }
@@ -260,9 +263,29 @@ export class PhotoImport {
       this.result = {
         rows: this.rows, cols: this.cols, difficulty: msg.difficulty, code: msg.code,
         clues: Int8Array.from(this.clues), solution: Int8Array.from(msg.solution), clueCount: msg.clueCount,
+        report: msg.report,
       };
       s.className = 'photo-status ok';
-      s.textContent = `論理だけで解けます（答えは 1 つ）。むずかしさ: ${DIFFICULTIES[msg.difficulty]?.label ?? ''}（${DIFFICULTIES[msg.difficulty]?.about ?? ''}）・数字 ${msg.clueCount} 個`;
+      s.textContent = `論理だけで解けます（答えは 1 つ）・数字 ${msg.clueCount} 個。むずかしさ: `;
+      // 「ふつう」などのひとことを押すと、遊んでいるときの「この問題の難易度」と同じくわしい分析を開く
+      const level = DIFFICULTIES[msg.difficulty];
+      if (msg.report) {
+        const link = document.createElement('button');
+        link.type = 'button';
+        link.className = 'report-link';
+        link.setAttribute('aria-expanded', 'false');
+        link.setAttribute('aria-controls', this.report.id);
+        link.textContent = `「${level?.label ?? ''}」くわしく`;
+        link.addEventListener('click', () => {
+          const open = this.report.hidden;
+          if (open && !this.report.childElementCount) renderReport(this.report, msg.report);
+          this.report.hidden = !open;
+          link.setAttribute('aria-expanded', String(open));
+        });
+        s.append(link);
+      } else {
+        s.append(`${level?.label ?? ''}（${level?.about ?? ''}）`);
+      }
       this.playBtn.disabled = false;
       this.saveBtn.disabled = false;
     } else if (msg.status === 'contradiction') {

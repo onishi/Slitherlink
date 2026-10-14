@@ -31,6 +31,7 @@ self.onmessage = (ev) => {
       difficulty,
       clueCount: result.clueCount,
       solution: result.solution ? Array.from(result.solution) : null,
+      report: result.report ?? null,
       code: encodePuzzle({ ...puzzle, difficulty }),
     });
   } catch (err) {

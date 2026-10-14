@@ -130,11 +130,11 @@ export function levelOf(report) {
 
 /**
  * 持ち込まれた問題（写真から読み取ったものなど）を確かめ、解けるなら解き味から難易度も付ける。
- * @returns {{status:string, solution?:Int8Array, difficulty?:string, clueCount:number}}
+ * @returns {{status:string, solution?:Int8Array, difficulty?:string, report?:object, clueCount:number}}
  */
 export function rateImported(puzzle) {
   const result = checkPuzzle(puzzle);
   if (result.status !== 'ok') return result;
   const report = difficultyReport({ ...puzzle, solution: result.solution });
-  return { ...result, difficulty: levelOf(report) };
+  return { ...result, difficulty: levelOf(report), report };
 }

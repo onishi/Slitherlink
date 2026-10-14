@@ -379,6 +379,7 @@ function setupPhotoImport() {
     editStep: $('photo-step-edit'),
     grid: $('photo-grid'),
     status: $('photo-status'),
+    report: $('photo-report'),
     backBtn: $('photo-back'),
     saveBtn: $('photo-save'),
     playBtn: $('photo-play'),
@@ -386,6 +387,9 @@ function setupPhotoImport() {
   }, {
     onPlay: (p) => {
       photoImport.close();
+      // 確かめのときに調べた分析を、メニューの「この問題の難易度」でもそのまま使う
+      puzzleReport ??= new PuzzleReport(el.puzzleReport, el.reportSummary);
+      puzzleReport.remember(p, p.report);
       startChecked(p);
       say('写真から作った問題です');
     },

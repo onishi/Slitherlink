@@ -4,7 +4,7 @@
  * 調べるのは裏のワーカー（重い問題でも画面を止めない）。結果は問題ごとに覚えておく。
  */
 import { encodePuzzle } from '../core/puzzle.js';
-import { difficultyReport, levelOf } from '../core/difficulty-report.js';
+import { difficultyReport, levelOf, LEVELS } from '../core/difficulty-report.js';
 import { DIFFICULTIES } from '../core/generator.js';
 
 const WORKER_URL = new URL('../worker/check-worker.js', import.meta.url);
@@ -83,57 +83,81 @@ export class PuzzleReport {
   }
 
   _render(r) {
-    const box = this.container;
-    box.textContent = '';
-    const level = DIFFICULTIES[levelOf(r)];
-    if (this.summary) this.summary.textContent = level.label;
-    const badge = el('p', 'report-level');
-    badge.append('解き味は ', el('b', null, `「${level.label}」`));
-    box.append(badge, el('p', 'report-verdict', verdict(r)));
-
-    // 帯グラフ：決まった辺を、どの考え方で決めたか
-    const bar = el('div', 'report-bar');
-    bar.setAttribute('role', 'img');
-    const legend = el('ul', 'report-legend');
-    const parts = [];
-    for (const stage of STAGES) {
-      const n = r.decided[stage.key];
-      if (!n) continue;
-      const share = n / r.total;
-      const seg = el('span', `report-seg seg-${stage.key}`);
-      seg.style.flexGrow = String(n);
-      bar.appendChild(seg);
-      const li = el('li');
-      li.append(el('span', `report-swatch seg-${stage.key}`), `${stage.label} ${pct(share)}`);
-      legend.appendChild(li);
-      parts.push(`${stage.label} ${pct(share)}`);
-    }
-    bar.setAttribute('aria-label', `決まった辺の内訳: ${parts.join('、')}`);
-    box.append(bar, legend);
-
-    const notes = el('ul', 'report-notes');
-    const add = (text) => notes.appendChild(el('li', null, text));
-    if (r.beforeAssume < 1) {
-      add(`仮定なしで盤の ${pct(r.beforeAssume)} まで進めます。そこで初めて仮定が要ります。`);
-    } else {
-      add('定石と基本ルールを当てはめていくだけで、最後まで一度も仮定が要りません。');
-    }
-    const assumes = r.stalls.filter((s) => s.kind === 'assume');
-    if (assumes.length) {
-      const list = assumes.map((s) => `盤の ${pct(s.progress)} まで進んだところで${s.depth >= 2 ? '仮定 2 段' : '仮定 1 段'}（${s.steps} 手の読み）`);
-      add(`仮定が要る場面: ${list.join('、')}。`);
-    }
-    if (r.decided.rule) {
-      add(`定石にはない、基本ルールの組み合わせで決まる辺が ${r.decided.rule} 本あります。`);
-    }
-    if (r.decided.search) {
-      const names = r.usedPatterns.filter((u) => u.search).map((u) => `「${u.title}」`);
-      add(`局所的に場合分けする「読みの定石」を使います: ${names.join('・')}。`);
-    }
-    const top = r.usedPatterns.filter((u) => !u.search).slice(0, 3).map((u) => `「${u.title}」${u.edges} 本`);
-    if (top.length) add(`よく使う定石: ${top.join('・')}。`);
-    box.appendChild(notes);
+    if (this.summary) this.summary.textContent = DIFFICULTIES[levelOf(r)].label;
+    renderReport(this.container, r);
   }
+
+  /** ほかで調べ済みの結果（写真から作った問題など）を覚えておく。 */
+  remember(puzzle, report) {
+    if (report) this.cache.set(encodePuzzle(puzzle), report);
+  }
+}
+
+/**
+ * 分析の結果を、ことば・帯グラフ・メモ・難易度の段の説明として box の中に描く。
+ * メニューの「この問題の難易度」と、写真から作るときの確かめで使う。
+ */
+export function renderReport(box, r) {
+  box.textContent = '';
+  const key = levelOf(r);
+  const level = DIFFICULTIES[key];
+  const badge = el('p', 'report-level');
+  badge.append('解き味は ', el('b', null, `「${level.label}」`));
+  box.append(badge, el('p', 'report-verdict', verdict(r)));
+
+  // 帯グラフ：決まった辺を、どの考え方で決めたか
+  const bar = el('div', 'report-bar');
+  bar.setAttribute('role', 'img');
+  const legend = el('ul', 'report-legend');
+  const parts = [];
+  for (const stage of STAGES) {
+    const n = r.decided[stage.key];
+    if (!n) continue;
+    const share = n / r.total;
+    const seg = el('span', `report-seg seg-${stage.key}`);
+    seg.style.flexGrow = String(n);
+    bar.appendChild(seg);
+    const li = el('li');
+    li.append(el('span', `report-swatch seg-${stage.key}`), `${stage.label} ${pct(share)}`);
+    legend.appendChild(li);
+    parts.push(`${stage.label} ${pct(share)}`);
+  }
+  bar.setAttribute('aria-label', `決まった辺の内訳: ${parts.join('、')}`);
+  box.append(bar, legend);
+
+  const notes = el('ul', 'report-notes');
+  const add = (text) => notes.appendChild(el('li', null, text));
+  if (r.beforeAssume < 1) {
+    add(`仮定なしで盤の ${pct(r.beforeAssume)} まで進めます。そこで初めて仮定が要ります。`);
+  } else {
+    add('定石と基本ルールを当てはめていくだけで、最後まで一度も仮定が要りません。');
+  }
+  const assumes = r.stalls.filter((s) => s.kind === 'assume');
+  if (assumes.length) {
+    const list = assumes.map((s) => `盤の ${pct(s.progress)} まで進んだところで${s.depth >= 2 ? '仮定 2 段' : '仮定 1 段'}（${s.steps} 手の読み）`);
+    add(`仮定が要る場面: ${list.join('、')}。`);
+  }
+  if (r.decided.rule) {
+    add(`定石にはない、基本ルールの組み合わせで決まる辺が ${r.decided.rule} 本あります。`);
+  }
+  if (r.decided.search) {
+    const names = r.usedPatterns.filter((u) => u.search).map((u) => `「${u.title}」`);
+    add(`局所的に場合分けする「読みの定石」を使います: ${names.join('・')}。`);
+  }
+  const top = r.usedPatterns.filter((u) => !u.search).slice(0, 3).map((u) => `「${u.title}」${u.edges} 本`);
+  if (top.length) add(`よく使う定石: ${top.join('・')}。`);
+  box.appendChild(notes);
+
+  // 難易度の段ごとの意味（どの考え方まで要るか）。いまの問題の段を目立たせる
+  box.appendChild(el('p', 'report-scale-head', '難易度の段と、それぞれで要る考え方'));
+  const scale = el('ol', 'report-scale');
+  for (const k of LEVELS) {
+    const li = el('li', k === key ? 'is-current' : null);
+    li.append(el('b', null, DIFFICULTIES[k].label), el('span', null, DIFFICULTIES[k].about));
+    if (k === key) li.setAttribute('aria-current', 'true');
+    scale.appendChild(li);
+  }
+  box.appendChild(scale);
 }
 
 /** ひとことで言うと。 */
