@@ -1031,6 +1031,7 @@ body.no-anim .app { transition: none !important; }
 @media (max-width: 420px) {
   .pc-actions button { padding: 7px 8px; }
   .pc-close .pc-label { display: none; }
+  .pat-panel .hint-badge { display: none; } /* 見出しの定石名に幅を回す */
 }
 @media (max-width: 340px) {
   .pc-apply .mi { display: none; }
