@@ -1094,6 +1094,9 @@ body.no-anim .app { transition: none !important; }
 .photo-btn .mi { font-size: 1.2rem; color: var(--accent); }
 
 .photo-card { max-width: 560px; }
+.camera-stage video { display: block; width: 100%; max-height: 60dvh; object-fit: contain; background: #000; }
+.camera-select-row { margin: 8px 0; }
+#camera-status { margin-bottom: 8px; }
 .photo-stage { margin: 8px 0 10px; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
 #photo-canvas { display: block; width: 100%; height: auto; max-height: 56dvh; object-fit: contain; touch-action: none; }
 .photo-grid {
