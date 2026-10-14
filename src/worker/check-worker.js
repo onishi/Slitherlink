@@ -2,7 +2,11 @@
 import { checkPuzzle, encodePuzzle } from '../core/puzzle.js';
 
 self.onmessage = (ev) => {
-  const { id, rows, cols, clues } = ev.data || {};
+  const { id, rows, cols, clues, type } = ev.data || {};
+  if (type === 'repair') {
+    repair(ev.data);
+    return;
+  }
   try {
     const puzzle = { rows, cols, difficulty: 'normal', clues: Int8Array.from(clues) };
     const result = checkPuzzle(puzzle);
@@ -20,3 +24,25 @@ self.onmessage = (ev) => {
     self.postMessage({ id, ok: false, error: String(err && err.message ? err.message : err) });
   }
 };
+
+/**
+ * 読み取りの自信が低いマスを 1 つずつ次に近い数字へ変えてみて、論理だけで解けるようになるものを探す。
+ * 見つかれば最初の 1 つを返す（直すかどうかは利用者が決める）。
+ */
+function repair({ id, rows, cols, clues, candidates }) {
+  const started = Date.now();
+  for (const [cell, to] of candidates) {
+    if (Date.now() - started > 8000) break;
+    const next = Int8Array.from(clues);
+    next[cell] = to;
+    try {
+      if (checkPuzzle({ rows, cols, clues: next }).status === 'ok') {
+        self.postMessage({ id, type: 'repair', found: { cell, from: clues[cell], to } });
+        return;
+      }
+    } catch {
+      // 確かめられなかった候補は飛ばす
+    }
+  }
+  self.postMessage({ id, type: 'repair', found: null });
+}

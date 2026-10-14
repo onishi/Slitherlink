@@ -1078,24 +1078,46 @@ body.no-anim .app { transition: none !important; }
 #photo-canvas { display: block; width: 100%; height: auto; max-height: 56dvh; object-fit: contain; touch-action: none; }
 .photo-grid {
   display: grid;
-  gap: 2px;
+  gap: 0;
   margin: 8px 0;
-  max-width: min(100%, calc(var(--photo-cols, 10) * 34px));
+  max-width: min(100%, calc(var(--photo-cols, 10) * 40px));
+  background: var(--surface) center / 100% 100% no-repeat;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
 }
 .photo-cell {
+  position: relative;
   aspect-ratio: 1;
   min-width: 0;
   padding: 0;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  font: 600 clamp(.6rem, 2.6vw, .95rem) ui-monospace, Menlo, monospace;
-  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
 }
-.photo-cell.unsure { border: 1.5px dashed var(--line-hint); background: color-mix(in srgb, var(--line-hint) 10%, var(--surface)); }
+/* 読み取った数字：写真の字を隠さないよう、右上に小さく */
+.photo-read {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 1.15em;
+  padding: 0 .15em;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 88%, transparent);
+  color: #fff;
+  font: 700 clamp(.5rem, 2.2vw, .8rem) / 1.25 ui-monospace, Menlo, monospace;
+  text-align: center;
+  pointer-events: none;
+}
+.photo-cell.unsure { border: 2px dashed var(--danger); }
+.photo-cell.unsure .photo-read { background: var(--danger); }
 .photo-status { margin: 6px 0; font-size: .84rem; line-height: 1.6; color: var(--ink-soft); }
 .photo-status.ok { color: var(--accent); }
 .photo-status.warn { color: var(--danger); }
+.photo-repair { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; color: var(--ink); }
+.photo-repair button { font-size: .8rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+.photo-cell.suggest { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .photo-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .photo-actions button { display: inline-flex; align-items: center; gap: 4px; font-size: .84rem; }
 .modal-card .photo-actions .primary { width: auto; margin-top: 0; flex: 1; justify-content: center; }
