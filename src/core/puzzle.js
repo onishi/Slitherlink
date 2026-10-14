@@ -1,8 +1,13 @@
 /**
- * 問題のシリアライズ。
- * 形式:  <rows>x<cols>:<difficulty>:<body>
- *   body は数字 0〜4 をそのまま、空白マスの連続を a(=1個) 〜 z(=26個) で表す。
- * 例: "5x5:n:2b13a0..."
+ * 問題のシリアライズ（問題コード）。URL に載せるので短くする。
+ *
+ * 形式:  <縦><難易度><本体>（正方形） または <縦>x<横><難易度><本体>
+ *   難易度は 1 文字（入門 b・やさしい e・ふつう n・むずかしい h・鬼 x）
+ *   本体は、マスごとに「数字があるか」1 ビット＋あれば数字（0〜3）2 ビットを並べ、
+ *   6 ビットずつ URL にそのまま使える文字（A-Z a-z 0-9 - _）にしたもの
+ * 例: "10hSlQkA…"（10×10・むずかしい）。数字が 4 割なら、1 マスあたり約 1.8 ビットで済む。
+ *
+ * 以前の形式 "<縦>x<横>:<難易度>:<本体>"（本体は数字をそのまま、空白の連続を a〜z）も読める。
  */
 
 import { getGrid } from './grid.js';
@@ -11,8 +16,28 @@ import { solveWithProofs } from './proof.js';
 
 const DIFF_CODE = { intro: 'b', easy: 'e', normal: 'n', hard: 'h', expert: 'x' };
 const CODE_DIFF = { b: 'intro', e: 'easy', n: 'normal', h: 'hard', x: 'expert' };
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
 export function encodePuzzle(puzzle) {
+  const d = DIFF_CODE[puzzle.difficulty] ?? 'n';
+  // 数字の 4 は 2 ビットに入らない（1×1 の盤でしか出ない）ので、そのときは以前の形式にする
+  if (puzzle.clues.some((v) => v > 3)) return encodeLegacy(puzzle, d);
+  const bits = [];
+  for (const v of puzzle.clues) {
+    if (v < 0) bits.push(0);
+    else bits.push(1, v >> 1, v & 1);
+  }
+  let body = '';
+  for (let i = 0; i < bits.length; i += 6) {
+    let n = 0;
+    for (let k = 0; k < 6; k++) n = (n << 1) | (bits[i + k] ?? 0);
+    body += B64[n];
+  }
+  const size = puzzle.rows === puzzle.cols ? `${puzzle.rows}` : `${puzzle.rows}x${puzzle.cols}`;
+  return `${size}${d}${body}`;
+}
+
+function encodeLegacy(puzzle, d) {
   let body = '';
   let blanks = 0;
   const flush = () => {
@@ -27,16 +52,44 @@ export function encodePuzzle(puzzle) {
     else { flush(); body += String(puzzle.clues[i]); }
   }
   flush();
-  const code = DIFF_CODE[puzzle.difficulty] ?? 'n';
-  return `${puzzle.rows}x${puzzle.cols}:${code}:${body}`;
+  return `${puzzle.rows}x${puzzle.cols}:${d}:${body}`;
+}
+
+function checkSize(rows, cols) {
+  if (rows < 2 || cols < 2 || rows > 30 || cols > 30) throw new Error('盤面サイズが範囲外です');
 }
 
 export function decodePuzzle(text) {
-  const m = /^(\d+)x(\d+):([benhx]):([0-4a-z]*)$/.exec(String(text).trim());
+  const str = String(text).trim();
+  const legacy = /^(\d+)x(\d+):([benhx]):([0-4a-z]*)$/.exec(str);
+  if (legacy) return decodeLegacy(legacy);
+  const m = /^(\d+)(?:x(\d+))?([benhx])([A-Za-z0-9_-]*)$/.exec(str);
   if (!m) throw new Error('問題コードの形式が正しくありません');
   const rows = Number(m[1]);
+  const cols = m[2] ? Number(m[2]) : rows;
+  checkSize(rows, cols);
+  const body = m[4];
+  let pos = 0;
+  const bit = () => {
+    const ch = body[Math.floor(pos / 6)];
+    if (ch === undefined) throw new Error('問題コードの長さが合いません');
+    const n = B64.indexOf(ch);
+    const b = (n >> (5 - (pos % 6))) & 1;
+    pos++;
+    return b;
+  };
+  const clues = new Int8Array(rows * cols).fill(-1);
+  for (let i = 0; i < clues.length; i++) {
+    if (bit()) clues[i] = (bit() << 1) | bit();
+  }
+  if (Math.ceil(pos / 6) !== body.length) throw new Error('問題コードが長すぎます');
+  return { rows, cols, difficulty: CODE_DIFF[m[3]], clues };
+}
+
+function decodeLegacy(m) {
+  const rows = Number(m[1]);
   const cols = Number(m[2]);
-  if (rows < 2 || cols < 2 || rows > 30 || cols > 30) throw new Error('盤面サイズが範囲外です');
+  checkSize(rows, cols);
   const clues = new Int8Array(rows * cols).fill(-1);
   let i = 0;
   for (const ch of m[4]) {
@@ -49,6 +102,15 @@ export function decodePuzzle(text) {
   }
   if (i !== clues.length) throw new Error('問題コードの長さが合いません');
   return { rows, cols, difficulty: CODE_DIFF[m[3]], clues };
+}
+
+/** 2 つの問題コードが同じ問題か（新旧どちらの形式でも比べられる）。 */
+export function samePuzzle(a, b) {
+  try {
+    return encodePuzzle(decodePuzzle(a)) === encodePuzzle(decodePuzzle(b));
+  } catch {
+    return false;
+  }
 }
 
 /**

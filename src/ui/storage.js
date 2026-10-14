@@ -1,5 +1,7 @@
 /** localStorage まわり。使えない環境でも落ちないようにする。 */
 
+import { samePuzzle } from '../core/puzzle.js';
+
 const PREFIX = 'slitherlink:';
 
 function read(key, fallback) {
@@ -23,7 +25,8 @@ export const store = {
   /** 問題リスト（写真から作った問題や、とっておいた問題）。新しいものが先頭。 */
   library: () => read('library', []),
   saveToLibrary(entry) {
-    const list = read('library', []).filter((e) => e.code !== entry.code);
+    // 以前の形式のコードで入っている同じ問題も 1 つにまとめる
+    const list = read('library', []).filter((e) => e.code !== entry.code && !samePuzzle(e.code, entry.code));
     list.unshift({ ...entry, addedAt: Date.now() });
     write('library', list.slice(0, 200));
     return list.length;

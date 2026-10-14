@@ -1,6 +1,6 @@
 import { getGrid, UNKNOWN, LINE, CROSS } from '../core/grid.js';
 import { analyze, autoCrossEdges, findHints } from '../core/game.js';
-import { decodePuzzle, encodePuzzle, solutionFor } from '../core/puzzle.js';
+import { decodePuzzle, encodePuzzle, solutionFor, samePuzzle } from '../core/puzzle.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { Board } from './board.js';
 import { renderPatternsInto } from './patterns-view.js';
@@ -153,6 +153,9 @@ function init() {
   if (wantDrawerOpen) openDrawer({ instant: true });
 
   const fromUrl = new URLSearchParams(location.search).get('p');
+  // URL の問題が、途中まで解いて保存してある問題と同じなら、続きから
+  const saved = store.game();
+  if (fromUrl && saved?.code && samePuzzle(fromUrl, saved.code) && restoreSaved()) return;
   if (fromUrl && tryLoadCode(fromUrl, true)) return;
   if (restoreSaved()) return;
   newPuzzle();
@@ -689,6 +692,7 @@ function startPuzzle(puzzle, saved) {
   board.setSolved(false);
   hideOverlay();
   el.code.value = puzzle.code || encodePuzzle(puzzle);
+  showCodeInUrl(el.code.value);
   refreshAll();
   persist();
 }
@@ -727,7 +731,7 @@ function restoreSaved() {
     startPuzzle({
       ...decoded,
       solution,
-      code: saved.code,
+      code: encodePuzzle(decoded), // 以前の形式で保存されていても、短い形式にそろえる
       clueCount: countClues(decoded.clues),
     }, { state, elapsed: saved.elapsed || 0 });
     prefetchCurrent();
@@ -1210,6 +1214,21 @@ function persist() {
     elapsed: game.elapsed,
     solution: Array.from(game.puzzle.solution),
   });
+}
+
+/**
+ * いまの問題を URL（?p=問題コード）に出す。新しい問題になるたびに書き換えるので、
+ * そのまま URL を送れば同じ問題を開ける。履歴は増やさない（戻るボタンで前の問題に戻ることはしない）。
+ */
+function showCodeInUrl(code) {
+  try {
+    const url = new URL(location.href);
+    if (url.searchParams.get('p') === code) return;
+    url.searchParams.set('p', code);
+    history.replaceState(history.state, '', url);
+  } catch {
+    // file:// などで書き換えられなくても、遊ぶのには困らない
+  }
 }
 
 async function copyCode() {
