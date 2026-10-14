@@ -1063,6 +1063,8 @@ body.no-anim .app { transition: none !important; }
   .play-bar { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .play-bar .modes { grid-column: 1 / -1; }
   .modes button { flex-direction: row; gap: 6px; font-size: .85rem; padding: 7px 4px; }
+  /* 定石の欄の見出しは定石名なので、本のアイコンを隠して名前に幅を回す */
+  .pat-panel .hint-badge { display: none; }
 }
 
 /* ---------- 写真から作問・問題リスト ---------- */
