@@ -1018,7 +1018,14 @@ body.no-anim .app { transition: none !important; }
   cursor: pointer;
 }
 .pc-why.is-open { -webkit-line-clamp: unset; display: block; }
-.pc-apply { align-self: flex-start; font-size: .82rem; }
+.pc-actions { display: flex; gap: 6px; align-items: stretch; }
+.pc-actions button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  font-size: .8rem; padding: 7px 10px; margin: 0; width: auto; white-space: nowrap;
+}
+.pc-actions .mi { font-size: 1.05rem; }
+.pc-actions .pc-apply { flex: 1; }
+.pc-reveal.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .pc-empty { align-items: flex-start; }
 .pc-empty p { margin: 0; font-size: .86rem; color: var(--ink-soft); }
 .pc-empty-actions { display: flex; gap: 8px; }

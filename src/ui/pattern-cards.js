@@ -1,6 +1,7 @@
 /**
  * いま使える定石を、ヒントと同じ場所にカードで並べる。左右にスワイプして切り替える。
- * 見ているカードが変わると onFocus で知らせるので、盤面のどこに効くかを光らせられる。
+ * カードを見ただけでは盤面のどこに効くかは出さない（自分で探せるように）。
+ * 「候補」を押すと onReveal で知らせるので、当てはまる位置を光らせられる。
  */
 
 import { renderPattern } from './pattern-render.js';
@@ -21,6 +22,8 @@ export class PatternCards {
    * @param {HTMLButtonElement} parts.prev
    * @param {HTMLButtonElement} parts.next
    * @param {(item:object)=>void} parts.onApply 「当てはめる」を押したとき
+   * @param {(item:object|null)=>void} parts.onReveal 「候補」で位置を出す（null で消す）
+   * @param {()=>void} parts.onClose 「やめる」を押したとき
    * @param {(item:object|null)=>void} parts.onFocus 見ているカードが変わったとき
    * @param {Array<{label:string, run:()=>void}>} parts.emptyActions 使える定石が無いときのボタン
    */
@@ -29,6 +32,7 @@ export class PatternCards {
     this.items = [];
     this.index = 0;
     this.focusedId = null;
+    this.revealedId = null;
     let frame = 0;
     this.track.addEventListener('scroll', () => {
       cancelAnimationFrame(frame);
@@ -97,8 +101,24 @@ export class PatternCards {
     const id = item ? item.pattern.id : null;
     if (force || id !== this.focusedId) {
       this.focusedId = id;
+      // 別のカードへ移ったら、出していた位置は消す
+      this._setRevealed(null);
       this.onFocus(item);
     }
+  }
+
+  /** 「候補」の位置を出す・消す。 */
+  _setRevealed(item) {
+    const id = item ? item.pattern.id : null;
+    if (id === this.revealedId && item) return;
+    const had = this.revealedId !== null;
+    this.revealedId = id;
+    for (const b of this.track.querySelectorAll('.pc-reveal')) {
+      const on = b.closest('.pc-card').dataset.id === id;
+      b.classList.toggle('is-on', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    if (item || had) this.onReveal(item);
   }
 
   _card(item) {
@@ -118,11 +138,26 @@ export class PatternCards {
     why.addEventListener('click', () => why.classList.toggle('is-open'));
     body.append(figure, why);
 
-    const apply = el('button', 'primary pc-apply', `当てはめる（${fills.length} 本決まる）`);
-    apply.type = 'button';
+    // 候補（位置を見る）・当てはめる・やめる
+    const actions = el('div', 'pc-actions');
+    const button = (className, iconName, label) => {
+      const b = el('button', className);
+      b.type = 'button';
+      b.append(el('span', 'mi', iconName), label);
+      b.firstChild.setAttribute('aria-hidden', 'true');
+      return b;
+    };
+    const reveal = button('pc-reveal', 'location_searching', '候補');
+    reveal.setAttribute('aria-pressed', 'false');
+    reveal.title = '当てはまる位置を盤面に出す';
+    reveal.addEventListener('click', () => this._setRevealed(this.revealedId === pattern.id ? null : item));
+    const apply = button('primary pc-apply', 'done_all', `当てはめる（${fills.length} 本）`);
     apply.addEventListener('click', () => this.onApply(item));
+    const close = button('pc-close', 'close', 'やめる');
+    close.addEventListener('click', () => this.onClose());
+    actions.append(reveal, apply, close);
 
-    card.append(head, body, apply);
+    card.append(head, body, actions);
     return card;
   }
 }
