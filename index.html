@@ -232,10 +232,43 @@
       <li>右クリック（Ctrl+クリック）では、いまのモードで主役でない方の印が付きます。</li>
       <li>キーボードでも遊べます：<b>矢印キー</b>で移動、<b>スペース</b>で線、<b>X</b>で ×。</li>
     </ul>
+    <button type="button" class="rules-link" id="btn-rules-keys">キーボード操作の一覧（<kbd>?</kbd> キーでも開けます）→</button>
     <p class="rules-more">新しい問題（大きさ・むずかしさ）・表示の設定・問題コード（共有や読み込み）・テーマ・書き込みをぜんぶ消す、は右上の <span class="mi" aria-hidden="true">more_horiz</span> にあります。</p>
     <p class="note">この中の問題はすべて、当てずっぽう無しで<b>論理だけで解ける</b>ことを確認してから出題しています。</p>
     <button type="button" class="rules-link" id="btn-rules-patterns">定石一覧を見る（よく出る形と、そこで決まること）→</button>
     <button type="button" class="primary" id="btn-close-rules">とじる</button>
+  </div>
+</div>
+
+<div class="modal" id="keys-modal" hidden>
+  <div class="modal-card keys-card" role="dialog" aria-modal="true" aria-labelledby="keys-title">
+    <h2 id="keys-title">キーボード操作</h2>
+    <h3>盤面</h3>
+    <dl class="keys">
+      <dt><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></dt><dd>辺を選ぶ（点線の枠が動きます）</dd>
+      <dt><kbd>Space</kbd> / <kbd>Enter</kbd></dt><dd>選んだ辺に線を引く・消す</dd>
+      <dt><kbd>X</kbd></dt><dd>選んだ辺に × を付ける・外す</dd>
+      <dt><kbd>M</kbd></dt><dd>クリックで付く印（線／×）を切り替える</dd>
+    </dl>
+    <h3>手を戻す</h3>
+    <dl class="keys">
+      <dt><kbd class="kbd-mod">Ctrl</kbd> + <kbd>Z</kbd></dt><dd>もどす</dd>
+      <dt><kbd class="kbd-mod">Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></dt><dd>すすむ（<kbd class="kbd-mod">Ctrl</kbd> + <kbd>Y</kbd> でも）</dd>
+    </dl>
+    <h3>助け</h3>
+    <dl class="keys">
+      <dt><kbd>H</kbd></dt><dd>ヒントを出す（もう一度で消す）</dd>
+      <dt><kbd>P</kbd></dt><dd>いま使える定石のカード（もう一度でとじる）。カードは <kbd>←</kbd><kbd>→</kbd> で切り替え</dd>
+      <dt><kbd>?</kbd></dt><dd>この一覧を出す・とじる</dd>
+      <dt><kbd>Esc</kbd></dt><dd>手前に開いているものをとじる</dd>
+    </dl>
+    <h3>マウス・トラックパッド</h3>
+    <dl class="keys">
+      <dt>右クリック</dt><dd>いまのモードで主役でない方の印を付ける（<kbd>Ctrl</kbd> + クリックでも）</dd>
+      <dt><kbd>Ctrl</kbd> + ホイール</dt><dd>大きな盤の拡大・縮小（トラックパッドならピンチ）</dd>
+      <dt>ホイール</dt><dd>拡大中に盤面を動かす</dd>
+    </dl>
+    <button type="button" class="primary" id="btn-close-keys">とじる</button>
   </div>
 </div>
 

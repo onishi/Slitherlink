@@ -484,6 +484,26 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 .modal-card h3 { margin: 16px 0 6px; font-size: .92rem; color: var(--ink-soft); }
 .rules { margin: 0; padding-left: 1.25em; font-size: .86rem; line-height: 1.75; }
 .rules li { margin-bottom: 2px; }
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 5px;
+  margin: 0 1px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font: 600 .78rem/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  text-align: center;
+  color: var(--ink);
+}
+.keys-card { max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.keys-card h3 { margin: 14px 0 6px; font-size: .82rem; color: var(--ink-soft); }
+.keys { display: grid; grid-template-columns: 10.5em 1fr; gap: 6px 14px; margin: 0; font-size: .86rem; align-items: baseline; }
+.keys dt { white-space: nowrap; }
+@media (max-width: 420px) { .keys { grid-template-columns: 1fr; gap: 0; } .keys dd { margin-bottom: 8px; } }
+.keys dd { margin: 0; color: var(--ink-soft); line-height: 1.6; }
+.keys-card .primary { margin-top: 18px; width: 100%; }
 .note {
   margin: 16px 0 0;
   padding: 10px 12px;
