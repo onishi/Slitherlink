@@ -9,6 +9,7 @@ import { PATTERNS } from '../core/patterns.js';
 import { PuzzleService } from './puzzle-service.js';
 import { PatternCards } from './pattern-cards.js';
 import { PhotoImport } from './photo-import.js';
+import { CameraCapture, needsCameraView } from './camera-capture.js';
 import { PuzzleReport } from './puzzle-report.js';
 import { store } from './storage.js';
 
@@ -251,6 +252,7 @@ function bindUI() {
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       // 手前に重なっているものから閉じる
+      if (camera?.isOpen) { camera.close(); return; }
       if (isDrawerOpen()) { closeDrawer(); return; }
       if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
       if (isPatternsOpen()) { hidePatterns(); return; }
@@ -330,6 +332,16 @@ function closeMenu() {
 /* ---------------- 写真から作問・問題リスト ---------------- */
 
 let photoImport = null;
+let camera = null;
+
+/** 撮った・選んだ写真で、四隅合わせの画面を開く。 */
+async function openPhoto(file) {
+  try {
+    await photoImport.open(file);
+  } catch (err) {
+    say(err.message || '画像を読み込めませんでした', true);
+  }
+}
 
 function setupPhotoImport() {
   photoImport = new PhotoImport({
@@ -355,18 +367,30 @@ function setupPhotoImport() {
     onSave: (p) => saveToLibrary(p, 'photo'),
   });
   for (const input of [el.photoCamera, el.photoPick]) {
-    input.addEventListener('change', async () => {
+    input.addEventListener('change', () => {
       const file = input.files && input.files[0];
       input.value = '';
       if (!file) return;
       closeMenu();
-      try {
-        await photoImport.open(file);
-      } catch (err) {
-        say(err.message || '画像を読み込めませんでした', true);
-      }
+      openPhoto(file);
     });
   }
+  // パソコンでは capture 指定が効かずファイル選びになるので、カメラの映像を出して撮る
+  camera = new CameraCapture({
+    modal: $('camera-modal'),
+    video: $('camera-video'),
+    status: $('camera-status'),
+    select: $('camera-select'),
+    selectRow: $('camera-select-row'),
+    shootBtn: $('camera-shoot'),
+    cancelBtn: $('camera-cancel'),
+  }, openPhoto);
+  el.photoCamera.closest('label').addEventListener('click', (ev) => {
+    if (!needsCameraView()) return;
+    ev.preventDefault();
+    closeMenu();
+    camera.open();
+  });
   el.saveCurrent.addEventListener('click', () => {
     if (!game.puzzle) return;
     saveToLibrary(game.puzzle, 'saved');

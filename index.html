@@ -269,6 +269,19 @@
   </div>
 </div>
 
+<div class="modal" id="camera-modal" hidden>
+  <div class="modal-card photo-card" role="dialog" aria-modal="true" aria-labelledby="camera-title">
+    <h2 id="camera-title">写真を撮って作る</h2>
+    <div class="photo-stage camera-stage"><video id="camera-video" playsinline muted></video></div>
+    <p class="hint-text" id="camera-status" role="status" aria-live="polite"></p>
+    <label class="field camera-select-row" id="camera-select-row" hidden><span>カメラ</span><select id="camera-select"></select></label>
+    <div class="photo-actions">
+      <button type="button" id="camera-cancel"><span class="mi" aria-hidden="true">close</span>やめる</button>
+      <button type="button" class="primary" id="camera-shoot" disabled><span class="mi" aria-hidden="true">photo_camera</span>撮る</button>
+    </div>
+  </div>
+</div>
+
 <div class="drawer-scrim" id="drawer-scrim" hidden></div>
 <aside class="drawer" id="patterns-drawer" role="complementary" aria-label="定石一覧" hidden>
   <header class="drawer-head">
