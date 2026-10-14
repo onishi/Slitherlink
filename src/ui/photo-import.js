@@ -72,6 +72,7 @@ export class PhotoImport {
     this.saveBtn.addEventListener('click', () => {
       if (!this.result) return;
       this.handlers.onSave(this.result);
+      this._setSaved(true);
       this.status.textContent = '問題リストに入れました。メニューの「問題リスト」から遊べます。';
     });
     this.closeBtn.addEventListener('click', () => this.close());
@@ -96,6 +97,16 @@ export class PhotoImport {
     this.canvas.width = this.photo.width;
     this.canvas.height = this.photo.height;
     this._draw();
+  }
+
+  /** 「リストに入れる」を、入れたあとの見た目（色・チェック・文言）にする／戻す。 */
+  _setSaved(saved) {
+    const b = this.saveBtn;
+    if (b.classList.contains('is-saved') === saved) return;
+    b.classList.toggle('is-saved', saved);
+    b.querySelector('.mi').textContent = saved ? 'bookmark_added' : 'bookmark_add';
+    b.querySelector('.photo-save-label').textContent = saved ? 'リストに入れました' : 'リストに入れる';
+    if (saved) b.disabled = true; // 同じ問題を何度も入れない
   }
 
   close() {
@@ -216,6 +227,7 @@ export class PhotoImport {
     this.result = null;
     this.playBtn.disabled = true;
     this.saveBtn.disabled = true;
+    this._setSaved(false); // 数字を直したら別の問題なので、また入れられる
     this.status.className = 'photo-status';
     this.status.textContent = '論理だけで解けるかを確かめています…';
     for (const el of this.grid.querySelectorAll('.suggest')) el.classList.remove('suggest');
