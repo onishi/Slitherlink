@@ -9,6 +9,7 @@ import { PATTERNS } from '../core/patterns.js';
 import { PuzzleService } from './puzzle-service.js';
 import { PatternCards } from './pattern-cards.js';
 import { PhotoImport } from './photo-import.js';
+import { PuzzleReport } from './puzzle-report.js';
 import { store } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +24,7 @@ function icon(name) {
 }
 
 const el = {
+  puzzleReport: $('puzzle-report'),
   board: $('board'),
   size: $('sel-size'),
   difficulty: $('sel-difficulty'),
@@ -278,8 +280,12 @@ function bindUI() {
 
 /* ---------------- 設定とその他（めったに使わないもの） ---------------- */
 
+let puzzleReport = null;
+
 function openMenu() {
   renderLibrary();
+  puzzleReport ??= new PuzzleReport(el.puzzleReport);
+  puzzleReport.show(game.puzzle);
   el.menuModal.hidden = false;
   el.closeMenu.focus();
 }
@@ -615,12 +621,16 @@ async function newPuzzle() {
   const { rows, cols, difficulty } = currentSettings();
   game.busy = true;
   el.newBtn.disabled = true;
-  const waiting = setTimeout(() => say('問題を作っています…'), 180);
+  const slow = difficulty === 'expert' && rows * cols >= 100;
+  const waiting = setTimeout(() => say(slow ? '「鬼」の問題を作っています（大きな盤では少し時間がかかります）…' : '問題を作っています…'), 180);
   try {
     const puzzle = await service.get(rows, cols, difficulty);
     clearTimeout(waiting);
     startPuzzle(puzzle);
-    say('');
+    // 時間内に狙いの難易度が作れなかったときは、本当の難易度を知らせる
+    say(puzzle.difficulty !== difficulty
+      ? `「${DIFFICULTIES[difficulty].label}」が時間内に作れなかったので、「${DIFFICULTIES[puzzle.difficulty]?.label}」の問題にしました`
+      : '');
   } catch (err) {
     clearTimeout(waiting);
     say(err.message || '問題を作れませんでした', true);
@@ -634,6 +644,8 @@ function startPuzzle(puzzle, saved) {
   hideHint();
   hidePatterns();
   game.puzzle = puzzle;
+  // メニューを開いたまま問題が変わったら、「この問題の難易度」も新しい問題に
+  if (puzzleReport && !el.menuModal.hidden) puzzleReport.show(puzzle);
   game.grid = getGrid(puzzle.rows, puzzle.cols);
   game.state = saved?.state ?? new Int8Array(game.grid.edgeCount);
   game.undoStack = [];

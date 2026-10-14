@@ -75,12 +75,14 @@ export class PuzzleService {
 
   _request(worker, rows, cols, difficulty) {
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
+    // 「鬼」は 2 段の読みが要るまで削るので時間がかかる。大きな盤では長めに待つ
+    const timeLimitMs = difficulty === 'expert' ? 15000 + rows * cols * 150 : 12000;
     if (!worker) {
       // ワーカーが使えない環境ではその場で作る
       return new Promise((resolve, reject) => {
         setTimeout(() => {
           try {
-            const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs: 12000 });
+            const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs });
             resolve(materialize({
               rows: p.rows, cols: p.cols, difficulty: p.difficulty,
               clues: Array.from(p.clues), solution: Array.from(p.solution),
@@ -93,7 +95,7 @@ export class PuzzleService {
     const id = ++this.seq;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      worker.postMessage({ id, rows, cols, difficulty, seed, timeLimitMs: 12000 });
+      worker.postMessage({ id, rows, cols, difficulty, seed, timeLimitMs });
     });
   }
 }

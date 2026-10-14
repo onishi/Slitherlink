@@ -1,5 +1,6 @@
-/** 持ち込まれた問題が論理だけで解けるかを、画面を止めずに確かめるワーカー。 */
+/** 持ち込まれた問題が論理だけで解けるか・いまの問題の解き味を、画面を止めずに調べるワーカー。 */
 import { checkPuzzle, encodePuzzle } from '../core/puzzle.js';
+import { difficultyReport, rateImported } from '../core/difficulty-report.js';
 
 self.onmessage = (ev) => {
   const { id, rows, cols, clues, type } = ev.data || {};
@@ -7,9 +8,21 @@ self.onmessage = (ev) => {
     repair(ev.data);
     return;
   }
+  if (type === 'report') {
+    try {
+      const { solution } = ev.data;
+      const report = difficultyReport({
+        rows, cols, clues: Int8Array.from(clues), solution: solution ? Int8Array.from(solution) : undefined,
+      });
+      self.postMessage({ id, type: 'report', report });
+    } catch (err) {
+      self.postMessage({ id, type: 'report', error: String(err && err.message ? err.message : err) });
+    }
+    return;
+  }
   try {
     const puzzle = { rows, cols, difficulty: 'normal', clues: Int8Array.from(clues) };
-    const result = checkPuzzle(puzzle);
+    const result = rateImported(puzzle);
     const difficulty = result.difficulty ?? 'normal';
     self.postMessage({
       id,

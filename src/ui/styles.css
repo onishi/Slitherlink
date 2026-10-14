@@ -1141,3 +1141,23 @@ body.no-anim .app { transition: none !important; }
 .library li > button.with-icon { font-size: .78rem; padding: 6px 10px; }
 .library li > .icon-btn { width: 30px; height: 30px; }
 .library-empty { font-size: .8rem; color: var(--ink-faint); }
+
+/* メニューの「この問題の難易度」 */
+.puzzle-report { font-size: .84rem; color: var(--ink-soft); line-height: 1.6; }
+.puzzle-report p { margin: 0 0 6px; }
+.report-wait { color: var(--ink-faint); }
+.report-level { color: var(--ink-soft); }
+.report-level b { color: var(--accent); }
+.report-verdict { color: var(--ink); font-weight: 600; }
+.report-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: 8px 0 6px; background: var(--border); }
+.report-seg { display: block; min-width: 3px; }
+.report-legend { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: .76rem; }
+.report-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.report-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.seg-plain { background: var(--accent); }
+.seg-search { background: color-mix(in srgb, var(--accent) 45%, var(--surface)); }
+.seg-rule { background: var(--dot); }
+.seg-assume1 { background: var(--line-hint); }
+.seg-assume2 { background: var(--danger); }
+.report-notes { margin: 0; padding-left: 1.2em; }
+.report-notes li { margin: 2px 0; }

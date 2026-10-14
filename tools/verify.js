@@ -1,5 +1,5 @@
 /**
- * 大量に作問して「必ず論理だけで解ける・解が一意」を実地で確かめる。
+ * 大量に作問して「必ず論理だけで解ける・解が一意・解き味が難易度どおり」を実地で確かめる。
  * 論理で解けるかは、ソルバとは別に「検算に通る証明つきの手だけで正解まで届くか」でも確かめる
  * （正解は使わず、両方の値を仮定して試す）。
  *   node tools/verify.js [繰り返し数]
@@ -8,6 +8,7 @@ import { getGrid, isSingleLoop, cluesFromEdges, LINE } from '../src/core/grid.js
 import { solveLogical, countSolutions } from '../src/core/solver.js';
 import { generatePuzzle, DIFFICULTIES } from '../src/core/generator.js';
 import { solveWithProofs } from '../src/core/proof.js';
+import { difficultyReport, levelOf } from '../src/core/difficulty-report.js';
 
 const reps = Number(process.argv[2] || 3);
 const sizes = [[5, 5], [6, 8], [7, 7], [10, 10]];
@@ -44,6 +45,10 @@ for (const [rows, cols] of sizes) {
       const proved = solveWithProofs(g, p.clues, { maxDepth: DIFFICULTIES[difficulty].depth - 1 });
       if (!proved.solved) issues.push('証明つきの手だけでは解き切れない');
       else if (proved.edges.some((v, e) => v !== p.solution[e])) issues.push('証明でたどった答えが正解と違う');
+
+      if (p.difficulty !== difficulty) issues.push(`狙いの難易度が作れなかった (${p.difficulty})`);
+      const level = levelOf(difficultyReport(p));
+      if (level !== p.difficulty) issues.push(`解き味（${level}）が付けた難易度と違う`);
 
       const tag = `${rows}x${cols} ${DIFFICULTIES[difficulty].label}`;
       if (issues.length) {
