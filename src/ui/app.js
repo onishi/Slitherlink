@@ -65,6 +65,8 @@ const el = {
   photoCamera: $('photo-camera'),
   photoPick: $('photo-pick'),
   libraryList: $('library-list'),
+  libraryCount: $('library-count'),
+  reportSummary: $('report-summary'),
   saveCurrent: $('btn-save-current'),
   zoomIn: $('zoom-in'),
   zoomOut: $('zoom-out'),
@@ -231,6 +233,9 @@ function bindUI() {
   el.rulesBtn.addEventListener('click', () => { el.rulesModal.hidden = false; });
   el.menuBtn.addEventListener('click', openMenu);
   el.closeMenu.addEventListener('click', closeMenu);
+  for (const b of el.menuModal.querySelectorAll('[data-go]')) b.addEventListener('click', () => showMenuView(b.dataset.go));
+  for (const b of el.menuModal.querySelectorAll('[data-back]')) b.addEventListener('click', () => showMenuView('main'));
+  for (const b of el.menuModal.querySelectorAll('[data-close]')) b.addEventListener('click', closeMenu);
   el.menuModal.addEventListener('click', (ev) => {
     if (ev.target === el.menuModal) closeMenu();
   });
@@ -246,7 +251,11 @@ function bindUI() {
       if (isDrawerOpen()) { closeDrawer(); return; }
       if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
       if (isPatternsOpen()) { hidePatterns(); return; }
-      if (!el.menuModal.hidden) { closeMenu(); return; }
+      if (!el.menuModal.hidden) {
+        // 奥の画面ならメニューの最初の画面へ、最初の画面なら閉じる
+        if (menuView !== 'main') showMenuView('main'); else closeMenu();
+        return;
+      }
       el.rulesModal.hidden = true;
       hideOverlay();
     }
@@ -281,15 +290,30 @@ function bindUI() {
 /* ---------------- 設定とその他（めったに使わないもの） ---------------- */
 
 let puzzleReport = null;
+let menuView = 'main';
 
 function openMenu() {
   renderLibrary();
-  puzzleReport ??= new PuzzleReport(el.puzzleReport);
+  puzzleReport ??= new PuzzleReport(el.puzzleReport, el.reportSummary);
   puzzleReport.show(game.puzzle);
   el.menuModal.hidden = false;
-  // とじるボタンは最後にあるので、そこへ送られないようにして、いつも先頭から見せる
-  el.closeMenu.focus({ preventScroll: true });
+  showMenuView('main');
+}
+
+/**
+ * メニューの中の画面を切り替える。最初の画面には、よく使うものだけを置き、
+ * 難易度のくわしい分析・問題リスト・問題コード・設定は、それぞれ奥の画面にする。
+ */
+function showMenuView(name) {
+  menuView = name;
+  for (const view of el.menuModal.querySelectorAll('.menu-view')) view.hidden = view.dataset.view !== name;
   el.menuModal.querySelector('.modal-card').scrollTop = 0;
+  if (name === 'main') {
+    // とじるボタンは最後にあるので、そこへ送られないようにする
+    el.closeMenu.focus({ preventScroll: true });
+  } else {
+    el.menuModal.querySelector(`.menu-view[data-view="${name}"] [data-back]`).focus({ preventScroll: true });
+  }
 }
 
 function closeMenu() {
@@ -370,6 +394,7 @@ function saveToLibrary(p, source) {
 /** メニューの「問題リスト」を描く。 */
 function renderLibrary() {
   const list = store.library();
+  el.libraryCount.textContent = list.length ? `${list.length} 問` : '';
   el.libraryList.textContent = '';
   if (!list.length) {
     const li = document.createElement('li');

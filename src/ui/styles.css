@@ -1223,3 +1223,31 @@ body.no-anim .app { transition: none !important; }
   .modal-card { max-height: 92dvh; padding: 14px 18px; }
   .overlay-card { max-height: calc(100% - 8px); overflow: auto; }
 }
+
+/* ---------- メニューの画面（最初の画面と、奥の画面） ---------- */
+.menu-card h2 { margin-bottom: 12px; }
+.menu-row.menu-nav, .menu-list .menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.menu-row .menu-row-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.menu-row .menu-row-text small { font-size: .74rem; color: var(--ink-faint); font-weight: 400; }
+.menu-row .menu-row-text b { color: var(--accent); }
+.menu-list .menu-row .mi, .menu-nav .mi { margin-right: 0; }
+.menu-row .chev { color: var(--ink-faint); }
+.report-row { margin-top: 0; }
+
+/* 下の行は、ひとつながりの一覧にする */
+.menu-list { margin-top: 18px; display: flex; flex-direction: column; }
+.menu-list .menu-row { margin: 0; border-radius: 0; border-top-width: 0; }
+.menu-list .menu-row:first-child { border-top-width: 1px; border-radius: 9px 9px 0 0; }
+.menu-list .menu-row:last-child { border-radius: 0 0 9px 9px; }
+.menu-list .menu-row.danger .menu-row-text small { color: color-mix(in srgb, var(--danger) 60%, var(--ink-faint)); }
+
+/* 奥の画面の見出し（もどるボタンつき） */
+.menu-sub-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.menu-sub-head h2 { margin: 0; flex: 1; }
+/* 画面を切り替えても高さが跳ねないよう、メニューの高さをそろえる */
+.menu-card { min-height: min(600px, 86dvh); }
+.menu-view[data-view="library"] .menu-row { margin: 0 0 10px; }
