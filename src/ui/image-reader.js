@@ -9,10 +9,13 @@
  * 読み取りは完全ではないので、結果は利用者が直せる形で返す（どのマスが怪しいかも付ける）。
  */
 
+import { normalize, cleanMask, classifyShape } from './digit-features.js';
+import { DIGIT_MODEL } from './digit-model.js';
+
 const MAX_SIDE = 1400;
 const PATCH = 40;    // 1 マスを切り出す大きさ（px）
-const NORM = 20;     // 文字を見比べるときの大きさ
 const DIGITS = [0, 1, 2, 3];
+const PRINTED = 0.8; // 書体の型との相関がこれ以上なら印刷の文字とみなす
 const FONTS = [
   '600 64px sans-serif', '400 64px sans-serif', '700 64px sans-serif',
   '400 64px serif', '700 64px serif', '400 64px monospace', '700 64px monospace',
@@ -120,6 +123,7 @@ export function guessCorners(photo) {
   }
   const R = Math.max(4, Math.round(Math.max(W, Hh) / 40));
   const dark = new Uint8Array(W * Hh);
+  const depth = new Float32Array(W * Hh); // まわりの平均よりどれだけ暗いか
   for (let y = 0; y < Hh; y++) {
     const ya = Math.max(0, y - R);
     const yb = Math.min(Hh, y + R + 1);
@@ -128,7 +132,8 @@ export function guessCorners(photo) {
       const xb = Math.min(W, x + R + 1);
       const sum = integral[yb * (W + 1) + xb] - integral[ya * (W + 1) + xb] - integral[yb * (W + 1) + xa] + integral[ya * (W + 1) + xa];
       const mean = sum / ((yb - ya) * (xb - xa));
-      dark[y * W + x] = small[y * W + x] < mean - Math.max(14, mean * 0.1) ? 1 : 0;
+      depth[y * W + x] = mean - small[y * W + x];
+      dark[y * W + x] = depth[y * W + x] > Math.max(14, mean * 0.1) ? 1 : 0;
     }
   }
 
@@ -138,7 +143,7 @@ export function guessCorners(photo) {
   const stack = [];
   for (let i = 0; i < dark.length; i++) {
     if (!dark[i] || label[i] >= 0) continue;
-    const blob = { area: 0, x0: W, y0: Hh, x1: 0, y1: 0, sx: 0, sy: 0 };
+    const blob = { area: 0, x0: W, y0: Hh, x1: 0, y1: 0, sx: 0, sy: 0, deep: 0 };
     label[i] = blobs.length;
     stack.push(i);
     while (stack.length) {
@@ -147,6 +152,7 @@ export function guessCorners(photo) {
       const y = (j - x) / W;
       blob.area++;
       blob.sx += x;
+      blob.deep = Math.max(blob.deep, depth[j]);
       blob.sy += y;
       if (x < blob.x0) blob.x0 = x;
       if (x > blob.x1) blob.x1 = x;
@@ -179,8 +185,11 @@ export function guessCorners(photo) {
       const n = sizes.filter((s1) => inBand(s1, s0)).length;
       if (n > bestCount) { bestCount = n; bestSize = s0; }
     }
-    const pts = dots
-      .filter((b) => inBand(Math.max(b.x1 - b.x0, b.y1 - b.y0) + 1, bestSize))
+    const sized = dots.filter((b) => inBand(Math.max(b.x1 - b.x0, b.y1 - b.y0) + 1, bestSize));
+    // 墨の点は濃い。紙の縁の影などがちぎれた薄いかたまりは外す
+    const deepest = sized.map((b) => b.deep).sort((a, b) => a - b)[Math.floor(sized.length / 2)];
+    const pts = sized
+      .filter((b) => b.deep >= deepest * 0.55)
       .map((b) => [(b.sx / b.area + 0.5) * step, (b.sy / b.area + 0.5) * step]);
     if (pts.length >= 9) {
       const fit = fitLattice(pts);
@@ -288,8 +297,9 @@ function fitLattice(pts) {
         const m = findNear(pts[k][0] + vx, pts[k][1] + vy, unit * 0.3);
         if (m < 0 || ij[m]) continue;
         const real = [pts[m][0] - pts[k][0], pts[m][1] - pts[k][1]];
-        const nx = di ? [real[0] * di, real[1] * di] : lx;
-        const ny = dj ? [real[0] * dj, real[1] * dj] : ly;
+        // 遠近で少しずつ変わる間隔に合わせる（取り違えに引きずられないよう半分だけ寄せる）
+        const nx = di ? [(lx[0] + real[0] * di) / 2, (lx[1] + real[1] * di) / 2] : lx;
+        const ny = dj ? [(ly[0] + real[0] * dj) / 2, (ly[1] + real[1] * dj) / 2] : ly;
         ij[m] = { i: i + di, j: j + dj, ax: nx, ay: ny };
         group.push(m);
       }
@@ -297,10 +307,46 @@ function fitLattice(pts) {
     if (group.length > bestGroup.length) bestGroup = group;
   }
   if (bestGroup.length < 9) return null;
-  // 端の列・行で点がまばらなもの（紙の縁や、ごみがたまたま並んだもの）は外す
-  const trim = (key) => {
+  // 番号の付いた点から射影変換を当てはめ、その逆変換で全部の点の番号を付け直す、を数回くり返す
+  // （たどる途中で数字の切れ端を点と取り違えても、全体の当てはめで正される）
+  let marks = bestGroup.map((k) => [ij[k].i, ij[k].j, k]);
+  let fit = null;
+  for (let round = 0; round < 3; round++) {
+    const trimmed = trimSparse(marks);
+    if (!trimmed) return null;
+    const { i0, i1, j0, j1 } = trimmed;
+    marks = trimmed.marks;
+    const H = fitHomography(marks.map(([i, j, k]) => [i - i0, j - j0, pts[k][0], pts[k][1]]));
+    if (!H) return null;
+    fit = { H, cols: i1 - i0, rows: j1 - j0 };
+    const inv = invert3(H);
+    const next = [];
+    const used = new Set();
+    pts.forEach((p, k) => {
+      const [u, v] = project(inv, p[0], p[1]);
+      const i = Math.round(u);
+      const j = Math.round(v);
+      if (Math.hypot(u - i, v - j) > 0.25) return;
+      if (i < -1 || j < -1 || i > fit.cols + 1 || j > fit.rows + 1) return;
+      const key = `${i},${j}`;
+      if (used.has(key)) return;
+      used.add(key);
+      next.push([i, j, k]);
+    });
+    if (next.length < 9) break;
+    marks = next;
+  }
+  const { H, cols, rows } = fit;
+  if (cols < 2 || rows < 2 || cols > 30 || rows > 30) return null;
+  const corners = [[0, 0], [cols, 0], [cols, rows], [0, rows]].map(([u, v]) => project(H, u, v));
+  return { corners, rows, cols };
+}
+
+/** 端の列・行で点がまばらなもの（紙の縁や、ごみがたまたま並んだもの）を外す。 */
+function trimSparse(marks) {
+  const range = (axis) => {
     const count = new Map();
-    for (const k of bestGroup) count.set(ij[k][key], (count.get(ij[k][key]) ?? 0) + 1);
+    for (const m of marks) count.set(m[axis], (count.get(m[axis]) ?? 0) + 1);
     const keys = [...count.keys()].sort((a, b) => a - b);
     const top = Math.max(...count.values());
     let lo = 0;
@@ -309,16 +355,24 @@ function fitLattice(pts) {
     while (hi > lo && count.get(keys[hi]) < top * 0.4) hi--;
     return [keys[lo], keys[hi]];
   };
-  const [i0, i1] = trim('i');
-  const [j0, j1] = trim('j');
-  bestGroup = bestGroup.filter((k) => ij[k].i >= i0 && ij[k].i <= i1 && ij[k].j >= j0 && ij[k].j <= j1);
-  const cols = i1 - i0;
-  const rows = j1 - j0;
-  if (cols < 2 || rows < 2 || cols > 30 || rows > 30) return null;
-  const H = fitHomography(bestGroup.map((k) => [ij[k].i - i0, ij[k].j - j0, pts[k][0], pts[k][1]]));
-  if (!H) return null;
-  const corners = [[0, 0], [cols, 0], [cols, rows], [0, rows]].map(([u, v]) => project(H, u, v));
-  return { corners, rows, cols };
+  const [i0, i1] = range(0);
+  const [j0, j1] = range(1);
+  const kept = marks.filter(([i, j]) => i >= i0 && i <= i1 && j >= j0 && j <= j1);
+  return kept.length >= 9 ? { i0, i1, j0, j1, marks: kept } : null;
+}
+
+/** 3×3 行列の逆（射影変換を逆向きに使う）。 */
+function invert3(m) {
+  const [a, b, c, d, e, f, g, h, i] = m;
+  const A = e * i - f * h;
+  const B = -(d * i - f * g);
+  const C = d * h - e * g;
+  const det = a * A + b * B + c * C;
+  return [
+    A / det, -(b * i - c * h) / det, (b * f - c * e) / det,
+    B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+    C / det, -(a * h - b * g) / det, (a * e - b * d) / det,
+  ];
 }
 
 /** 対応する点の組 [u, v, x, y] から、最小二乗で射影変換を求める。 */
@@ -396,10 +450,41 @@ function sampleGray(photo, x, y) {
     + gray[i + w] * (1 - fx) * fy + gray[i + w + 1] * fx * fy;
 }
 
+/**
+ * ゆがみを戻した盤の画像（1 マス cell px）を作る。読み取り結果を写真と見比べるのに使う。
+ * @returns {HTMLCanvasElement}
+ */
+export function rectify(photo, corners, rows, cols, cell = 36) {
+  const H = homography(corners, rows, cols);
+  const w = cols * cell;
+  const h = rows * cell;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const src = photo.canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, photo.width, photo.height).data;
+  const out = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const [sx, sy] = project(H, (x + 0.5) / cell, (y + 0.5) / cell);
+      const ix = Math.max(0, Math.min(photo.width - 1, Math.round(sx)));
+      const iy = Math.max(0, Math.min(photo.height - 1, Math.round(sy)));
+      const si = (iy * photo.width + ix) * 4;
+      const di = (y * w + x) * 4;
+      out.data[di] = src[si];
+      out.data[di + 1] = src[si + 1];
+      out.data[di + 2] = src[si + 2];
+      out.data[di + 3] = 255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  return canvas;
+}
+
 /** 1 マスの中（点や線にかからない内側）を PATCH×PATCH で切り出す。 */
 function cellPatch(photo, H, r, c) {
   const out = new Float32Array(PATCH * PATCH);
-  const m = 0.16; // マスの縁から内側へ入る割合
+  const m = 0.08; // マスの縁から内側へ入る割合（角の点のはみ出しは cleanMask が消す）
   for (let j = 0; j < PATCH; j++) {
     for (let i = 0; i < PATCH; i++) {
       const u = c + m + ((i + 0.5) / PATCH) * (1 - 2 * m);
@@ -409,54 +494,6 @@ function cellPatch(photo, H, r, c) {
     }
   }
   return out;
-}
-
-/**
- * 黒い部分を囲む四角だけを切り抜き、縦横比を保って NORM×NORM に縮める。
- * 縮めるときは面積で平均するので、細かなざらつきやぼけの差が出にくい。
- * @param {Uint8Array} mask 黒（文字）かどうか。囲む四角を決めるのに使う
- * @param {Float32Array} ink 墨の濃さ（0〜1）
- * @returns {{v:Float32Array, ink:number, bw:number, bh:number}|null} 黒が無ければ null
- */
-function normalize(mask, ink, size) {
-  let x0 = size;
-  let y0 = size;
-  let x1 = -1;
-  let y1 = -1;
-  let count = 0;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (!mask[y * size + x]) continue;
-      count++;
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-      if (y < y0) y0 = y;
-      if (y > y1) y1 = y;
-    }
-  }
-  if (x1 < 0) return null;
-  const bw = x1 - x0 + 1;
-  const bh = y1 - y0 + 1;
-  const box = Math.max(bw, bh);
-  const ox = x0 - (box - bw) / 2;
-  const oy = y0 - (box - bh) / 2;
-  const v = new Float32Array(NORM * NORM);
-  const cell = box / NORM;
-  const sub = Math.max(1, Math.ceil(cell * 2));
-  for (let j = 0; j < NORM; j++) {
-    for (let i = 0; i < NORM; i++) {
-      let sum = 0;
-      for (let b = 0; b < sub; b++) {
-        for (let a = 0; a < sub; a++) {
-          const sx = Math.floor(ox + (i + (a + 0.5) / sub) * cell);
-          const sy = Math.floor(oy + (j + (b + 0.5) / sub) * cell);
-          if (sx >= 0 && sy >= 0 && sx < size && sy < size) sum += ink[sy * size + sx];
-        }
-      }
-      v[j * NORM + i] = sum / (sub * sub);
-    }
-  }
-  return { v, ink: count, bw, bh };
 }
 
 let templates = null;
@@ -515,10 +552,35 @@ function correlation(a, b) {
 }
 
 /**
+ * 1 マスの文字を 0〜3 のどれかに決める。
+ * 印刷の文字は書体の型とよく重なるので、型との相関が高ければそれを使う。
+ * そうでなければ手書きとみなし、手書き数字で学習したニューラルネットで見分ける。
+ */
+function readDigit(n, mask, tpl) {
+  const scores = DIGITS.map((d) => Math.max(...tpl.filter((t) => t.digit === d).map((t) => correlation(n.v, t.v))));
+  const byTemplate = DIGITS.slice().sort((a, b) => scores[b] - scores[a]);
+  const best = scores[byTemplate[0]];
+  const margin = best - scores[byTemplate[1]];
+  // 学習と同じく、黒い部分だけ（濃淡なし）から形をそろえて見せる
+  const p = classifyShape(DIGIT_MODEL, mask, PATCH);
+  const byNet = DIGITS.slice().sort((a, b) => p[b] - p[a]);
+  if (best >= PRINTED && margin >= 0.05) {
+    const alt = byNet[0] !== byTemplate[0] ? byNet[0] : byTemplate[1];
+    return { digit: byTemplate[0], unsure: false, conf: Math.min(1, 0.5 + margin * 5), alt };
+  }
+  const digit = byNet[0];
+  const alt = byNet[1];
+  // 型とネットが同じ答えなら、どちらかの自信が低くても信じる
+  if (digit === byTemplate[0] && (p[digit] >= 0.6 || best >= 0.6)) return { digit, unsure: false, conf: Math.max(p[digit], best), alt };
+  return { digit, unsure: p[digit] < 0.9, conf: p[digit], alt };
+}
+
+/**
  * 盤の数字を読み取る。
  * @param {object} photo loadPhoto の結果
  * @param {number[][]} corners 盤の四隅（左上・右上・右下・左下）の画像上の座標
- * @returns {{clues:Int8Array, unsure:boolean[]}} 数字（-1 は空白）と、自信の無いマス
+ * @returns {{clues:Int8Array, unsure:boolean[], conf:Float32Array, alts:Int8Array}}
+ *   数字（-1 は空白）・自信の無いマス・自信（0〜1）・次に近い数字
  */
 export function readClues(photo, corners, rows, cols) {
   const H = homography(corners, rows, cols);
@@ -540,6 +602,8 @@ export function readClues(photo, corners, rows, cols) {
   const contrast = Math.max(40, mean(lightVals) - mean(darkVals));
   const clues = new Int8Array(rows * cols).fill(-1);
   const unsure = new Array(rows * cols).fill(false);
+  const conf = new Float32Array(rows * cols).fill(1);
+  const alts = new Int8Array(rows * cols).fill(-1);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const patch = cellPatch(photo, H, r, c);
@@ -552,14 +616,17 @@ export function readClues(photo, corners, rows, cols) {
         mask[i] = patch[i] < cut ? 1 : 0;
         ink[i] = Math.max(0, Math.min(1, (paper - patch[i]) / contrast));
       }
+      const kept = cleanMask(mask, PATCH);
+      for (let i = 0; i < ink.length; i++) if (!mask[i]) ink[i] = 0;
       const n = normalize(mask, ink, PATCH);
-      // 黒がほとんど無い、または小さすぎるなら空白（点やごみ）
-      if (!n || n.ink < PATCH * PATCH * 0.03 || n.bh < PATCH * 0.3) continue;
-      const scores = DIGITS.map((d) => Math.max(...tpl.filter((t) => t.digit === d).map((t) => correlation(n.v, t.v))));
-      const order = DIGITS.slice().sort((a, b) => scores[b] - scores[a]);
-      clues[r * cols + c] = order[0];
-      unsure[r * cols + c] = scores[order[0]] < 0.6 || scores[order[0]] - scores[order[1]] < 0.05;
+      // 黒がほとんど無い、または小さすぎるなら空白（点やごみ）。手書きの細い線も拾えるよう少なめに見る
+      if (!n || kept < PATCH * PATCH * 0.012 || n.bh < PATCH * 0.3) continue;
+      const read = readDigit(n, mask, tpl);
+      clues[r * cols + c] = read.digit;
+      unsure[r * cols + c] = read.unsure;
+      conf[r * cols + c] = read.conf;
+      alts[r * cols + c] = read.alt;
     }
   }
-  return { clues, unsure };
+  return { clues, unsure, conf, alts };
 }

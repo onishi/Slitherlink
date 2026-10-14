@@ -4,7 +4,7 @@
  * 論理だけで解けるかを自動で確かめる → 遊ぶ／問題リストに入れる。
  */
 
-import { loadPhoto, guessCorners, readClues, homography, project } from './image-reader.js';
+import { loadPhoto, guessCorners, readClues, homography, project, rectify } from './image-reader.js';
 import { checkPuzzle, encodePuzzle } from '../core/puzzle.js';
 
 const DIFF_LABEL = { easy: 'やさしい', normal: 'ふつう', hard: 'むずかしい' };
@@ -30,7 +30,7 @@ export class PhotoImport {
     this.timer = 0;
     try {
       this.worker = new Worker(WORKER_URL, { type: 'module' });
-      this.worker.onmessage = (ev) => this._onChecked(ev.data);
+      this.worker.onmessage = (ev) => (ev.data.type === 'repair' ? this._onRepair(ev.data) : this._onChecked(ev.data));
     } catch {
       this.worker = null; // ワーカーが使えなければ画面の側で確かめる
     }
@@ -160,9 +160,11 @@ export class PhotoImport {
   }
 
   _read() {
-    const { clues, unsure } = readClues(this.photo, this.corners, this.rows, this.cols);
+    const { clues, unsure, conf, alts } = readClues(this.photo, this.corners, this.rows, this.cols);
     this.clues = clues;
     this.unsure = unsure;
+    this.conf = conf;
+    this.alts = alts;
     this._step('edit');
     this._renderGrid();
     this._check();
@@ -175,22 +177,34 @@ export class PhotoImport {
     this.grid.textContent = '';
     this.grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     this.grid.style.setProperty('--photo-cols', cols);
+    // 写真（ゆがみを戻したもの）を下に敷き、読み取った数字をマスの隅に重ねて見比べられるようにする
+    this.grid.style.backgroundImage = `url(${rectify(this.photo, this.corners, rows, cols).toDataURL('image/jpeg', 0.85)})`;
+    this.paints = [];
     for (let i = 0; i < rows * cols; i++) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'photo-cell';
       const paint = () => {
-        b.textContent = this.clues[i] < 0 ? '' : String(this.clues[i]);
+        b.textContent = '';
+        if (this.clues[i] >= 0) {
+          const badge = document.createElement('span');
+          badge.className = 'photo-read';
+          badge.textContent = String(this.clues[i]);
+          b.appendChild(badge);
+        }
         b.classList.toggle('unsure', this.unsure[i]);
+        b.classList.remove('suggest');
         b.setAttribute('aria-label', `${Math.floor(i / cols) + 1}行${(i % cols) + 1}列 ${this.clues[i] < 0 ? '空白' : this.clues[i]}`);
       };
       b.addEventListener('click', () => {
         this.clues[i] = this.clues[i] >= 3 ? -1 : this.clues[i] + 1;
         this.unsure[i] = false;
+        this.conf[i] = 1; // 利用者が決めたマスは、直す候補にしない
         paint();
         this._check();
       });
       paint();
+      this.paints.push(paint);
       this.grid.appendChild(b);
     }
   }
@@ -203,6 +217,7 @@ export class PhotoImport {
     this.saveBtn.disabled = true;
     this.status.className = 'photo-status';
     this.status.textContent = '論理だけで解けるかを確かめています…';
+    for (const el of this.grid.querySelectorAll('.suggest')) el.classList.remove('suggest');
     const id = ++this.checkId;
     const rows = this.rows;
     const cols = this.cols;
@@ -240,10 +255,50 @@ export class PhotoImport {
     } else if (msg.status === 'contradiction') {
       s.className = 'photo-status warn';
       s.textContent = '数字どうしが矛盾していて、答えがありません。読み取りの間違い（点線のマスなど）を直してください。';
+      this._askRepair(msg.id);
     } else {
       s.className = 'photo-status warn';
       s.textContent = '論理だけでは解き切れません（答えが複数あるか、当てずっぽうが要ります）。読み取りの間違いや抜けている数字が無いか確かめてください。';
+      this._askRepair(msg.id);
     }
+  }
+
+  /** 自信の低いマスを次に近い数字へ変えると解けるかを、ワーカーで探す。 */
+  _askRepair(id) {
+    if (!this.worker) return;
+    const candidates = [];
+    this.clues.forEach((v, i) => {
+      if (v >= 0 && this.alts[i] >= 0 && this.alts[i] !== v && this.conf[i] < 0.995) candidates.push([i, this.alts[i], this.conf[i]]);
+    });
+    candidates.sort((a, b) => a[2] - b[2]);
+    if (!candidates.length) return;
+    this.worker.postMessage({
+      type: 'repair', id, rows: this.rows, cols: this.cols, clues: Array.from(this.clues),
+      candidates: candidates.slice(0, 8).map(([i, to]) => [i, to]),
+    });
+  }
+
+  _onRepair(msg) {
+    if (msg.id !== this.checkId || !msg.found) return;
+    const { cell, from, to } = msg.found;
+    const cols = this.cols;
+    const where = `${Math.floor(cell / cols) + 1}行${(cell % cols) + 1}列`;
+    const p = document.createElement('span');
+    p.className = 'photo-repair';
+    p.append(`${where}の ${from} を ${to} にすると、論理だけで解けます。`);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = `${to} に直す`;
+    btn.addEventListener('click', () => {
+      this.clues[cell] = to;
+      this.unsure[cell] = false;
+      this.conf[cell] = 1;
+      this.paints[cell]();
+      this._check();
+    });
+    p.appendChild(btn);
+    this.status.appendChild(p);
+    this.grid.children[cell]?.classList.add('suggest');
   }
 }
 

@@ -132,7 +132,9 @@ function init() {
     prev: el.patPrev,
     next: el.patNext,
     onApply: (item) => applyPattern(item.pattern),
-    onFocus: focusPatternCard,
+    onReveal: revealPatternCard,
+    onClose: () => hidePatterns(),
+    onFocus: () => {},
     emptyActions: [
       { label: 'ヒントを見る', run: () => showHint() },
       { label: '定石の一覧', run: () => openDrawer() },
@@ -515,10 +517,13 @@ function refreshPatternCards(keep) {
   cards.render(items, keep === undefined ? cards.focusedId : keep);
 }
 
-/** 見ているカードの定石が、盤面のどこで何を決めるかを光らせる。 */
-function focusPatternCard(item) {
+/**
+ * 「候補」を押したカードの定石が当てはまる位置を光らせる。
+ * 線か × かは出さない（位置だけ教えて、何が決まるかは自分で考えられるように）。
+ */
+function revealPatternCard(item) {
   if (!item) { board.clearHints(); return; }
-  board.setHints(item.fills.map((f) => f.edge), null, new Map(item.fills.map((f) => [f.edge, f.value])));
+  board.setHints(item.fills.map((f) => f.edge));
   board.ensureVisible(item.fills[0].edge);
 }
 
