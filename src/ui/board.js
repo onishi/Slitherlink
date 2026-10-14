@@ -308,7 +308,7 @@ export class Board {
       const dy = ev.clientY - g.y;
       if (g.type === 'tap' && Math.hypot(dx, dy) > TAP_SLOP) g.type = this.zoom.scale > 1 ? 'pan' : 'slide';
       if (g.type === 'pan') {
-        const rect = svg.getBoundingClientRect();
+        const rect = this._drawnRect();
         const unit = svg.viewBox.baseVal.width / (rect.width || 1);
         this.setZoom(this.zoom.scale, g.center.x - dx * unit, g.center.y - dy * unit);
       }
@@ -336,7 +336,7 @@ export class Board {
         this._zoomAround(this.zoom.scale * Math.exp(-ev.deltaY * 0.01), anchor, ev.clientX, ev.clientY);
       } else if (this.zoom.scale > 1) {
         ev.preventDefault();
-        const rect = svg.getBoundingClientRect();
+        const rect = this._drawnRect();
         const unit = svg.viewBox.baseVal.width / (rect.width || 1);
         this.setZoom(this.zoom.scale, this.zoom.cx + ev.deltaX * unit, this.zoom.cy + ev.deltaY * unit);
       }
@@ -400,7 +400,7 @@ export class Board {
 
   /** 盤面の点 anchor が、画面の (sx, sy) に来るように倍率を変える。 */
   _zoomAround(scale, anchor, sx, sy) {
-    const rect = this.svg.getBoundingClientRect();
+    const rect = this._drawnRect();
     const b = this._baseBox();
     const s = Math.max(1, Math.min(this.maxScale(), scale));
     const w = b.w / s;
@@ -431,9 +431,29 @@ export class Board {
     }
   }
 
+  /**
+   * 盤面が実際に描かれている画面上の四角。
+   * 高さの上限で <svg> の枠が盤より横長（縦長）になると、盤は枠のまん中に縮めて描かれるので、
+   * 枠そのもの（getBoundingClientRect）ではなく、こちらで座標を合わせる。
+   */
+  _drawnRect() {
+    const rect = this.svg.getBoundingClientRect();
+    const vb = this.svg.viewBox.baseVal;
+    if (!rect.width || !rect.height || !vb.width || !vb.height) return rect;
+    const k = Math.min(rect.width / vb.width, rect.height / vb.height);
+    const width = vb.width * k;
+    const height = vb.height * k;
+    return {
+      left: rect.left + (rect.width - width) / 2,
+      top: rect.top + (rect.height - height) / 2,
+      width,
+      height,
+    };
+  }
+
   /** 画面の座標を盤面の座標にする。 */
   _toBoard(clientX, clientY) {
-    const rect = this.svg.getBoundingClientRect();
+    const rect = this._drawnRect();
     const vb = this.svg.viewBox.baseVal;
     return {
       x: vb.x + ((clientX - rect.left) / (rect.width || 1)) * vb.width,
