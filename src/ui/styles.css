@@ -1141,3 +1141,7 @@ body.no-anim .app { transition: none !important; }
 .library li > button.with-icon { font-size: .78rem; padding: 6px 10px; }
 .library li > .icon-btn { width: 30px; height: 30px; }
 .library-empty { font-size: .8rem; color: var(--ink-faint); }
+
+/* メニューのむずかしさの説明 */
+.difficulty-about { margin-top: 4px; }
+.difficulty-about b { color: var(--ink-soft); font-weight: 600; }

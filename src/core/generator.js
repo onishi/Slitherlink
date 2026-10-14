@@ -24,10 +24,26 @@ export function makeRng(seed) {
   };
 }
 
+/**
+ * 難易度。depth は背理法（仮定して矛盾を見る）を何段まで使ってよいか、minDepth は最低何段要るか。
+ * summary と about は、メニューで選ぶときに出す言い表し（どんな読みが要るか）。
+ */
 export const DIFFICULTIES = {
-  easy:   { label: 'やさしい', depth: 0, minDepth: 0, passes: 1 },
-  normal: { label: 'ふつう',   depth: 1, minDepth: 0, passes: 1 },
-  hard:   { label: 'むずかしい', depth: 2, minDepth: 1, passes: 1 },
+  easy: {
+    label: 'やさしい', depth: 0, minDepth: 0, passes: 1,
+    summary: '見れば決まる',
+    about: '数字の本数・点から出る線は 0 か 2 本・輪は 1 つだけ、の 3 つを当てはめていくだけで最後まで解けます。仮定は要りません。数字は多め（マスの半分弱）。',
+  },
+  normal: {
+    label: 'ふつう', depth: 1, minDepth: 0, passes: 1,
+    summary: 'ときどき 1 手先を読む',
+    about: '「ここに線を引いたら…」と 1 か所だけ仮定し、矛盾が出るかで決める場面があります。数字はマスの 4 割ほど。',
+  },
+  hard: {
+    label: 'むずかしい', depth: 2, minDepth: 1, passes: 1,
+    summary: '読みを重ねる',
+    about: '見るだけではたいてい途中で止まり、仮定が要ります。仮定の中でさらに仮定する 2 段の読みが要ることも。数字は少なめ（マスの 3 割ほど）。',
+  },
 };
 
 /**

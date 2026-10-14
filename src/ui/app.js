@@ -26,6 +26,7 @@ const el = {
   board: $('board'),
   size: $('sel-size'),
   difficulty: $('sel-difficulty'),
+  difficultyAbout: $('difficulty-about'),
   newBtn: $('btn-new'),
   undo: $('btn-undo'),
   redo: $('btn-redo'),
@@ -154,11 +155,22 @@ function init() {
   newPuzzle();
 }
 
+/** メニューで選んでいる難易度が、どんな読みの要る問題かをことばで出す。 */
+function describeDifficulty() {
+  const d = DIFFICULTIES[el.difficulty.value];
+  el.difficultyAbout.textContent = '';
+  if (!d) return;
+  const b = document.createElement('b');
+  b.textContent = d.summary;
+  el.difficultyAbout.append(b, `：${d.about}`);
+}
+
 function bindUI() {
   el.newBtn.addEventListener('click', () => { closeMenu(); newPuzzle(); });
   for (const select of [el.size, el.difficulty]) {
-    select.addEventListener('change', () => { savePrefs(); prefetchCurrent(); });
+    select.addEventListener('change', () => { savePrefs(); prefetchCurrent(); describeDifficulty(); });
   }
+  describeDifficulty();
 
   // 完成後に「盤面を見る」で結果を閉じても、盤面をタップすればまた出せるようにする
   el.board.addEventListener('click', () => {
@@ -280,6 +292,7 @@ function bindUI() {
 
 function openMenu() {
   renderLibrary();
+  describeDifficulty();
   el.menuModal.hidden = false;
   el.closeMenu.focus();
 }
