@@ -125,9 +125,8 @@ export class PatternCards {
     const { pattern, fills, places } = item;
     const card = el('article', 'pc-card');
     card.dataset.id = pattern.id;
-
-    const head = el('div', 'pc-head');
-    head.append(el('h3', null, pattern.title), el('span', 'pc-count', `${places} か所`));
+    // 定石名と「N か所」は欄の見出しに出すので、カードには載せない（縦幅を抑える）
+    card.setAttribute('aria-label', `${pattern.title}（${places} か所）`);
 
     const body = el('div', 'pc-body');
     const figure = el('div', 'pc-figure');
@@ -157,7 +156,7 @@ export class PatternCards {
     close.addEventListener('click', () => this.onClose());
     actions.append(reveal, apply, close);
 
-    card.append(head, body, actions);
+    card.append(body, actions);
     return card;
   }
 }
