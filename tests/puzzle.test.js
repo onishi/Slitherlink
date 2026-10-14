@@ -49,3 +49,20 @@ test('持ち込まれた問題を確かめる：解ける・矛盾・解き切�
   const blank = checkPuzzle({ rows: 4, cols: 4, clues: new Int8Array(16).fill(-1) });
   assert.equal(blank.status, 'stuck');
 });
+
+test('問題コードは短い形式で、以前の形式も読める', () => {
+  const old = '10x10:h:2321a0d21c0f11b0d1d20d2a0e0a3b2c0c1d3b11c02a1a2a3a3c0a2b3b1b';
+  const p = decodePuzzle(old);
+  const code = encodePuzzle(p);
+  assert.match(code, /^10h[A-Za-z0-9_-]+$/);
+  assert.ok(code.length < old.length / 2 + 2, `短くなっていない: ${code}`);
+  assert.deepEqual([...decodePuzzle(code).clues], [...p.clues]);
+  assert.equal(decodePuzzle(code).difficulty, 'hard');
+  // 長方形は縦x横
+  const rect = encodePuzzle({ rows: 6, cols: 8, difficulty: 'expert', clues: new Int8Array(48).fill(-1).map((v, i) => (i % 5 ? -1 : i % 4)) });
+  assert.match(rect, /^6x8x/);
+  assert.equal(decodePuzzle(rect).cols, 8);
+  // 本体の長さが合わなければ読まない
+  assert.throws(() => decodePuzzle(code.slice(0, -2)));
+  assert.throws(() => decodePuzzle(code + 'AA'));
+});
