@@ -72,7 +72,7 @@ export class PhotoImport {
     this.playBtn.addEventListener('click', () => this.result && this.handlers.onPlay(this.result));
     this.saveBtn.addEventListener('click', () => {
       if (!this.result) return;
-      this.handlers.onSave(this.result);
+      if (this.handlers.onSave(this.result) === false) return; // ログインを待つ
       this._setSaved(true);
       this.status.textContent = '問題リストに入れました。メニューの「問題リスト」から遊べます。';
     });
@@ -98,6 +98,12 @@ export class PhotoImport {
     this.canvas.width = this.photo.width;
     this.canvas.height = this.photo.height;
     this._draw();
+  }
+
+  /** ログインを待ってから入れたときに、入れたあとの見た目にする。 */
+  markSaved() {
+    this._setSaved(true);
+    this.status.textContent = '問題リストに入れました。メニューの「問題リスト」から遊べます。';
   }
 
   /** 「リストに入れる」を、入れたあとの見た目（色・チェック・文言）にする／戻す。 */

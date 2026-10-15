@@ -102,6 +102,9 @@
     <section class="menu-view" data-view="main">
       <h2 id="menu-title">メニュー</h2>
 
+      <!-- ゲストならログインのボタン、ログイン中なら名前とログアウト -->
+      <div class="account-row" id="account-row"></div>
+
       <button type="button" class="menu-row menu-nav report-row" data-go="report">
         <span class="mi" aria-hidden="true">insights</span>
         <span class="menu-row-text">この問題の難易度 <b id="report-summary"></b></span>
@@ -144,6 +147,10 @@
           <span class="mi" aria-hidden="true">bookmarks</span><span class="menu-row-text">問題リスト <small id="library-count"></small></span>
           <span class="mi chev" aria-hidden="true">chevron_right</span>
         </button>
+        <button type="button" class="menu-row menu-nav" data-go="history">
+          <span class="mi" aria-hidden="true">history</span><span class="menu-row-text">解いた履歴 <small>時間・ヒントの回数</small></span>
+          <span class="mi chev" aria-hidden="true">chevron_right</span>
+        </button>
         <button type="button" class="menu-row menu-nav" data-go="code">
           <span class="mi" aria-hidden="true">qr_code_2</span><span class="menu-row-text">問題コード <small>共有・読み込み</small></span>
           <span class="mi chev" aria-hidden="true">chevron_right</span>
@@ -177,6 +184,16 @@
       </div>
       <button type="button" class="menu-row" id="btn-save-current"><span class="mi" aria-hidden="true">bookmark_add</span>いまの問題をリストに入れる</button>
       <ul class="library" id="library-list"></ul>
+    </section>
+
+    <!-- 解いた履歴（ログイン中だけ） -->
+    <section class="menu-view" data-view="history" hidden>
+      <div class="menu-sub-head">
+        <button type="button" class="icon-btn" data-back aria-label="メニューにもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
+        <h2>解いた履歴</h2>
+        <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
+      </div>
+      <ul class="library" id="history-list"></ul>
     </section>
 
     <!-- 問題コード -->
@@ -238,6 +255,23 @@
     <p class="note">この中の問題はすべて、当てずっぽう無しで<b>論理だけで解ける</b>ことを確認してから出題しています。</p>
     <button type="button" class="rules-link" id="btn-rules-patterns">定石一覧を見る（よく出る形と、そこで決まること）→</button>
     <button type="button" class="primary" id="btn-close-rules">とじる</button>
+  </div>
+</div>
+
+<!-- ログインを促す画面（問題リスト・履歴をゲストが使おうとしたとき） -->
+<div class="modal" id="login-modal" hidden>
+  <div class="modal-card login-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <h2 id="login-title">ログイン</h2>
+    <p class="login-reason" id="login-reason"></p>
+    <ul class="rules login-merits">
+      <li><b>問題リスト</b>：写真から作った問題や、気に入った問題をとっておけます。</li>
+      <li><b>解いた履歴</b>：解いた問題・かかった時間・ヒントの回数が残り、もう一度遊べます。</li>
+      <li><b>どの端末でも</b>：途中の盤面も、スマホとパソコンのあいだで続けられます。</li>
+    </ul>
+    <div class="login-google" id="login-google"></div>
+    <p class="login-status" id="login-status" role="status" aria-live="polite"></p>
+    <p class="hint-text">Google アカウントでログインします。使うのは名前・メールアドレス・アイコンだけです。この端末にあった問題リストと記録は、初めてのログインのときにアカウントへ移します。</p>
+    <button type="button" class="close-btn" id="btn-close-login">あとで</button>
   </div>
 </div>
 

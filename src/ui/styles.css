@@ -1320,3 +1320,21 @@ body.no-anim .app { transition: none !important; }
 /* 画面を切り替えても高さが跳ねないよう、メニューの高さをそろえる */
 .menu-card { min-height: min(600px, 86dvh); }
 .menu-view[data-view="library"] .menu-row { margin: 0 0 10px; }
+
+/* ---------- ログイン ---------- */
+.account-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.account-who { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.account-who > .mi { font-size: 2rem; color: var(--ink-soft); }
+.account-avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; }
+.account-text { display: flex; flex-direction: column; min-width: 0; }
+.account-text b { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-text small { font-size: .72rem; color: var(--ink-faint); }
+.account-logout { flex: none; width: auto; margin: 0; font-size: .78rem; padding: 6px 12px; border-radius: 999px; }
+.account-guest { margin: 0; font-size: .8rem; line-height: 1.6; color: var(--ink-soft); flex: 1 1 100%; }
+.account-google, .login-google { min-height: 44px; display: flex; justify-content: center; flex: 1 1 100%; }
+.login-card { max-width: 440px; }
+.login-reason { margin: 4px 0 10px; font-weight: 600; }
+.login-merits { margin-bottom: 14px; }
+.login-status { margin: 8px 0 0; font-size: .82rem; color: var(--danger); min-height: 0; }
+.login-status:empty { display: none; }
+.login-note { margin: 0; font-size: .8rem; color: var(--ink-faint); }

@@ -12,6 +12,7 @@ import { PhotoImport } from './photo-import.js';
 import { CameraCapture, needsCameraView } from './camera-capture.js';
 import { PuzzleReport } from './puzzle-report.js';
 import { store } from './storage.js';
+import { account } from './account.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -68,6 +69,12 @@ const el = {
   photoPick: $('photo-pick'),
   libraryList: $('library-list'),
   libraryCount: $('library-count'),
+  historyList: $('history-list'),
+  accountRow: $('account-row'),
+  loginModal: $('login-modal'),
+  loginReason: $('login-reason'),
+  loginButton: $('login-google'),
+  loginStatus: $('login-status'),
   reportSummary: $('report-summary'),
   saveCurrent: $('btn-save-current'),
   zoomIn: $('zoom-in'),
@@ -152,13 +159,14 @@ function init() {
 
   bindUI();
   setupPhotoImport();
+  setupAccount();
   if (wantDrawerOpen) openDrawer({ instant: true });
 
   const fromUrl = new URLSearchParams(location.search).get('p');
   // URL の問題が、途中まで解いて保存してある問題と同じなら、続きから
   const saved = store.game();
   if (fromUrl && saved?.code && samePuzzle(fromUrl, saved.code) && restoreSaved()) return;
-  if (fromUrl && tryLoadCode(fromUrl, true)) return;
+  if (fromUrl && tryLoadCode(fromUrl, true)) { game.openedFromUrl = true; return; }
   if (restoreSaved()) return;
   newPuzzle();
 }
@@ -238,7 +246,19 @@ function bindUI() {
   el.rulesBtn.addEventListener('click', () => { el.rulesModal.hidden = false; });
   el.menuBtn.addEventListener('click', openMenu);
   el.closeMenu.addEventListener('click', closeMenu);
-  for (const b of el.menuModal.querySelectorAll('[data-go]')) b.addEventListener('click', () => showMenuView(b.dataset.go));
+  for (const b of el.menuModal.querySelectorAll('[data-go]')) {
+    b.addEventListener('click', () => {
+      const view = b.dataset.go;
+      // 問題リストと解いた履歴はログインした人だけ
+      if ((view === 'library' || view === 'history') && !account.loggedIn) {
+        requireLogin(view === 'library'
+          ? '問題リストを使うには、ログインしてください。'
+          : '解いた履歴を残すには、ログインしてください。', () => { openMenu(); showMenuView(view); });
+        return;
+      }
+      showMenuView(view);
+    });
+  }
   for (const b of el.menuModal.querySelectorAll('[data-back]')) b.addEventListener('click', () => showMenuView('main'));
   for (const b of el.menuModal.querySelectorAll('[data-close]')) b.addEventListener('click', closeMenu);
   el.menuModal.addEventListener('click', (ev) => {
@@ -269,6 +289,7 @@ function bindUI() {
       // 手前に重なっているものから閉じる
       if (camera?.isOpen) { camera.close(); return; }
       if (!el.keysModal.hidden) { el.keysModal.hidden = true; return; }
+      if (!el.loginModal.hidden) { closeLogin(); return; }
       if (isDrawerOpen()) { closeDrawer(); return; }
       if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
       if (isPatternsOpen()) { hidePatterns(); return; }
@@ -324,6 +345,8 @@ let menuView = 'main';
 
 function openMenu() {
   renderLibrary();
+  renderHistory();
+  renderAccount();
   puzzleReport ??= new PuzzleReport(el.puzzleReport, el.reportSummary);
   puzzleReport.show(game.puzzle);
   el.menuModal.hidden = false;
@@ -353,6 +376,121 @@ function closeMenu() {
 }
 
 
+
+/* ---------------- ログイン（Google アカウント） ---------------- */
+
+function setupAccount() {
+  account.onChange = (err) => {
+    renderAccount();
+    if (!el.menuModal.hidden) { renderLibrary(); renderHistory(); }
+    if (err) el.loginStatus.textContent = err.message;
+    else if (account.loggedIn && !el.loginModal.hidden) closeLogin();
+  };
+  // ほかの端末で進めた盤面のほうが新しいとき：この端末でまだ手を動かしていなければ、それに切り替える
+  account.onRemoteGame = () => {
+    // 送られてきたリンク（?p=）で開いた問題は、そのままにする
+    if (game.undoStack?.length || game.solved || game.openedFromUrl) return;
+    if (restoreSaved()) say('ほかの端末で進めていた続きを開きました');
+  };
+  $('btn-close-login').addEventListener('click', closeLogin);
+  el.loginModal.addEventListener('click', (ev) => { if (ev.target === el.loginModal) closeLogin(); });
+  account.init();
+}
+
+/** ログインを促す画面を出す。ログインできたら then を続けて行う。 */
+function requireLogin(reason, then) {
+  account.pending = then ?? null;
+  el.loginReason.textContent = reason;
+  el.loginStatus.textContent = '';
+  el.loginModal.hidden = false;
+  account.renderButton(el.loginButton);
+}
+
+function closeLogin() {
+  el.loginModal.hidden = true;
+  account.pending = null;
+}
+
+/** メニューのいちばん上：ゲストならログインのボタン、ログイン中なら名前とログアウト。 */
+function renderAccount() {
+  const row = el.accountRow;
+  if (!row) return;
+  row.textContent = '';
+  if (account.loggedIn) {
+    const u = account.user;
+    const who = document.createElement('span');
+    who.className = 'account-who';
+    if (u.picture) {
+      const img = document.createElement('img');
+      img.src = u.picture;
+      img.alt = '';
+      img.referrerPolicy = 'no-referrer';
+      img.className = 'account-avatar';
+      who.appendChild(img);
+    } else {
+      who.appendChild(icon('account_circle'));
+    }
+    const text = document.createElement('span');
+    text.className = 'account-text';
+    const name = document.createElement('b');
+    name.textContent = u.name || u.email || 'ログイン中';
+    const sub = document.createElement('small');
+    sub.textContent = 'リスト・履歴・途中の盤面をどの端末でも';
+    text.append(name, sub);
+    who.appendChild(text);
+    const out = document.createElement('button');
+    out.type = 'button';
+    out.className = 'account-logout';
+    out.textContent = 'ログアウト';
+    out.addEventListener('click', () => account.logout());
+    row.append(who, out);
+  } else {
+    const text = document.createElement('p');
+    text.className = 'account-guest';
+    text.textContent = 'ゲストで遊んでいます。ログインすると、問題リストと解いた履歴が使え、途中の盤面もどの端末からでも続けられます。';
+    const btn = document.createElement('div');
+    btn.className = 'account-google';
+    row.append(text, btn);
+    account.pending = null;
+    account.renderButton(btn);
+  }
+}
+
+/** メニューの「解いた履歴」を描く。 */
+function renderHistory() {
+  if (!el.historyList) return;
+  const list = store.history();
+  el.historyList.textContent = '';
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'library-empty';
+    li.textContent = 'まだありません。解き終えた問題がここに残ります。';
+    el.historyList.appendChild(li);
+    return;
+  }
+  for (const h of list) {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.className = 'library-label';
+    const d = new Date(h.solvedAt);
+    const text = document.createElement('span');
+    text.className = 'library-text';
+    const main = document.createElement('b');
+    main.textContent = `${h.rows}×${h.cols} ${DIFFICULTIES[h.difficulty]?.label ?? ''}・${formatTime(h.seconds)}`;
+    const sub = document.createElement('small');
+    const time = `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    sub.textContent = `${time}${h.hints ? `・ヒント ${h.hints} 回` : '・ヒントなし'}`;
+    text.append(main, sub);
+    label.append(icon('task_alt'), text);
+    const play = document.createElement('button');
+    play.type = 'button';
+    play.className = 'with-icon';
+    play.append(icon('replay'), 'もう一度');
+    play.addEventListener('click', () => { if (tryLoadCode(h.code, false)) closeMenu(); });
+    li.append(label, play);
+    el.historyList.appendChild(li);
+  }
+}
 
 /* ---------------- 写真から作問・問題リスト ---------------- */
 
@@ -393,7 +531,18 @@ function setupPhotoImport() {
       startChecked(p);
       say('写真から作った問題です');
     },
-    onSave: (p) => saveToLibrary(p, 'photo'),
+    onSave: (p) => {
+      // 問題リストはログインした人だけ。ログインできたら、そのまま入れる
+      if (!account.loggedIn) {
+        requireLogin('問題リストに入れるには、ログインしてください。', () => {
+          saveToLibrary(p, 'photo');
+          photoImport.markSaved();
+        });
+        return false;
+      }
+      saveToLibrary(p, 'photo');
+      return true;
+    },
   });
   for (const input of [el.photoCamera, el.photoPick]) {
     input.addEventListener('change', () => {
@@ -722,10 +871,15 @@ async function newPuzzle() {
   game.busy = true;
   el.newBtn.disabled = true;
   const slow = difficulty === 'expert' && rows * cols >= 100;
-  const waiting = setTimeout(() => say(slow ? '「鬼」の問題を作っています（大きな盤では少し時間がかかります）…' : '問題を作っています…'), 180);
+  const seq = game.loadSeq;
+  const waiting = setTimeout(() => {
+    if (game.loadSeq === seq) say(slow ? '「鬼」の問題を作っています（大きな盤では少し時間がかかります）…' : '問題を作っています…');
+  }, 180);
   try {
     const puzzle = await service.get(rows, cols, difficulty);
     clearTimeout(waiting);
+    // 作っているあいだに別の問題が開かれた（ほかの端末の続きなど）ときは、そちらを残す
+    if (game.loadSeq !== seq) return;
     startPuzzle(puzzle);
     // 時間内に狙いの難易度が作れなかったときは、本当の難易度を知らせる
     say(puzzle.difficulty !== difficulty
@@ -741,6 +895,7 @@ async function newPuzzle() {
 }
 
 function startPuzzle(puzzle, saved) {
+  game.loadSeq = (game.loadSeq ?? 0) + 1;
   hideHint();
   hidePatterns();
   game.puzzle = puzzle;
@@ -752,6 +907,7 @@ function startPuzzle(puzzle, saved) {
   game.redoStack = [];
   game.pending = [];
   game.elapsed = saved?.elapsed ?? 0;
+  game.hints = saved?.hints ?? 0;
   game.solved = false;
   game.running = false;
   game.lastTick = Date.now();
@@ -804,7 +960,7 @@ function restoreSaved() {
       solution,
       code: encodePuzzle(decoded), // 以前の形式で保存されていても、短い形式にそろえる
       clueCount: countClues(decoded.clues),
-    }, { state, elapsed: saved.elapsed || 0 });
+    }, { state, elapsed: saved.elapsed || 0, hints: saved.hints || 0 });
     prefetchCurrent();
     return true;
   } catch {
@@ -978,6 +1134,12 @@ function checkSolved() {
   const key = `${game.puzzle.rows}x${game.puzzle.cols}:${game.puzzle.difficulty}`;
   const isBest = store.saveRecord(key, game.elapsed);
   game.solvedBest = isBest; // 「盤面を見る」のあと、結果を出し直すときに使う
+  // ログイン中は、解いた問題を履歴に残す（サーバーにも送る）
+  store.addHistory({
+    code: game.puzzle.code || encodePuzzle(game.puzzle),
+    rows: game.puzzle.rows, cols: game.puzzle.cols, difficulty: game.puzzle.difficulty,
+    seconds: game.elapsed, hints: game.hints ?? 0,
+  });
   store.clearGame();
   say('');
   // 完成した輪をひと目見せてからお知らせを出す
@@ -1078,6 +1240,7 @@ function toggleHint() {
 
 function showHint() {
   if (game.solved) return;
+  game.hints = (game.hints ?? 0) + 1; // 解いた履歴に、ヒントを見た回数として残す
   hidePatterns();
   hints = findHints(game.grid, game.puzzle.clues, game.state, game.puzzle.solution);
   showHintAt(0);
@@ -1314,6 +1477,7 @@ function persist() {
     code: game.puzzle.code || encodePuzzle(game.puzzle),
     edges,
     elapsed: game.elapsed,
+    hints: game.hints ?? 0,
     solution: Array.from(game.puzzle.solution),
   });
 }

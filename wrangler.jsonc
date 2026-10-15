@@ -1,9 +1,26 @@
 {
-  // 静的ファイルだけの Worker (Cloudflare Workers Static Assets)。
-  // `npm run build:site` で作った _site/ をそのまま配信する。
+  // 静的ファイル（`npm run build:site` で作る _site/）と、/api/ を受けるサーバー（server/worker.js）。
+  // /api/ 以外はサーバーを通さず、静的ファイルをそのまま返す。
   "name": "gridloop",
+  "main": "server/worker.js",
   "compatibility_date": "2026-09-17",
   "assets": {
-    "directory": "./_site"
+    "directory": "./_site",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  // ログインした人の問題リスト・履歴・自己ベスト・途中の盤面（スキーマは migrations/）
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gridloop",
+      "database_id": "25ff1089-28c5-48d4-929b-1b3b036ab495",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    // Google Cloud Console で作る「OAuth 2.0 クライアント ID（ウェブ アプリケーション）」。
+    // 空のあいだは、ログインのボタンを出さない（ゲストとしてだけ遊べる）。
+    "GOOGLE_CLIENT_ID": ""
   }
 }
