@@ -146,11 +146,25 @@ export function rateImported(puzzle) {
  *   freeShare     最初に仮定が要るまでに決まる割合（%）。仮定が要らなければ 100
  *   assumeCount   仮定が要る回数
  *   longestSteps  いちばん長い読み（仮定してから矛盾が出るまでの手数）。仮定が要らなければ 0
+ *   coverage      線の行き渡り率（%）：4 辺のどれかが線になるマスの割合。角だけ触れるマスは数えない
  * 数字の個数（clueCount）と 5 段階の難易度は、もとから別に持っている。
+ * @param {{rows:number, cols:number}} [size] 盤の大きさ（行き渡り率を出すのに使う。無ければ coverage は null）
  */
-export function problemStats(report, solution) {
+export function problemStats(report, solution, size) {
   const pct = (x) => Math.round(x * 100);
+  let coverage = null;
+  if (solution && size) {
+    const grid = getGrid(size.rows, size.cols);
+    let touched = 0;
+    for (let cell = 0; cell < grid.cellCount; cell++) {
+      for (let k = 0; k < 4; k++) {
+        if (solution[grid.cellEdges[cell * 4 + k]] === LINE) { touched++; break; }
+      }
+    }
+    coverage = pct(touched / grid.cellCount);
+  }
   return {
+    coverage,
     loopLength: solution ? Array.prototype.reduce.call(solution, (n, v) => n + (v === LINE ? 1 : 0), 0) : null,
     patternShare: pct((report.decided.plain + report.decided.search) / report.total),
     freeShare: pct(report.beforeAssume),

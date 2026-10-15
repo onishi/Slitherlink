@@ -35,7 +35,15 @@
         <button type="submit" class="primary"><span class="mi" aria-hidden="true">add</span>作る</button>
       </form>
       <ul class="admin-book-list" id="book-list"></ul>
+      <button type="button" class="admin-compare-btn" id="open-compare"><span class="mi" aria-hidden="true">compare_arrows</span>スキャンと自動作問をくらべる</button>
     </aside>
+
+    <!-- 出どころ（スキャン／自動作問）ごとに、目安の平均をくらべる -->
+    <section class="admin-book admin-compare" id="compare" hidden>
+      <h2>スキャンと自動作問をくらべる</h2>
+      <p class="hint-text">全部の問題集の問題を、出どころごとに平均します。盤の大きさで目安が変わるので、大きさごとにも分けています。数字と線の本数は、マス数に対する割合です。</p>
+      <div id="compare-body"></div>
+    </section>
 
     <!-- 選んだ問題集 -->
     <section class="admin-book" id="book" hidden>

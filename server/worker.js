@@ -338,6 +338,7 @@ function bookRow(r) {
 async function admin(request, db, url) {
   const method = request.method;
   const parts = url.pathname.split('/').filter(Boolean).slice(2); // ['books', id, 'problems', pid]
+  if (parts[0] === 'compare' && parts.length === 1 && method === 'GET') return compareOrigins(db);
   if (parts[0] !== 'books') throw new HttpError(404, 'ありません');
   const now = Date.now();
 
@@ -372,9 +373,11 @@ async function admin(request, db, url) {
       problems: results.map((p) => ({
         id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols,
         difficulty: p.difficulty, clueCount: p.clue_count, source: p.source, createdAt: p.created_at,
-        stats: p.pattern_share == null ? null : {
+        origin: p.origin,
+        // 目安がそろっていないもの（行き渡り率を足す前に入れた問題など）は、管理画面で計算し直して埋める
+        stats: p.pattern_share == null || p.coverage == null ? null : {
           loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
-          assumeCount: p.assume_count, longestSteps: p.longest_steps,
+          assumeCount: p.assume_count, longestSteps: p.longest_steps, coverage: p.coverage,
         },
       })),
     });
@@ -416,10 +419,10 @@ async function admin(request, db, url) {
       pos += 1;
       statements.push(db.prepare(
         `INSERT INTO book_problems (book_id, position, code, rows, cols, difficulty, clue_count, source, created_at,
-           loop_length, pattern_share, free_share, assume_count, longest_steps)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
+           loop_length, pattern_share, free_share, assume_count, longest_steps, coverage, origin)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
       ).bind(id, pos, e.code, e.rows, e.cols, e.difficulty, e.clueCount, text(raw.source, 200) || null, now,
-        st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps));
+        st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps, st.coverage, cleanOrigin(raw.origin)));
     }
     statements.push(db.prepare('UPDATE books SET updated_at = ? WHERE id = ?').bind(now, id));
     await db.batch(statements);
@@ -444,8 +447,8 @@ async function admin(request, db, url) {
       if (st.patternShare == null) throw new HttpError(400, '目安の形が違います');
       await db.prepare(
         `UPDATE book_problems SET loop_length = ?, pattern_share = ?, free_share = ?, assume_count = ?, longest_steps = ?,
-           difficulty = COALESCE(?, difficulty) WHERE id = ? AND book_id = ?`,
-      ).bind(st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps,
+           coverage = ?, difficulty = COALESCE(?, difficulty) WHERE id = ? AND book_id = ?`,
+      ).bind(st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps, st.coverage,
         shortText(difficulty), pid, id).run();
       return json({ ok: true });
     }
@@ -464,11 +467,35 @@ async function admin(request, db, url) {
   throw new HttpError(404, 'ありません');
 }
 
+/**
+ * 出どころ（スキャン／自動作問）ごとに、目安の平均をくらべる。盤の大きさで目安が変わるので、大きさごとにも分ける。
+ * 数字の個数と線の本数は、マス数で割った割合（%）にしてくらべやすくする。
+ */
+async function compareOrigins(db) {
+  const metrics = `COUNT(*) AS count,
+    AVG(100.0 * clue_count / (rows * cols)) AS clueDensity,
+    AVG(100.0 * loop_length / (rows * cols)) AS loopPerCell,
+    AVG(pattern_share) AS patternShare, AVG(free_share) AS freeShare,
+    AVG(assume_count) AS assumeCount, AVG(longest_steps) AS longestSteps, AVG(coverage) AS coverage`;
+  const [all, bySize, levels] = await db.batch([
+    db.prepare(`SELECT COALESCE(origin, 'unknown') AS origin, ${metrics} FROM book_problems GROUP BY 1 ORDER BY 1`),
+    db.prepare(`SELECT COALESCE(origin, 'unknown') AS origin, rows, cols, ${metrics} FROM book_problems
+      GROUP BY 1, rows, cols ORDER BY rows * cols, rows, 1`),
+    db.prepare(`SELECT COALESCE(origin, 'unknown') AS origin, difficulty, COUNT(*) AS count FROM book_problems GROUP BY 1, 2`),
+  ]);
+  return json({ all: all.results, bySize: bySize.results, levels: levels.results });
+}
+
+/** 問題の出どころ。決まった値のほかは入れない。 */
+const ORIGINS = ['scan', 'generated'];
+const cleanOrigin = (v) => (ORIGINS.includes(v) ? v : null);
+
 /** 難易度のほかの目安。おかしな値は入れない（無いものは NULL）。 */
 function cleanStats(st) {
   const n = (v, hi) => (Number.isFinite(v) ? Math.max(0, Math.min(hi, Math.round(v))) : null);
-  if (!st || typeof st !== 'object') return { loopLength: null, patternShare: null, freeShare: null, assumeCount: null, longestSteps: null };
+  if (!st || typeof st !== 'object') return { loopLength: null, patternShare: null, freeShare: null, assumeCount: null, longestSteps: null, coverage: null };
   return {
+    coverage: n(st.coverage, 100),
     loopLength: n(st.loopLength, 7200),
     patternShare: n(st.patternShare, 100),
     freeShare: n(st.freeShare, 100),

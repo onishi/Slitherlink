@@ -1479,3 +1479,12 @@ body.no-anim .app { transition: none !important; }
 .admin-generate .field:has(select) { width: auto; }
 .admin-generate button { width: auto; margin: 0; display: inline-flex; align-items: center; gap: 4px; }
 .admin-generate button[hidden] { display: none; }
+.admin-compare-btn { width: 100%; margin: 12px 0 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: .84rem; }
+.admin-compare[hidden] { display: none; }
+.admin-compare #compare-body { overflow-x: auto; }
+.admin-compare-table { border-collapse: collapse; font-size: .82rem; margin-bottom: 8px; white-space: nowrap; }
+.admin-compare-table th, .admin-compare-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); text-align: right; }
+.admin-compare-table th { font-weight: 600; color: var(--ink-soft); font-size: .76rem; }
+.admin-compare-table th:first-child, .admin-compare-table td.admin-compare-origin { text-align: left; }
+.admin-compare-table tr.is-scan td.admin-compare-origin { color: var(--accent); font-weight: 600; }
+.admin-compare-table tr.is-generated td.admin-compare-origin { color: var(--ink); font-weight: 600; }

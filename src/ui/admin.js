@@ -108,6 +108,7 @@ function renderBooks() {
 
 async function openBook(id) {
   current = await api(`/api/admin/books/${id}`);
+  $('compare').hidden = true;
   $('book').hidden = false;
   $('book-title').value = current.book.title;
   $('book-desc').value = current.book.description;
@@ -130,7 +131,7 @@ function renderProblems() {
     const text = el('span', 'admin-problem-text');
     text.append(
       el('b', null, `${p.position}. ${p.rows}×${p.cols} ${DIFFICULTIES[p.difficulty]?.label ?? ''}`),
-      el('small', null, `数字 ${p.clueCount}${p.source ? `・${p.source}` : ''}`),
+      el('small', null, `${ORIGIN_LABEL[p.origin] ?? '出どころ不明'}・数字 ${p.clueCount}${p.source ? `・${p.source}` : ''}`),
       statsLine(p.stats),
     );
     const play = el('a', 'admin-link');
@@ -162,6 +163,7 @@ function statsLine(st) {
     chip('定石', `${st.patternShare}%`, '定石（ふつう・読み）だけで決まる辺の割合'),
     chip('仮定なし', `${st.freeShare}%`, '最初に仮定が要るまでに決まる割合（要らなければ 100%）'),
     chip('仮定', st.assumeCount ? `${st.assumeCount} 回・最長 ${st.longestSteps} 手` : 'なし', '仮定が要る回数と、いちばん長い読みの手数'),
+    chip('行き渡り', `${st.coverage}%`, '線の行き渡り率：4 辺のどれかが線になるマスの割合'),
   );
   return line;
 }
@@ -180,7 +182,7 @@ async function fillMissingStats() {
         r = await checker(d.rows, d.cols, d.clues);
       } catch { continue; }
       if (!r.ok || r.status !== 'ok' || !r.report) continue;
-      const stats = problemStats(r.report, r.solution);
+      const stats = problemStats(r.report, r.solution, p);
       await api(`/api/admin/books/${bookId}/problems/${p.id}`, { method: 'PATCH', body: { stats, difficulty: r.difficulty } });
       if (current?.book.id !== bookId) return;
       // 計算しているあいだに読み直していても、いま出している方を直す
@@ -214,7 +216,73 @@ async function removeProblem(p) {
   await loadBooks(current.book.id);
 }
 
+/* ---------------- スキャンと自動作問をくらべる ---------------- */
+
+const ORIGIN_LABEL = { scan: 'スキャン', generated: '自動作問', unknown: '出どころ不明' };
+const COMPARE_COLS = [
+  ['count', '問題数', (v) => `${v}`],
+  ['clueDensity', '数字の割合', (v) => `${v.toFixed(0)}%`],
+  ['loopPerCell', '線の本数／マス', (v) => `${(v / 100).toFixed(2)}`],
+  ['coverage', '行き渡り', (v) => `${v.toFixed(0)}%`],
+  ['patternShare', '定石', (v) => `${v.toFixed(0)}%`],
+  ['freeShare', '仮定なし', (v) => `${v.toFixed(0)}%`],
+  ['assumeCount', '仮定の回数', (v) => v.toFixed(1)],
+  ['longestSteps', '最長の読み', (v) => `${v.toFixed(1)} 手`],
+];
+
+function compareTable(rows, withSize) {
+  const table = el('table', 'admin-compare-table');
+  const head = el('tr');
+  head.append(el('th', null, '出どころ'));
+  if (withSize) head.append(el('th', null, '大きさ'));
+  for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
+  table.append(head);
+  for (const r of rows) {
+    const tr = el('tr', `is-${r.origin}`);
+    tr.append(el('td', 'admin-compare-origin', ORIGIN_LABEL[r.origin] ?? r.origin));
+    if (withSize) tr.append(el('td', null, `${r.rows}×${r.cols}`));
+    for (const [key, , fmt] of COMPARE_COLS) tr.append(el('td', null, r[key] == null ? '—' : fmt(r[key])));
+    table.append(tr);
+  }
+  return table;
+}
+
+async function openCompare() {
+  $('book').hidden = true;
+  $('compare').hidden = false;
+  current = null;
+  renderBooks();
+  const body = $('compare-body');
+  body.textContent = '調べています…';
+  const data = await api('/api/admin/compare');
+  body.textContent = '';
+  if (!data.all.length) {
+    body.append(el('p', 'admin-empty', 'まだ問題がありません。'));
+    return;
+  }
+  body.append(el('h3', null, '全体'), compareTable(data.all, false));
+  // 難易度の内訳（出どころごとに、5 段階それぞれ何問か）
+  const levels = el('table', 'admin-compare-table');
+  const head = el('tr');
+  head.append(el('th', null, '出どころ'));
+  for (const k of LEVEL_ORDER) head.append(el('th', null, DIFFICULTIES[k].label));
+  levels.append(head);
+  for (const origin of [...new Set(data.levels.map((r) => r.origin))].sort()) {
+    const tr = el('tr', `is-${origin}`);
+    tr.append(el('td', 'admin-compare-origin', ORIGIN_LABEL[origin] ?? origin));
+    const total = data.levels.filter((r) => r.origin === origin).reduce((n, r) => n + r.count, 0);
+    for (const k of LEVEL_ORDER) {
+      const n = data.levels.find((r) => r.origin === origin && r.difficulty === k)?.count ?? 0;
+      tr.append(el('td', null, n ? `${n}（${Math.round((n / total) * 100)}%）` : '—'));
+    }
+    levels.append(tr);
+  }
+  body.append(el('h3', null, '難易度の内訳'), levels);
+  body.append(el('h3', null, '大きさごと'), compareTable(data.bySize, true));
+}
+
 function bindBooks() {
+  $('open-compare').addEventListener('click', () => openCompare());
   $('new-book').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const title = $('new-book-title').value.trim();
@@ -362,7 +430,7 @@ function applyCheck(item, rows, cols, r) {
     item.state = 'ok';
     item.result = {
       code: r.code, rows, cols, difficulty: r.difficulty, clueCount: r.clueCount,
-      stats: r.report ? problemStats(r.report, r.solution) : null,
+      stats: r.report ? problemStats(r.report, r.solution, { rows, cols }) : null,
     };
     item.message = `${rows}×${cols}・${DIFFICULTIES[r.difficulty]?.label ?? ''}・数字 ${r.clueCount}`;
   } else {
@@ -445,7 +513,7 @@ const editor = new PhotoImport({
     editing.state = 'ok';
     editing.result = {
       code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount,
-      stats: p.report ? problemStats(p.report, p.solution) : null,
+      stats: p.report ? problemStats(p.report, p.solution, p) : null,
     };
     editing.message = `${p.rows}×${p.cols}・${DIFFICULTIES[p.difficulty]?.label ?? ''}・数字 ${p.clueCount}（直したもの）`;
     renderQueue();
@@ -472,7 +540,7 @@ async function addSolved() {
   try {
     const res = await api(`/api/admin/books/${current.book.id}/problems`, {
       method: 'POST',
-      body: { problems: ready.map((q) => ({ ...q.result, source: q.name })) },
+      body: { problems: ready.map((q) => ({ ...q.result, source: q.name, origin: q.generated ? 'generated' : 'scan' })) },
     });
     queue = queue.filter((q) => q.state !== 'ok');
     renderQueue();
