@@ -8,6 +8,8 @@
 
 import { store } from './storage.js';
 
+export { api };
+
 const GSI_SRC = 'https://accounts.google.com/gsi/client';
 
 async function api(path, { method = 'GET', body, keepalive = false } = {}) {
@@ -54,6 +56,7 @@ export const account = {
   user: store.cachedUser(),
   clientId: null,
   ready: false,
+  isAdmin: false,
   /** ログイン・ログアウト・同期のたびに呼ぶ（app.js が画面を描き直す）。 */
   onChange: () => {},
   /** サーバーの途中の盤面が、この端末のものより新しかったとき。 */
@@ -70,6 +73,7 @@ export const account = {
     try {
       const [config, me] = await Promise.all([api('/api/config'), api('/api/me')]);
       this.clientId = config?.googleClientId || null;
+      this.isAdmin = !!me?.isAdmin;
       if (me?.user) {
         this._setUser(me.user);
         await this.sync();
@@ -137,6 +141,7 @@ export const account = {
     try {
       const res = await api('/api/login', { method: 'POST', body: { credential } });
       this._setUser(res.user);
+      this.isAdmin = !!(await api('/api/me').catch(() => null))?.isAdmin;
       if (res.needsImport) {
         // 初めてのログイン：この端末にあったゲストのデータをアカウントへ
         await api('/api/import', { method: 'POST', body: store.guestData() }).catch(() => {});
@@ -155,6 +160,7 @@ export const account = {
     try { await api('/api/logout', { method: 'POST', body: {} }); } catch { /* 手元だけでも抜ける */ }
     window.google?.accounts?.id?.disableAutoSelect();
     this._setUser(null);
+    this.isAdmin = false;
     store.clearAccountCopy();
     this.onChange();
   },

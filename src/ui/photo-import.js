@@ -18,10 +18,17 @@ export class PhotoImport {
    * @param {object} handlers
    * @param {(puzzle:object)=>void} handlers.onPlay 確かめた問題で遊ぶ
    * @param {(puzzle:object)=>void} handlers.onSave 問題リストに入れる
+   * @param {object} [handlers.saveText] 「入れる」ボタンの文言 { idle, done, message }（管理画面では問題集向けに変える）
    */
   constructor(parts, handlers) {
     Object.assign(this, parts);
     this.handlers = handlers;
+    this.saveText = {
+      idle: 'リストに入れる',
+      done: 'リストに入れました',
+      message: '問題リストに入れました。メニューの「問題リスト」から遊べます。',
+      ...handlers.saveText,
+    };
     this.photo = null;
     this.corners = null;
     this.clues = null;
@@ -74,7 +81,7 @@ export class PhotoImport {
       if (!this.result) return;
       if (this.handlers.onSave(this.result) === false) return; // ログインを待つ
       this._setSaved(true);
-      this.status.textContent = '問題リストに入れました。メニューの「問題リスト」から遊べます。';
+      this.status.textContent = this.saveText.message;
     });
     this.closeBtn.addEventListener('click', () => this.close());
     this.modal.addEventListener('click', (ev) => { if (ev.target === this.modal) this.close(); });
@@ -103,7 +110,7 @@ export class PhotoImport {
   /** ログインを待ってから入れたときに、入れたあとの見た目にする。 */
   markSaved() {
     this._setSaved(true);
-    this.status.textContent = '問題リストに入れました。メニューの「問題リスト」から遊べます。';
+    this.status.textContent = this.saveText.message;
   }
 
   /** 「リストに入れる」を、入れたあとの見た目（色・チェック・文言）にする／戻す。 */
@@ -112,7 +119,7 @@ export class PhotoImport {
     if (b.classList.contains('is-saved') === saved) return;
     b.classList.toggle('is-saved', saved);
     b.querySelector('.mi').textContent = saved ? 'bookmark_added' : 'bookmark_add';
-    b.querySelector('.photo-save-label').textContent = saved ? 'リストに入れました' : 'リストに入れる';
+    b.querySelector('.photo-save-label').textContent = saved ? this.saveText.done : this.saveText.idle;
     if (saved) b.disabled = true; // 同じ問題を何度も入れない
   }
 

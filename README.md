@@ -372,6 +372,20 @@ Cloudflare D1（データベース名 `gridloop`、スキーマは `migrations/`
 データベースの変更は、公開のたびに `wrangler d1 migrations apply gridloop --remote` で当てます（GitHub Actions でも同じ）。
 手元で試すときは `npm run build:site` のあと `npx wrangler dev`（D1 は手元の写しを使います）。
 
+### 問題集と管理画面（`/admin`）
+
+管理者は `/admin`（`admin.html`）で問題集を作り、問題をまとめて登録できます。管理者は `wrangler.jsonc` の
+`vars.ADMIN_USER_IDS`（Google のアカウント ID、カンマ区切り）か `ADMIN_EMAILS` で決めます。管理者でなければ画面もサーバーも使えません。
+
+- 問題集：名前・説明・公開するか（遊ぶ人への見せ方はこれから）。消すと中の問題も消えます。
+- まとめて登録：画像・画像をまとめた zip・PDF を落とすと、1 枚（PDF なら 1 ページ）を 1 問として、
+  写真から作るときと同じ仕組みで盤の四隅とマス数を見つけ、数字を読み、論理だけで解けるかまでブラウザの中で確かめます。
+  解けたものだけを「解けたものを足す」で登録します。うまく読めなかったものは「直す」で、写真から作るときと同じ画面で直せます。
+  - zip の中は、ファイル名の数の順（1, 2, …, 10）に並べます。名前が Shift_JIS の zip も読めます（`src/ui/zip.js`）。
+  - PDF は pdf.js（`src/vendor/pdfjs`、Apache-2.0）でページを画像にします（`src/ui/pdf-pages.js`）。
+  - 同じ問題集に同じ問題はもう一度入りません（飛ばした数を知らせます）。
+- 入っている問題：順番の入れ替え・外す・遊んで確かめる（新しいタブで開く）。
+
 ### GitHub Pages（手動）
 
 `.github/workflows/pages.yml` を Actions タブから手動実行すると GitHub Pages へ配信します。
@@ -499,6 +513,10 @@ src/ui/digit-model.js  手書き数字のネットの重み（tools/train-digits
 src/ui/photo-import.js  写真から問題を作る画面
 src/ui/camera-capture.js パソコンのカメラで問題を撮る画面
 src/ui/account.js       Google アカウントでのログインと、サーバーとの同期
+src/ui/admin.js         管理画面（問題集の登録）
+src/ui/zip.js           zip の中身を取り出す
+src/ui/pdf-pages.js     PDF のページを画像にする
+src/vendor/pdfjs/       pdf.js（そのまま置いたもの）
 src/ui/puzzle-report.js メニューの「この問題の難易度」（写真から作るときの分析も同じ描き方）
 src/worker/            作問ワーカー・持ち込まれた問題を確かめるワーカー
 tools/                 開発用サーバ・検証スクリプト・公開用ビルド・定石の洗い出しと出番の実測

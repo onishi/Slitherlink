@@ -8,7 +8,8 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8');
+const SCHEMA = ['0001_init.sql', '0002_books.sql']
+  .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
 function fakeD1() {
@@ -66,6 +67,7 @@ beforeEach(() => {
   env = {
     DB: fakeD1(),
     GOOGLE_CLIENT_ID: CLIENT_ID,
+    ADMIN_USER_IDS: 'admin-1',
     ASSETS: { fetch: async () => new Response('static') },
   };
 });
@@ -222,4 +224,61 @@ test('ログアウトするとセッションが使えなくなる', async () =>
   const out = await call('/api/logout', { method: 'POST', cookie, body: {} });
   assert.match(out.setCookie, /Max-Age=0/);
   assert.equal((await call('/api/me', { cookie })).data.user, null);
+});
+
+test('管理者だけが問題集を作れる', async () => {
+  const user = await loginAs({ sub: 'user-1' });
+  assert.equal((await call('/api/me', { cookie: user.cookie })).data.isAdmin, false);
+  assert.equal((await call('/api/admin/books', { cookie: user.cookie })).status, 403);
+  assert.equal((await call('/api/admin/books', { method: 'POST', cookie: user.cookie, body: { title: 'x' } })).status, 403);
+  const admin = await loginAs({ sub: 'admin-1' });
+  assert.equal((await call('/api/me', { cookie: admin.cookie })).data.isAdmin, true);
+});
+
+test('問題集を作り、問題をまとめて足し、並べ替え・外し・消す', async () => {
+  const { cookie } = await loginAs({ sub: 'admin-1' });
+  const created = await call('/api/admin/books', { method: 'POST', cookie, body: { title: ' 初級編 ', description: '入門向け' } });
+  assert.equal(created.status, 200);
+  const id = created.data.book.id;
+  assert.equal(created.data.book.title, '初級編');
+  assert.equal((await call('/api/admin/books', { method: 'POST', cookie, body: { title: '  ' } })).status, 400);
+
+  const add = await call(`/api/admin/books/${id}/problems`, {
+    method: 'POST', cookie, body: { problems: [
+      { code: '5nAAA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, source: 'a.png' },
+      { code: '5eBBB', rows: 5, cols: 5, difficulty: 'easy', clueCount: 11, source: 'b.pdf p.2' },
+      { code: '5nAAA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9 },
+    ] },
+  });
+  assert.deepEqual(add.data, { ok: true, added: 2, skipped: 1 });
+  // 同じ問題をもう一度足しても増えない
+  const again = await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [{ code: '5eBBB', rows: 5, cols: 5 }, { code: '7hCCC', rows: 7, cols: 7, difficulty: 'hard' }] } });
+  assert.deepEqual(again.data, { ok: true, added: 1, skipped: 1 });
+
+  let detail = (await call(`/api/admin/books/${id}`, { cookie })).data;
+  assert.deepEqual(detail.problems.map((p) => [p.position, p.code]), [[1, '5nAAA'], [2, '5eBBB'], [3, '7hCCC']]);
+  assert.equal(detail.problems[1].source, 'b.pdf p.2');
+
+  // 3 番目を上へ
+  await call(`/api/admin/books/${id}/problems/${detail.problems[2].id}`, { method: 'PATCH', cookie, body: { move: 'up' } });
+  detail = (await call(`/api/admin/books/${id}`, { cookie })).data;
+  assert.deepEqual(detail.problems.map((p) => p.code), ['5nAAA', '7hCCC', '5eBBB']);
+
+  // 1 番目を外すと、番号が詰まる
+  await call(`/api/admin/books/${id}/problems/${detail.problems[0].id}`, { method: 'DELETE', cookie });
+  detail = (await call(`/api/admin/books/${id}`, { cookie })).data;
+  assert.deepEqual(detail.problems.map((p) => [p.position, p.code]), [[1, '7hCCC'], [2, '5eBBB']]);
+
+  await call(`/api/admin/books/${id}`, { method: 'PATCH', cookie, body: { title: '初級編（改）', published: true } });
+  const list = (await call('/api/admin/books', { cookie })).data.books;
+  assert.equal(list[0].title, '初級編（改）');
+  assert.equal(list[0].published, true);
+  assert.equal(list[0].count, 2);
+
+  // 形のおかしい問題コードは入れない
+  assert.equal((await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [{ code: '<x>' }] } })).status, 400);
+
+  await call(`/api/admin/books/${id}`, { method: 'DELETE', cookie });
+  assert.equal((await call(`/api/admin/books/${id}`, { cookie })).status, 404);
+  assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM book_problems').get().n, 0);
 });

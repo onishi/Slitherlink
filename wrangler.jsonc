@@ -21,6 +21,8 @@
   "vars": {
     // Google Cloud Console で作る「OAuth 2.0 クライアント ID（ウェブ アプリケーション）」。
     // 空のあいだは、ログインのボタンを出さない（ゲストとしてだけ遊べる）。
-    "GOOGLE_CLIENT_ID": "339383816875-nuunqktbm4l51fru6smlu3bdn88581r1.apps.googleusercontent.com"
+    "GOOGLE_CLIENT_ID": "339383816875-nuunqktbm4l51fru6smlu3bdn88581r1.apps.googleusercontent.com",
+    // 管理画面（問題集の登録）を使える人の Google アカウント ID。カンマで区切って何人でも
+    "ADMIN_USER_IDS": "108193154093310170202"
   }
 }
