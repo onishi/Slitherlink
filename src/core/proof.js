@@ -9,6 +9,7 @@
  *   clue_full / clue_rest         数字の本数
  *   vertex_two / vertex_pair / vertex_dead  交点の線は 0 本か 2 本
  *   loop_closed / loop_done       輪はひとつだけ
+ *   parity                        輪の内側と外側（線をまたぐと入れ替わり、× をまたぐと同じまま）
  *   case                          さらに仮定を 1 つ置くと矛盾する（入れ子の証明つき）
  *
  * どの手にも「何が分かっていたからそう決まったか」（premises）が付いていて、
@@ -59,6 +60,14 @@ export function directProof(grid, clues, base, edge) {
     if (line === 2) return make(CROSS, { rule: 'vertex_two', vertex: v });
     if (line === 1 && unknown === 1) return make(LINE, { rule: 'vertex_pair', vertex: v });
     if (line === 0 && unknown === 1) return make(CROSS, { rule: 'vertex_dead', vertex: v });
+  }
+
+  // 内側と外側：両側のマスの関係が、確定した辺をたどって分かっている
+  {
+    const [a, b] = base.edgeSides(edge);
+    const [ra, pa] = base.pfind(a);
+    const [rb, pb] = base.pfind(b);
+    if (ra === rb) return make(pa ^ pb ? LINE : CROSS, { rule: 'parity' });
   }
 
   if (base.lineCount > 0) {
@@ -239,6 +248,10 @@ function checkStep(grid, clues, s, step) {
     }
     return true;
   }
+  if (rule === 'parity') {
+    const p = pathParity(grid, step.path, known, edge);
+    return p !== null && value === (p ? LINE : CROSS);
+  }
   if (rule === 'case') {
     const sub = step.sub;
     if (!sub || sub.kind !== 'contradiction' || sub.edge !== edge || sub.value !== value) return false;
@@ -271,6 +284,12 @@ function checkClash(grid, clues, s, clash) {
     if (!clash.cycle.every((e) => known(e) === LINE)) return false;
     return isCycle(grid, clash.cycle) && witnessHolds(grid, clues, known, clash.cycle, clash.witness);
   }
+  if (clash.kind === 'parity') {
+    // 確定した辺をたどった内外の関係と、その辺の印が食い違う
+    const p = pathParity(grid, clash.path, known, clash.edge);
+    const v = known(clash.edge);
+    return p !== null && v !== UNKNOWN && (v === LINE ? 1 : 0) !== p;
+  }
   if (clash.kind === 'conflict') {
     // 同じ辺が、すでに付いている印と逆の値に決まってしまう
     if (s[clash.edge] !== opposite(clash.value)) return false;
@@ -279,6 +298,32 @@ function checkClash(grid, clues, s, clash) {
     return checkStep(grid, clues, t, { edge: clash.edge, value: clash.value, ...clash.reason });
   }
   return false;
+}
+
+/**
+ * 辺 edge の片側から、確定した辺 path を順にまたいで反対側まで行けるか。行けたら、
+ * またいだ線の本数の偶奇（1 なら両側は内外が反対）を返す。行けなければ null。
+ */
+function pathParity(grid, path, known, edge) {
+  if (!Array.isArray(path)) return null;
+  const sides = (e) => {
+    const cs = grid.edgeCells[e];
+    return cs.length === 2 ? [cs[0], cs[1]] : [cs[0], grid.cellCount];
+  };
+  const [a, b] = sides(edge);
+  let node = a;
+  let p = 0;
+  for (const e of path) {
+    if (e === edge) return null;
+    const v = known(e);
+    if (v === UNKNOWN) return null;
+    const [u, w] = sides(e);
+    if (u === node) node = w;
+    else if (w === node) node = u;
+    else return null;
+    if (v === LINE) p ^= 1;
+  }
+  return node === b ? p : null;
 }
 
 function cellSides(grid, cell) {

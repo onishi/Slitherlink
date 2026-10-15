@@ -6,7 +6,10 @@
  *   R1 数字の充足    : 周囲の線が数字に達したら残りは ×、足りない分が確定なら残りは線
  *   R2 頂点の次数    : 各頂点の線は 0 本か 2 本
  *   R3 閉路の禁止    : まだ全体が完成しないのにループを閉じる辺は ×
- *   R4 背理法(深さ d): ある辺を仮定すると R1〜R3 だけで矛盾 → 反対の値に確定
+ *   R5 内側と外側    : どのマスも輪の内側か外側。線をまたぐと入れ替わり、× をまたぐと同じまま。
+ *                      2 つのマスの関係が、確定した辺をたどって分かっていれば、その間の辺も決まる
+ *                      （盤の外は外側。大きな盤の問題では、これが要ることがある）
+ *   R4 背理法(深さ d): ある辺を仮定すると R1〜R3, R5 だけで矛盾 → 反対の値に確定
  *
  * R4 の深さ 0 = 純粋な伝播のみ。深さ 1 で「3 が隣り合う」「角の 1」などの
  * 定石パターンはすべて導ける。
@@ -24,6 +27,7 @@ export const RULE_LABELS = {
   vertex_dead: 'ここに線を引くと行き止まりになる',
   loop_closed: 'ここで輪を閉じると小さな輪ができてしまう',
   loop_done: '輪が完成したので残りの辺はすべて×',
+  parity: '両側のマスが輪の内側か外側かが、ほかの線と×から分かっている',
   assume_line: 'ここに線を引くと矛盾する（背理法）',
   assume_cross: 'ここを×にすると矛盾する（背理法）',
 };
@@ -78,6 +82,15 @@ export class SolveState {
     this.vertexUnknown = new Int8Array(vertexCount);
     for (let v = 0; v < vertexCount; v++) this.vertexUnknown[v] = grid.vertexEdges[v].length;
     this.dsu = new DSU(vertexCount);
+    // R5：マス（と盤の外 = cellCount 番）の内外の関係。親との関係（0 同じ側・1 反対側）と、
+    // 同じ組のマスをつなぐ輪状のリスト（組を合わせたとき、決まる辺を探すため）
+    const nodes = cellCount + 1;
+    this.ppar = new Int32Array(nodes);
+    this.prel = new Uint8Array(nodes);
+    this.psize = new Int32Array(nodes).fill(1);
+    this.pnext = new Int32Array(nodes);
+    for (let i = 0; i < nodes; i++) { this.ppar[i] = i; this.pnext[i] = i; }
+    this.queueParity = [];
     this.openEnds = 0;       // 次数 1 の頂点の数 (線の端)
     this.unsatisfied = 0;    // まだ数字に達していない手がかりマスの数
     // clue 0 のマスは最初から満たされている
@@ -105,6 +118,11 @@ export class SolveState {
     s.vertexLine = this.vertexLine.slice();
     s.vertexUnknown = this.vertexUnknown.slice();
     s.dsu = this.dsu.clone();
+    s.ppar = this.ppar.slice();
+    s.prel = this.prel.slice();
+    s.psize = this.psize.slice();
+    s.pnext = this.pnext.slice();
+    s.queueParity = this.queueParity.slice();
     s.openEnds = this.openEnds;
     s.unsatisfied = this.unsatisfied;
     s.lineCount = this.lineCount;
@@ -183,7 +201,109 @@ export class SolveState {
         }
       }
     }
+    return this.parityUnion(e, value);
+  }
+
+  /* ---------------- R5 内側と外側 ---------------- */
+
+  /** 辺の両側（マスの番号。盤の外側は cellCount）。 */
+  edgeSides(e) {
+    const cs = this.grid.edgeCells[e];
+    return cs.length === 2 ? [cs[0], cs[1]] : [cs[0], this.grid.cellCount];
+  }
+
+  /** 組の代表と、代表から見た内外の関係（0 同じ・1 反対）。 */
+  pfind(x) {
+    const par = this.ppar;
+    const rel = this.prel;
+    let root = x;
+    let p = 0;
+    while (par[root] !== root) { p ^= rel[root]; root = par[root]; }
+    // 道をちぢめる（関係もたどった分を足しておく）
+    let cur = x;
+    let acc = p;
+    while (par[cur] !== root) {
+      const next = par[cur];
+      const r = rel[cur];
+      par[cur] = root;
+      rel[cur] = acc;
+      acc ^= r;
+      cur = next;
+    }
+    return [root, p];
+  }
+
+  /** あるノード（マスか盤の外）に接する辺。 */
+  nodeEdges(node) {
+    const g = this.grid;
+    if (node < g.cellCount) return [0, 1, 2, 3].map((k) => g.cellEdges[node * 4 + k]);
+    g.borderEdges ??= Array.from({ length: g.edgeCount }, (_, e) => e).filter((e) => g.edgeCells[e].length === 1);
+    return g.borderEdges;
+  }
+
+  /** 決まった辺 e の両側を、同じ側（×）か反対側（線）として結ぶ。食い違えば矛盾。 */
+  parityUnion(e, value) {
+    const [a, b] = this.edgeSides(e);
+    let [ra, pa] = this.pfind(a);
+    let [rb, pb] = this.pfind(b);
+    const d = value === LINE ? 1 : 0;
+    if (ra === rb) {
+      if ((pa ^ pb) === d) return true;
+      this.clash = { kind: 'parity', edge: e, value };
+      if (this.reasons) {
+        const path = this.parityPath(a, b, e);
+        this.clash.path = path;
+        this.clash.premises = [...path, e];
+      }
+      this.contradiction = true;
+      return false;
+    }
+    // 小さいほうの組のマスから、相手の組のマスへの未確定の辺を探す（合わせると決まる辺）
+    if (this.psize[ra] > this.psize[rb]) { [ra, rb] = [rb, ra]; [pa, pb] = [pb, pa]; }
+    let m = ra;
+    do {
+      for (const x of this.nodeEdges(m)) {
+        if (this.edges[x] !== UNKNOWN) continue;
+        const [u, w] = this.edgeSides(x);
+        const other = u === m ? w : u;
+        if (this.pfind(other)[0] === rb) this.queueParity.push(x);
+      }
+      m = this.pnext[m];
+    } while (m !== ra);
+    this.ppar[ra] = rb;
+    this.prel[ra] = pa ^ pb ^ d;
+    this.psize[rb] += this.psize[ra];
+    const t = this.pnext[ra];
+    this.pnext[ra] = this.pnext[rb];
+    this.pnext[rb] = t;
     return true;
+  }
+
+  /** 確定した辺だけをまたいで、a から b へ行く道（辺の列）。skip の辺は通らない。 */
+  parityPath(a, b, skip = -1) {
+    const prev = new Map([[a, -1]]);
+    const queue = [a];
+    for (let q = 0; q < queue.length; q++) {
+      const node = queue[q];
+      if (node === b) break;
+      for (const x of this.nodeEdges(node)) {
+        if (x === skip || this.edges[x] === UNKNOWN) continue;
+        const [u, w] = this.edgeSides(x);
+        const to = u === node ? w : u;
+        if (prev.has(to)) continue;
+        prev.set(to, x);
+        queue.push(to);
+      }
+    }
+    const path = [];
+    for (let node = b; node !== a;) {
+      const x = prev.get(node);
+      if (x === undefined || x < 0) return path;
+      path.push(x);
+      const [u, w] = this.edgeSides(x);
+      node = u === node ? w : u;
+    }
+    return path.reverse();
   }
 
   /** 各マス・各頂点の局所ルールを収束するまで適用する。 */
@@ -248,11 +368,27 @@ export class SolveState {
           }
         }
       }
+      if (!this.applyParityRule()) return false;
+      if (this.queueCells.length || this.queueVertices.length) continue;
       if (!this.applyLoopRule()) return false;
       if (!this.applyCompletionRule()) return false;
-      if (!this.queueCells.length && !this.queueVertices.length) break;
+      if (!this.queueCells.length && !this.queueVertices.length && !this.queueParity.length) break;
     }
     return !this.contradiction;
+  }
+
+  /** R5: 両側の内外の関係が分かった辺を決める。 */
+  applyParityRule() {
+    while (this.queueParity.length) {
+      const e = this.queueParity.pop();
+      if (this.edges[e] !== UNKNOWN) continue;
+      const [a, b] = this.edgeSides(e);
+      const [ra, pa] = this.pfind(a);
+      const [rb, pb] = this.pfind(b);
+      if (ra !== rb) continue;
+      if (!this.setEdge(e, pa ^ pb ? LINE : CROSS, { rule: 'parity', a, b })) return false;
+    }
+    return true;
   }
 
   /** R3: いま線にすると小さな輪ができてしまう辺を × にする。 */
@@ -320,6 +456,11 @@ export class SolveState {
     } else if (rule === 'loop_closed') {
       premises = [...reason.cycle.filter((x) => x !== e), ...witnessEdges(reason.witness)];
     } else if (rule === 'loop_done') premises = reason.cycle;
+    else if (rule === 'parity') {
+      const [a, b] = this.edgeSides(e);
+      const path = reason.path ?? this.parityPath(a, b, e);
+      return { ...reason, a, b, path, premises: path };
+    }
     return { ...reason, premises };
   }
 

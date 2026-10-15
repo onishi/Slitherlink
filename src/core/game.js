@@ -110,7 +110,7 @@ export function autoCrossEdges(grid, clues, state, changedEdges) {
 // 盤面だけで決まる手が複数あるとき、先に示したい順 (人にとって分かりやすい順)
 const RULE_PRIORITY = [
   'clue_full', 'clue_rest', 'vertex_two', 'vertex_pair', 'vertex_dead',
-  'loop_closed', 'loop_done',
+  'loop_closed', 'loop_done', 'parity',
 ];
 
 const RULE_TITLES = {
@@ -121,7 +121,13 @@ const RULE_TITLES = {
   vertex_dead: '行き止まりは作れない',
   loop_closed: '小さな輪は閉じられない',
   loop_done: '輪が完成している',
+  parity: '輪の内側と外側',
 };
+
+/** 内外の説明に使う「マス」の呼び方（盤の外は「盤の外」）。 */
+function sideName(grid, node) {
+  return node >= grid.cellCount ? '盤の外' : cellName(grid, node);
+}
 
 /** マスや交点の位置を「3行2列のマス」のように行・列で短く言い表す。 */
 function cellName(grid, cell) {
@@ -219,6 +225,8 @@ function stepLine(grid, clues, group) {
       return `${target}を線にすると輪が閉じるが、${witnessText(grid, clues, step.witness)} → ${target}は ${mark}`;
     case 'loop_done':
       return `輪が完成して数字もすべて満たされた → ${target}は ${mark}`;
+    case 'parity':
+      return `${target}の両側は、線と × をたどると輪の${step.value === LINE ? '内と外に分かれる' : '同じ側になる'} → ${target}は ${mark}`;
     default:
       return `${target}は ${mark}`;
   }
@@ -238,6 +246,7 @@ function clashLine(grid, clues, clash) {
       : `${vertexShort(grid, clash.index)}に線が ${clash.line} 本集まる`;
   }
   if (clash.kind === 'loop') return `輪が閉じてしまうが、${witnessText(grid, clues, clash.witness)}`;
+  if (clash.kind === 'parity') return `${edgeName(grid, clash.edge)}の両側の、輪の内側・外側のつじつまが合わなくなる`;
   if (clash.kind === 'conflict') {
     return `${edgeName(grid, clash.edge)}が ${markName(opposite(clash.value))} なのに、${stepLine(grid, clues, [{ edge: clash.edge, value: clash.value, ...clash.reason }])}`;
   }
@@ -350,6 +359,13 @@ function explain(grid, clues, state, edge, value, reason) {
   } else if (rule === 'loop_done') {
     focus.edges.push(...reason.premises);
     text = '輪が完成し、数字もすべて満たされました。残りの辺は × です。';
+  } else if (rule === 'parity') {
+    focus.edges.push(...reason.premises);
+    for (const node of [reason.a, reason.b]) if (node != null && node < grid.cellCount) focus.cells.push(node);
+    const same = value === CROSS;
+    text = `どのマスも輪の内側か外側のどちらかで、線をまたぐと入れ替わり、× をまたぐと同じままです。`
+      + `${sideName(grid, reason.a)}から${sideName(grid, reason.b)}まで、光っている線と × をたどると`
+      + `${same ? '同じ側' : '内と外の反対側'}と分かります。なので間の辺は${same ? ' × ' : '線'}です。`;
   }
 
   return { title: RULE_TITLES[rule] || 'ここが決まります', text, focus };

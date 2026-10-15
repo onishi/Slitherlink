@@ -21,7 +21,8 @@ const cases = [
   { rows: 6, cols: 8, difficulty: 'normal' },
   { rows: 7, cols: 7, difficulty: 'normal' },
   { rows: 6, cols: 6, difficulty: 'hard' },
-  { rows: 5, cols: 5, difficulty: 'expert' },
+  // 5×5 の鬼は、内側と外側のルール（R5）を入れてから作りにくくなった（時間内に作れないことがある）ので 6×6 で確かめる
+  { rows: 6, cols: 6, difficulty: 'expert' },
 ];
 
 for (const c of cases) {
