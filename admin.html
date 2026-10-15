@@ -56,6 +56,24 @@
         <span class="mi" aria-hidden="true">upload_file</span>
         <span>画像・zip（画像をまとめたもの）・PDF をここに落とすか、押して選んでください。<br><small>1 枚の画像・PDF の 1 ページに 1 問。盤の四隅とマス数を見つけて数字を読み、論理だけで解けるかまで確かめます。</small></span>
       </label>
+      <form class="admin-generate" id="gen-form">
+        <span class="admin-generate-title"><span class="mi" aria-hidden="true">casino</span>ランダムに作る</span>
+        <label class="field"><span>縦</span><input type="number" id="gen-rows" min="3" max="50" value="10" required></label>
+        <label class="field"><span>横</span><input type="number" id="gen-cols" min="3" max="50" value="10" required></label>
+        <label class="field"><span>問題数</span><input type="number" id="gen-count" min="1" max="100" value="10" required></label>
+        <label class="field"><span>むずかしさ</span>
+          <select id="gen-difficulty">
+            <option value="mix" selected>いろいろ（やさしい順）</option>
+            <option value="intro">入門</option>
+            <option value="easy">やさしい</option>
+            <option value="normal">ふつう</option>
+            <option value="hard">むずかしい</option>
+            <option value="expert">鬼</option>
+          </select>
+        </label>
+        <button type="submit" class="primary" id="gen-start"><span class="mi" aria-hidden="true">auto_awesome</span>作る</button>
+        <button type="button" id="gen-stop" hidden><span class="mi" aria-hidden="true">stop</span>止める</button>
+      </form>
       <div class="admin-queue-head" id="queue-head" hidden>
         <p class="admin-queue-status" id="queue-status" role="status" aria-live="polite"></p>
         <button type="button" id="queue-clear">取り込みを片付ける</button>

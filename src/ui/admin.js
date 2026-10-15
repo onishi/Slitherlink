@@ -385,7 +385,7 @@ function renderQueue() {
       img.alt = '';
       thumb.append(img);
     } else {
-      thumb.append(icon(item.state === 'error' ? 'error' : 'hourglass_empty'));
+      thumb.append(icon(item.state === 'error' ? 'error' : item.generated ? 'auto_awesome' : 'hourglass_empty'));
     }
     const text = el('span', 'admin-queue-text');
     text.append(el('b', null, item.name), el('small', null, item.message));
@@ -405,7 +405,7 @@ function renderQueue() {
     list.append(li);
   }
   const ok = queue.filter((q) => q.state === 'ok').length;
-  const busy = queue.some((q) => q.state === 'waiting' || q.state === 'reading');
+  const busy = queue.some((q) => q.state === 'waiting' || q.state === 'reading' || q.state === 'generating');
   $('queue-add').disabled = !ok || busy || !current;
   $('queue-add-label').textContent = `解けたものを足す（${ok} 問）`;
   $('queue-head').hidden = !queue.length;
@@ -414,8 +414,9 @@ function renderQueue() {
     const err = queue.filter((q) => q.state === 'error').length;
     setStatus(`${queue.length} 件：解ける ${ok}・直しが要る ${warn}${err ? `・読めない ${err}` : ''}`);
   } else if (busy) {
-    const done = queue.filter((q) => q.state !== 'waiting' && q.state !== 'reading').length;
-    setStatus(`読んでいます（${done} / ${queue.length}）…`);
+    const done = queue.filter((q) => q.state !== 'waiting' && q.state !== 'reading' && q.state !== 'generating').length;
+    const making = queue.some((q) => q.state === 'generating');
+    setStatus(`${making ? '作っています' : '読んでいます'}（${done} / ${queue.length}）…`);
   }
 }
 
@@ -483,6 +484,86 @@ async function addSolved() {
   }
 }
 
+/* ---------------- ランダムに作る ---------------- */
+
+const LEVEL_ORDER = ['intro', 'easy', 'normal', 'hard', 'expert'];
+let genWorker = null;
+let genStop = false;
+let genPending = null; // いま待っている 1 問（止めたときに、待ちを終わらせる）
+
+/** 作る問題ごとの難易度。「いろいろ」なら 5 段階を同じくらいずつ、やさしい順に並べる。 */
+function plannedLevels(choice, count) {
+  if (choice !== 'mix') return new Array(count).fill(choice);
+  return Array.from({ length: count }, (_, i) => LEVEL_ORDER[Math.floor((i * LEVEL_ORDER.length) / count)]);
+}
+
+function generateOne(rows, cols, difficulty) {
+  genWorker ??= new Worker(new URL('../worker/generate-worker.js', import.meta.url), { type: 'module' });
+  return new Promise((resolve) => {
+    const id = Math.random();
+    const done = (r) => { genPending = null; resolve(r); };
+    genPending = done;
+    genWorker.onmessage = (ev) => { if (ev.data.id === id) done(ev.data); };
+    genWorker.onerror = () => done({ ok: false, error: '作問中にエラーが起きました' });
+    genWorker.postMessage({ id, rows, cols, difficulty, withStats: true, timeLimitMs: 20000 });
+  });
+}
+
+async function generateBatch(rows, cols, count, choice) {
+  const levels = plannedLevels(choice, count);
+  const items = levels.map((level, i) => ({
+    id: ++queueSeq, generated: true, name: `ランダム ${rows}×${cols}（${i + 1} / ${count}）`,
+    blob: null, state: 'generating', message: `「${DIFFICULTIES[level].label}」を作るのを待っています`, result: null, thumb: null, level,
+  }));
+  queue.push(...items);
+  genStop = false;
+  $('gen-start').disabled = true;
+  $('gen-stop').hidden = false;
+  renderQueue();
+  try {
+    for (const item of items) {
+      if (genStop) break;
+      item.message = `「${DIFFICULTIES[item.level].label}」を作っています…`;
+      renderQueue();
+      const r = await generateOne(rows, cols, item.level);
+      if (genStop && !r.ok) break;
+      if (!r.ok) {
+        item.state = 'error';
+        item.message = r.error || '作れませんでした';
+        continue;
+      }
+      const p = r.puzzle;
+      item.state = 'ok';
+      item.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount, stats: p.stats ?? null };
+      const missed = p.difficulty !== item.level ? `（「${DIFFICULTIES[item.level].label}」は時間内に作れず）` : '';
+      item.message = `${p.rows}×${p.cols}・${DIFFICULTIES[p.difficulty]?.label ?? ''}・数字 ${p.clueCount}${missed}`;
+      renderQueue();
+    }
+  } finally {
+    // 止めたときは、まだ作っていない分を一覧から外す
+    queue = queue.filter((q) => q.state !== 'generating');
+    $('gen-start').disabled = false;
+    $('gen-stop').hidden = true;
+    renderQueue();
+    if (genStop && !queue.length) setStatus('');
+  }
+}
+
+function bindGenerate() {
+  $('gen-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const n = (id, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number($(id).value) || lo)));
+    generateBatch(n('gen-rows', 3, 50), n('gen-cols', 3, 50), n('gen-count', 1, 100), $('gen-difficulty').value);
+  });
+  $('gen-stop').addEventListener('click', () => {
+    genStop = true;
+    // いま作っている 1 問も打ち切る
+    genWorker?.terminate();
+    genWorker = null;
+    genPending?.({ ok: false, error: '止めました' });
+  });
+}
+
 function bindImport() {
   const drop = $('drop');
   $('files').addEventListener('change', (ev) => {
@@ -506,4 +587,5 @@ function bindImport() {
 
 bindBooks();
 bindImport();
+bindGenerate();
 start();

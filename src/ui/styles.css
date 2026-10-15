@@ -128,7 +128,7 @@ html, body {
 .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
 
 
-select, input[type="text"], textarea {
+select, input[type="text"], input[type="number"], textarea {
   font: inherit;
   font-size: .92rem;
   padding: 8px 10px;
@@ -1472,3 +1472,10 @@ body.no-anim .app { transition: none !important; }
 .admin-problem .icon-btn { width: 30px; height: 30px; flex: none; }
 .admin-stats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; font-size: .72rem; color: var(--ink-faint); }
 .admin-stat { padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); white-space: nowrap; }
+.admin-generate { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.admin-generate-title { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; font-size: .88rem; margin-right: 4px; align-self: center; }
+.admin-generate-title .mi { color: var(--accent); }
+.admin-generate .field { width: 76px; }
+.admin-generate .field:has(select) { width: auto; }
+.admin-generate button { width: auto; margin: 0; display: inline-flex; align-items: center; gap: 4px; }
+.admin-generate button[hidden] { display: none; }

@@ -1,9 +1,10 @@
 /** 作問をバックグラウンドで行うワーカー。UI をブロックしないためのもの。 */
 import { generatePuzzle } from '../core/generator.js';
 import { encodePuzzle } from '../core/puzzle.js';
+import { difficultyReport, problemStats } from '../core/difficulty-report.js';
 
 self.onmessage = (ev) => {
-  const { id, rows, cols, difficulty, seed, timeLimitMs } = ev.data || {};
+  const { id, rows, cols, difficulty, seed, timeLimitMs, withStats } = ev.data || {};
   try {
     const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs });
     self.postMessage({
@@ -17,6 +18,8 @@ self.onmessage = (ev) => {
         solution: Array.from(p.solution),
         clueCount: p.clueCount,
         code: encodePuzzle(p),
+        // 管理画面で問題集に入れるときは、難易度のほかの目安も付ける
+        stats: withStats ? problemStats(difficultyReport(p), p.solution) : undefined,
       },
     });
   } catch (err) {
