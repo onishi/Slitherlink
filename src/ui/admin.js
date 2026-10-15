@@ -110,6 +110,7 @@ async function openBook(id) {
   current = await api(`/api/admin/books/${id}`);
   $('compare').hidden = true;
   $('book').hidden = false;
+  document.querySelector('.admin').classList.remove('is-wide');
   $('book-title').value = current.book.title;
   $('book-desc').value = current.book.description;
   $('book-published').checked = current.book.published;
@@ -247,14 +248,199 @@ function compareTable(rows, withSize) {
   return table;
 }
 
+let compareData = null;
+let allRows = null;
+let sortKey = 'bookTitle';
+let sortDir = 1;
+
 async function openCompare() {
   $('book').hidden = true;
   $('compare').hidden = false;
+  // 表が横に長いので、くらべるあいだは画面の幅いっぱいを使う
+  document.querySelector('.admin').classList.add('is-wide');
   current = null;
   renderBooks();
+  $('compare-body').textContent = '調べています…';
+  $('books-body').textContent = '調べています…';
+  const [cmp, list] = await Promise.all([api('/api/admin/compare'), api('/api/admin/problems')]);
+  compareData = cmp;
+  allRows = list.problems.map((p) => ({
+    ...p,
+    size: `${p.rows}×${p.cols}`,
+    clueDensity: (100 * p.clueCount) / (p.rows * p.cols),
+    loopPerCell: p.loopLength == null ? null : (100 * p.loopLength) / (p.rows * p.cols),
+  }));
+  fillFilters();
+  renderProblemTable();
+  renderBookCompare();
+  renderOriginCompare();
+}
+
+function showTab(name) {
+  for (const t of document.querySelectorAll('#compare [data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === name));
+  for (const p of document.querySelectorAll('#compare [data-panel]')) p.hidden = p.dataset.panel !== name;
+}
+
+/* ---------- 問題一覧 ---------- */
+
+const PROBLEM_COLS = [
+  ['bookTitle', '問題集', (r) => r.bookTitle, 'text'],
+  ['position', '番号', (r) => `${r.position}`],
+  ['cells', '大きさ', (r) => r.size],
+  ['level', 'むずかしさ', (r) => DIFFICULTIES[r.difficulty]?.label ?? '—', 'text'],
+  ['origin', '出どころ', (r) => ORIGIN_LABEL[r.origin ?? 'unknown'], 'text'],
+  ['clueDensity', '数字の割合', (r) => `${r.clueDensity.toFixed(0)}%`],
+  ['loopPerCell', '線／マス', (r) => (r.loopPerCell == null ? '—' : (r.loopPerCell / 100).toFixed(2))],
+  ['coverage', '行き渡り', (r) => (r.coverage == null ? '—' : `${r.coverage}%`)],
+  ['patternShare', '定石', (r) => (r.patternShare == null ? '—' : `${r.patternShare}%`)],
+  ['freeShare', '仮定なし', (r) => (r.freeShare == null ? '—' : `${r.freeShare}%`)],
+  ['assumeCount', '仮定', (r) => (r.assumeCount == null ? '—' : `${r.assumeCount}`)],
+  ['longestSteps', '最長の読み', (r) => (r.longestSteps == null ? '—' : `${r.longestSteps} 手`)],
+];
+
+const sortValue = (r, key) => {
+  if (key === 'cells') return r.rows * r.cols * 1000 + r.rows;
+  if (key === 'level') return LEVEL_ORDER.indexOf(r.difficulty);
+  if (key === 'bookTitle') return `${r.bookTitle}\u0000${String(r.position).padStart(5, '0')}`;
+  return r[key];
+};
+
+function fillFilters() {
+  const set = (id, items) => {
+    const sel = $(id);
+    const keep = sel.value;
+    sel.length = 1;
+    for (const [value, label] of items) sel.add(new Option(label, value));
+    sel.value = items.some(([v]) => v === keep) ? keep : '';
+  };
+  const books = new Map(allRows.map((r) => [String(r.bookId), r.bookTitle]));
+  set('f-book', [...books]);
+  const sizes = [...new Map(allRows.map((r) => [r.size, r.rows * r.cols])).entries()].sort((a, b) => a[1] - b[1]);
+  set('f-size', sizes.map(([s]) => [s, s]));
+  set('f-level', LEVEL_ORDER.map((k) => [k, DIFFICULTIES[k].label]));
+}
+
+function filteredRows() {
+  const book = $('f-book').value;
+  const origin = $('f-origin').value;
+  const size = $('f-size').value;
+  const level = $('f-level').value;
+  return allRows.filter((r) => (!book || String(r.bookId) === book)
+    && (!origin || r.origin === origin) && (!size || r.size === size) && (!level || r.difficulty === level));
+}
+
+function renderProblemTable() {
+  const rows = filteredRows().sort((a, b) => {
+    const x = sortValue(a, sortKey);
+    const y = sortValue(b, sortKey);
+    if (x == null && y == null) return 0;
+    if (x == null) return 1; // 値の無いものは下へ
+    if (y == null) return -1;
+    return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
+  });
+  const table = $('problem-table');
+  table.textContent = '';
+  const head = el('tr');
+  for (const [key, label] of PROBLEM_COLS) {
+    const th = el('th');
+    const b = el('button', `admin-sort${sortKey === key ? ' is-on' : ''}`, label + (sortKey === key ? (sortDir > 0 ? ' ▲' : ' ▼') : ''));
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      if (sortKey === key) sortDir = -sortDir; else { sortKey = key; sortDir = 1; }
+      renderProblemTable();
+    });
+    th.append(b);
+    head.append(th);
+  }
+  head.append(el('th'));
+  table.append(head);
+  for (const r of rows) {
+    const tr = el('tr', `is-${r.origin ?? 'unknown'}`);
+    for (const [key, , fmt, kind] of PROBLEM_COLS) tr.append(el('td', kind === 'text' ? 'is-text' : null, fmt(r)));
+    const td = el('td');
+    const a = el('a', 'admin-link');
+    a.href = `./?p=${encodeURIComponent(r.code)}`;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.append(icon('play_arrow'), '遊ぶ');
+    td.append(a);
+    tr.append(td);
+    table.append(tr);
+  }
+  // 絞り込んだ問題の平均（くらべたいものだけ残して見る）
+  const avg = (key) => {
+    const v = rows.map((r) => r[key]).filter((x) => x != null);
+    return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
+  };
+  if (rows.length) {
+    const tr = el('tr', 'admin-avg-row');
+    for (const [key] of PROBLEM_COLS) {
+      let text = '';
+      if (key === 'bookTitle') text = `平均（${rows.length} 問）`;
+      else if (key === 'clueDensity' || key === 'coverage' || key === 'patternShare' || key === 'freeShare') text = avg(key) == null ? '—' : `${avg(key).toFixed(0)}%`;
+      else if (key === 'loopPerCell') text = avg(key) == null ? '—' : (avg(key) / 100).toFixed(2);
+      else if (key === 'assumeCount') text = avg(key) == null ? '—' : avg(key).toFixed(1);
+      else if (key === 'longestSteps') text = avg(key) == null ? '—' : `${avg(key).toFixed(1)} 手`;
+      tr.append(el('td', key === 'bookTitle' ? 'is-text' : null, text));
+    }
+    tr.append(el('td'));
+    table.append(tr);
+  }
+  $('f-count').textContent = `${rows.length} 問 / 全 ${allRows.length} 問`;
+}
+
+/* ---------- 問題集どうし ---------- */
+
+function renderBookCompare() {
+  const body = $('books-body');
+  body.textContent = '';
+  const data = compareData;
+  if (!data.byBook.length) { body.append(el('p', 'admin-empty', 'まだ問題がありません。')); return; }
+  const table = el('table', 'admin-compare-table');
+  const head = el('tr');
+  for (const label of ['問題集', '大きさ', '出どころ']) head.append(el('th', null, label));
+  for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
+  table.append(head);
+  for (const r of data.byBook) {
+    const tr = el('tr');
+    tr.append(el('td', 'admin-compare-origin', r.title));
+    const sizes = allRows.filter((p) => p.bookId === r.bookId).map((p) => p.size);
+    const uniq = [...new Set(sizes)];
+    tr.append(el('td', null, uniq.length <= 2 ? uniq.join('・') : `${uniq.length} 種類`));
+    const parts = [];
+    if (r.scans) parts.push(`スキャン ${r.scans}`);
+    if (r.generated) parts.push(`自動 ${r.generated}`);
+    tr.append(el('td', null, parts.join('・') || '—'));
+    for (const [key, , fmt] of COMPARE_COLS) tr.append(el('td', null, r[key] == null ? '—' : fmt(r[key])));
+    table.append(tr);
+  }
+  body.append(el('h3', null, '目安の平均'), table);
+
+  const levels = el('table', 'admin-compare-table');
+  const lh = el('tr');
+  lh.append(el('th', null, '問題集'));
+  for (const k of LEVEL_ORDER) lh.append(el('th', null, DIFFICULTIES[k].label));
+  levels.append(lh);
+  for (const r of data.byBook) {
+    const tr = el('tr');
+    tr.append(el('td', 'admin-compare-origin', r.title));
+    for (const k of LEVEL_ORDER) {
+      const n = data.bookLevels.find((x) => x.bookId === r.bookId && x.difficulty === k)?.count ?? 0;
+      const cell = el('td', 'admin-level-cell', n ? `${n}（${Math.round((n / r.count) * 100)}%）` : '—');
+      // 割合を薄い帯で見せる
+      if (n) cell.style.setProperty('--share', `${(n / r.count) * 100}%`);
+      tr.append(cell);
+    }
+    levels.append(tr);
+  }
+  body.append(el('h3', null, '難易度の内訳'), levels);
+}
+
+/* ---------- スキャンと自動作問 ---------- */
+
+function renderOriginCompare() {
+  const data = compareData;
   const body = $('compare-body');
-  body.textContent = '調べています…';
-  const data = await api('/api/admin/compare');
   body.textContent = '';
   if (!data.all.length) {
     body.append(el('p', 'admin-empty', 'まだ問題がありません。'));
@@ -283,6 +469,8 @@ async function openCompare() {
 
 function bindBooks() {
   $('open-compare').addEventListener('click', () => openCompare());
+  for (const t of document.querySelectorAll('#compare [data-tab]')) t.addEventListener('click', () => showTab(t.dataset.tab));
+  for (const id of ['f-book', 'f-origin', 'f-size', 'f-level']) $(id).addEventListener('change', () => renderProblemTable());
   $('new-book').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const title = $('new-book-title').value.trim();

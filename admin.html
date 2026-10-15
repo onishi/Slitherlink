@@ -35,14 +35,33 @@
         <button type="submit" class="primary"><span class="mi" aria-hidden="true">add</span>作る</button>
       </form>
       <ul class="admin-book-list" id="book-list"></ul>
-      <button type="button" class="admin-compare-btn" id="open-compare"><span class="mi" aria-hidden="true">compare_arrows</span>スキャンと自動作問をくらべる</button>
+      <button type="button" class="admin-compare-btn" id="open-compare"><span class="mi" aria-hidden="true">compare_arrows</span>問題集をまたいでくらべる</button>
     </aside>
 
     <!-- 出どころ（スキャン／自動作問）ごとに、目安の平均をくらべる -->
     <section class="admin-book admin-compare" id="compare" hidden>
-      <h2>スキャンと自動作問をくらべる</h2>
-      <p class="hint-text">全部の問題集の問題を、出どころごとに平均します。盤の大きさで目安が変わるので、大きさごとにも分けています。数字と線の本数は、マス数に対する割合です。</p>
-      <div id="compare-body"></div>
+      <h2>問題集をまたいでくらべる</h2>
+      <div class="admin-tabs" role="tablist">
+        <button type="button" role="tab" data-tab="problems" aria-selected="true">問題一覧</button>
+        <button type="button" role="tab" data-tab="books" aria-selected="false">問題集どうし</button>
+        <button type="button" role="tab" data-tab="origins" aria-selected="false">スキャンと自動作問</button>
+      </div>
+      <p class="hint-text">数字と線の本数は、マス数に対する割合です。盤の大きさで目安が変わるので、くらべるときは大きさをそろえると確かです。</p>
+
+      <!-- 問題一覧：全部の問題集の問題を 1 つの表に。絞り込みと並べ替え -->
+      <div class="admin-tab-panel" data-panel="problems">
+        <div class="admin-filters">
+          <label class="field"><span>問題集</span><select id="f-book"><option value="">すべて</option></select></label>
+          <label class="field"><span>出どころ</span><select id="f-origin"><option value="">すべて</option><option value="scan">スキャン</option><option value="generated">自動作問</option></select></label>
+          <label class="field"><span>大きさ</span><select id="f-size"><option value="">すべて</option></select></label>
+          <label class="field"><span>むずかしさ</span><select id="f-level"><option value="">すべて</option></select></label>
+        </div>
+        <p class="admin-filter-count" id="f-count"></p>
+        <div class="admin-table-wrap"><table class="admin-compare-table admin-problem-table" id="problem-table"></table></div>
+      </div>
+
+      <div class="admin-tab-panel" data-panel="books" hidden><div id="books-body"></div></div>
+      <div class="admin-tab-panel" data-panel="origins" hidden><div id="compare-body"></div></div>
     </section>
 
     <!-- 選んだ問題集 -->
