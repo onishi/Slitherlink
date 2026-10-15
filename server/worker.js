@@ -54,13 +54,17 @@ async function route(request, env, url) {
   if (pathname === '/api/logout' && method === 'POST') return logout(request, env, url);
   if (pathname === '/api/me' && method === 'GET') {
     const user = await currentUser(request, env);
-    return json({ user: user && publicUser(user) });
+    return json({ user: user && publicUser(user), isAdmin: !!user && isAdmin(user, env) });
   }
 
   const user = await currentUser(request, env);
   if (!user) throw new HttpError(401, 'ログインしてください');
   const db = env.DB;
 
+  if (pathname.startsWith('/api/admin/')) {
+    if (!isAdmin(user, env)) throw new HttpError(403, '管理者だけが使えます');
+    return admin(request, db, url);
+  }
   if (pathname === '/api/data' && method === 'GET') return json(await loadAll(db, user.id));
   if (pathname === '/api/import' && method === 'POST') return importLocal(db, user, await body(request));
   if (pathname === '/api/library' && method === 'POST') {
@@ -310,4 +314,145 @@ async function importLocal(db, user, b) {
   statements.push(db.prepare('UPDATE users SET imported_at = ? WHERE id = ?').bind(Date.now(), user.id));
   await db.batch(statements);
   return json({ ok: true, imported: { library: library.length, records: records.length, game: !!b.game } });
+}
+
+/* ---------------- 管理画面：問題集 ---------------- */
+
+/** 管理者か。ADMIN_USER_IDS（Google のアカウント ID）か ADMIN_EMAILS（確認済みのメール）に入っている人。 */
+function isAdmin(user, env) {
+  const list = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+  if (list(env.ADMIN_USER_IDS).includes(user.id)) return true;
+  return !!user.email && list(env.ADMIN_EMAILS).map((e) => e.toLowerCase()).includes(user.email.toLowerCase());
+}
+
+const MAX_BOOK_PROBLEMS = 1000;
+const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+function bookRow(r) {
+  return {
+    id: r.id, title: r.title, description: r.description, published: !!r.published,
+    count: r.count ?? undefined, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+
+async function admin(request, db, url) {
+  const method = request.method;
+  const parts = url.pathname.split('/').filter(Boolean).slice(2); // ['books', id, 'problems', pid]
+  if (parts[0] !== 'books') throw new HttpError(404, 'ありません');
+  const now = Date.now();
+
+  if (parts.length === 1 && method === 'GET') {
+    const { results } = await db.prepare(
+      `SELECT b.*, (SELECT COUNT(*) FROM book_problems p WHERE p.book_id = b.id) AS count
+       FROM books b ORDER BY b.created_at DESC`,
+    ).all();
+    return json({ books: results.map(bookRow) });
+  }
+  if (parts.length === 1 && method === 'POST') {
+    const b = await body(request);
+    const title = text(b.title, 100);
+    if (!title) throw new HttpError(400, '問題集の名前を入れてください');
+    const row = await db.prepare(
+      'INSERT INTO books (title, description, published, created_at, updated_at) VALUES (?, ?, 0, ?, ?) RETURNING *',
+    ).bind(title, text(b.description, 2000), now, now).first();
+    return json({ book: bookRow({ ...row, count: 0 }) });
+  }
+
+  const id = Number(parts[1]);
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'ありません');
+  const book = await db.prepare('SELECT * FROM books WHERE id = ?').bind(id).first();
+  if (!book) throw new HttpError(404, 'その問題集はありません');
+
+  if (parts.length === 2 && method === 'GET') {
+    const { results } = await db.prepare(
+      'SELECT * FROM book_problems WHERE book_id = ? ORDER BY position',
+    ).bind(id).all();
+    return json({
+      book: bookRow({ ...book, count: results.length }),
+      problems: results.map((p) => ({
+        id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols,
+        difficulty: p.difficulty, clueCount: p.clue_count, source: p.source, createdAt: p.created_at,
+      })),
+    });
+  }
+  if (parts.length === 2 && method === 'PATCH') {
+    const b = await body(request);
+    const title = b.title === undefined ? book.title : text(b.title, 100);
+    if (!title) throw new HttpError(400, '問題集の名前を入れてください');
+    const description = b.description === undefined ? book.description : text(b.description, 2000);
+    const published = b.published === undefined ? book.published : (b.published ? 1 : 0);
+    await db.prepare('UPDATE books SET title = ?, description = ?, published = ?, updated_at = ? WHERE id = ?')
+      .bind(title, description, published, now, id).run();
+    return json({ ok: true });
+  }
+  if (parts.length === 2 && method === 'DELETE') {
+    await db.batch([
+      db.prepare('DELETE FROM book_problems WHERE book_id = ?').bind(id),
+      db.prepare('DELETE FROM books WHERE id = ?').bind(id),
+    ]);
+    return json({ ok: true });
+  }
+
+  if (parts[2] !== 'problems') throw new HttpError(404, 'ありません');
+
+  // まとめて足す（取り込んで確かめた問題）。同じ問題がもうあれば飛ばす
+  if (parts.length === 3 && method === 'POST') {
+    const b = await body(request);
+    const list = Array.isArray(b.problems) ? b.problems : [];
+    if (!list.length) throw new HttpError(400, '足す問題がありません');
+    const { n, last } = await db.prepare(
+      'SELECT COUNT(*) AS n, COALESCE(MAX(position), 0) AS last FROM book_problems WHERE book_id = ?',
+    ).bind(id).first();
+    if (n + list.length > MAX_BOOK_PROBLEMS) throw new HttpError(400, `1 つの問題集に入れられるのは ${MAX_BOOK_PROBLEMS} 問までです`);
+    const statements = [];
+    let pos = last;
+    for (const raw of list) {
+      const e = cleanEntry({ ...raw, source: undefined });
+      pos += 1;
+      statements.push(db.prepare(
+        `INSERT INTO book_problems (book_id, position, code, rows, cols, difficulty, clue_count, source, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
+      ).bind(id, pos, e.code, e.rows, e.cols, e.difficulty, e.clueCount, text(raw.source, 200) || null, now));
+    }
+    statements.push(db.prepare('UPDATE books SET updated_at = ? WHERE id = ?').bind(now, id));
+    await db.batch(statements);
+    // 飛ばした分で番号が空かないよう、詰め直す
+    await renumber(db, id);
+    const { count } = await db.prepare('SELECT COUNT(*) AS count FROM book_problems WHERE book_id = ?').bind(id).first();
+    return json({ ok: true, added: count - n, skipped: list.length - (count - n) });
+  }
+
+  const pid = Number(parts[3]);
+  if (parts.length !== 4 || !Number.isInteger(pid)) throw new HttpError(404, 'ありません');
+  if (method === 'DELETE') {
+    await db.prepare('DELETE FROM book_problems WHERE id = ? AND book_id = ?').bind(pid, id).run();
+    await renumber(db, id);
+    return json({ ok: true });
+  }
+  // 順番を 1 つ上げる・下げる
+  if (method === 'PATCH') {
+    const { move } = await body(request);
+    const cur = await db.prepare('SELECT position FROM book_problems WHERE id = ? AND book_id = ?').bind(pid, id).first();
+    if (!cur) throw new HttpError(404, 'その問題はありません');
+    const target = cur.position + (move === 'up' ? -1 : 1);
+    const other = await db.prepare('SELECT id FROM book_problems WHERE book_id = ? AND position = ?').bind(id, target).first();
+    if (other) {
+      await db.batch([
+        db.prepare('UPDATE book_problems SET position = ? WHERE id = ?').bind(target, pid),
+        db.prepare('UPDATE book_problems SET position = ? WHERE id = ?').bind(cur.position, other.id),
+      ]);
+    }
+    return json({ ok: true });
+  }
+  throw new HttpError(404, 'ありません');
+}
+
+/** 問題集の中の番号を 1, 2, 3… に詰め直す。 */
+async function renumber(db, bookId) {
+  const { results } = await db.prepare('SELECT id, position FROM book_problems WHERE book_id = ? ORDER BY position, id').bind(bookId).all();
+  const fix = results
+    .map((r, i) => ({ id: r.id, want: i + 1, has: r.position }))
+    .filter((r) => r.want !== r.has)
+    .map((r) => db.prepare('UPDATE book_problems SET position = ? WHERE id = ?').bind(r.want, r.id));
+  if (fix.length) await db.batch(fix);
 }

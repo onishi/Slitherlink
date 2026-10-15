@@ -13,6 +13,7 @@ import { CameraCapture, needsCameraView } from './camera-capture.js';
 import { PuzzleReport } from './puzzle-report.js';
 import { store } from './storage.js';
 import { account } from './account.js';
+import { renderHelpFigures } from './help-figures.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -230,7 +231,7 @@ function bindUI() {
   el.zoomFit.addEventListener('click', () => board.resetZoom());
   // 盤面のほうを触りたいだけのときもあるので、開いたままでも遊べるようにしておく
   el.rulesPatternsBtn.addEventListener('click', () => {
-    el.rulesModal.hidden = true;
+    hidePanel(el.rulesModal, true);
     openDrawer();
   });
   // ✕ は「自分で考える」と同じ。説明を閉じて、盤面の光りも消す
@@ -243,7 +244,13 @@ function bindUI() {
   el.drawerClose.addEventListener('click', () => closeDrawer());
   el.drawerScrim.addEventListener('click', () => closeDrawer());
 
-  el.rulesBtn.addEventListener('click', () => { el.rulesModal.hidden = false; });
+  el.rulesBtn.addEventListener('click', () => {
+    if (el.rulesModal.hidden) openRules(); else hidePanel(el.rulesModal);
+  });
+  $('btn-x-rules').addEventListener('click', () => hidePanel(el.rulesModal));
+  // 右上の 3 つ（遊び方・定石一覧・メニュー）は、どれも右から出るパネル
+  const topPatterns = $('btn-top-patterns');
+  topPatterns.addEventListener('click', () => toggleDrawer());
   el.menuBtn.addEventListener('click', openMenu);
   el.closeMenu.addEventListener('click', closeMenu);
   for (const b of el.menuModal.querySelectorAll('[data-go]')) {
@@ -264,9 +271,9 @@ function bindUI() {
   el.menuModal.addEventListener('click', (ev) => {
     if (ev.target === el.menuModal) closeMenu();
   });
-  el.closeRules.addEventListener('click', () => { el.rulesModal.hidden = true; });
+  el.closeRules.addEventListener('click', () => hidePanel(el.rulesModal));
   el.rulesModal.addEventListener('click', (ev) => {
-    if (ev.target === el.rulesModal) el.rulesModal.hidden = true;
+    if (ev.target === el.rulesModal) hidePanel(el.rulesModal);
   });
   el.theme.addEventListener('click', toggleTheme);
 
@@ -276,19 +283,20 @@ function bindUI() {
     for (const m of el.keysModal.querySelectorAll('.mac-only')) m.hidden = false;
   }
   $('btn-rules-keys').addEventListener('click', () => {
-    el.rulesModal.hidden = true;
-    el.keysModal.hidden = false;
+    hidePanel(el.rulesModal, true);
+    showPanel(el.keysModal);
   });
-  $('btn-close-keys').addEventListener('click', () => { el.keysModal.hidden = true; });
+  $('btn-close-keys').addEventListener('click', () => hidePanel(el.keysModal));
   el.keysModal.addEventListener('click', (ev) => {
-    if (ev.target === el.keysModal) el.keysModal.hidden = true;
+    if (ev.target === el.keysModal) hidePanel(el.keysModal);
   });
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       // 手前に重なっているものから閉じる
       if (camera?.isOpen) { camera.close(); return; }
-      if (!el.keysModal.hidden) { el.keysModal.hidden = true; return; }
+      if (!el.keysModal.hidden) { hidePanel(el.keysModal); return; }
+      if (!el.rulesModal.hidden) { hidePanel(el.rulesModal); return; }
       if (!el.loginModal.hidden) { closeLogin(); return; }
       if (isDrawerOpen()) { closeDrawer(); return; }
       if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
@@ -298,7 +306,6 @@ function bindUI() {
         if (menuView !== 'main') showMenuView('main'); else closeMenu();
         return;
       }
-      el.rulesModal.hidden = true;
       hideOverlay();
     }
     const mod = ev.ctrlKey || ev.metaKey;
@@ -319,7 +326,7 @@ function bindUI() {
       setInputMode(board.inputMode === 'cross' ? 'line' : 'cross');
     } else if (!mod && !isTyping(ev.target) && ev.key === '?') {
       ev.preventDefault();
-      el.keysModal.hidden = !el.keysModal.hidden;
+      if (el.keysModal.hidden) showPanel(el.keysModal); else hidePanel(el.keysModal);
     } else if (!mod && ev.key.startsWith('Arrow') && (ev.target === document.body || ev.target === document.documentElement)
       && !isAnyModalOpen()) {
       // どこにも焦点が無いときの矢印キーは、盤面に渡す（先に盤面をクリックしなくても動かせる）
@@ -349,7 +356,7 @@ function openMenu() {
   renderAccount();
   puzzleReport ??= new PuzzleReport(el.puzzleReport, el.reportSummary);
   puzzleReport.show(game.puzzle);
-  el.menuModal.hidden = false;
+  showPanel(el.menuModal);
   showMenuView('main');
 }
 
@@ -369,9 +376,31 @@ function showMenuView(name) {
   }
 }
 
+/* ---------------- 右から出るパネル（遊び方・キーボード操作・メニュー） ---------------- */
+
+function showPanel(panel) {
+  panel.classList.remove('is-closing');
+  panel.hidden = false;
+}
+
+/** 右へ引っ込めてから隠す。instant（別のパネルへ移るとき）や、動きを減らす設定なら、すぐ隠す。 */
+function hidePanel(panel, instant = false) {
+  if (panel.hidden) return;
+  const done = () => { panel.classList.remove('is-closing'); panel.hidden = true; };
+  if (instant || matchMedia('(prefers-reduced-motion: reduce)').matches) { done(); return; }
+  panel.classList.add('is-closing');
+  panel.querySelector('.modal-card').addEventListener('animationend', done, { once: true });
+  setTimeout(() => { if (panel.classList.contains('is-closing')) done(); }, 400); // 念のため
+}
+
+function openRules() {
+  renderHelpFigures(el.rulesModal); // 図は初めて開いたときに描く
+  showPanel(el.rulesModal);
+}
+
 function closeMenu() {
   if (el.menuModal.hidden) return;
-  el.menuModal.hidden = true;
+  hidePanel(el.menuModal);
   el.menuBtn.focus();
 }
 
@@ -665,6 +694,7 @@ function openDrawer({ instant = false } = {}) {
   el.drawerScrim.hidden = false;
   document.body.classList.add('drawer-open');
   el.patternsBtn.setAttribute('aria-expanded', 'true');
+  $('btn-top-patterns').setAttribute('aria-expanded', 'true');
 
   if (instant) {
     // 読み込み直後にスライドが走ると落ち着かないので、初回だけ動かさない
@@ -688,6 +718,7 @@ function closeDrawer() {
   el.drawerScrim.hidden = true;
   document.body.classList.remove('drawer-open');
   el.patternsBtn.setAttribute('aria-expanded', 'false');
+  $('btn-top-patterns').setAttribute('aria-expanded', 'false');
   // 一覧のボタンはカードの欄にあって隠れていることがあるので、定石ボタンへ戻す
   el.quickPatterns.focus();
   const done = () => { el.drawer.hidden = true; };

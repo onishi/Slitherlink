@@ -128,7 +128,7 @@ html, body {
 .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
 
 
-select, input[type="text"] {
+select, input[type="text"], textarea {
   font: inherit;
   font-size: .92rem;
   padding: 8px 10px;
@@ -1338,3 +1338,135 @@ body.no-anim .app { transition: none !important; }
 .login-status { margin: 8px 0 0; font-size: .82rem; color: var(--danger); min-height: 0; }
 .login-status:empty { display: none; }
 .login-note { margin: 0; font-size: .8rem; color: var(--ink-faint); }
+
+/* ---------- メニュー：定石一覧と同じく、右から出るパネル ---------- */
+.modal.side-panel {
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+  z-index: 32; /* 定石一覧（サイドバー）より手前 */
+}
+.modal.side-panel .modal-card {
+  width: min(420px, 92vw);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  border-radius: 0;
+  border: none;
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 28px rgba(0, 0, 0, .16);
+  padding: max(16px, env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+  animation: panel-in .26s cubic-bezier(.2, .8, .3, 1);
+}
+.modal.side-panel.is-closing { animation: fade .2s ease reverse forwards; }
+.modal.side-panel.is-closing .modal-card { animation: panel-out .2s ease-in forwards; }
+@keyframes panel-in { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes panel-out { from { transform: none; } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .modal.side-panel .modal-card, .modal.side-panel.is-closing, .modal.side-panel.is-closing .modal-card { animation: none; }
+}
+
+/* ---------- 遊び方（右から出るパネル） ---------- */
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.panel-head h2 { margin: 0; }
+.help-sec { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.help-sec:last-of-type { border-bottom: none; }
+.help-sec h3 { margin: 0 0 6px; font-size: .95rem; color: var(--ink); }
+.help-sec p { margin: 0 0 10px; font-size: .86rem; line-height: 1.75; color: var(--ink-soft); }
+.help-sec p b { color: var(--ink); }
+.help-sec .rules { margin-top: 10px; }
+.help-figs { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.help-fig {
+  position: relative;
+  margin: 0;
+  padding: 8px 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  flex: 0 1 auto;
+}
+.help-fig figcaption { font-size: .74rem; color: var(--ink-soft); text-align: center; }
+.help-figs[data-fig="example"] .help-svg { width: 118px; }
+.help-figs[data-fig="numbers"] .help-svg { width: 52px; }
+.help-figs[data-fig="rules"] .help-svg { width: 72px; height: 72px; }
+.help-figs[data-fig="rules"] { display: grid; grid-template-columns: repeat(2, minmax(0, 132px)); gap: 14px 10px; }
+.help-steps { align-items: center; gap: 4px; flex-wrap: nowrap; }
+.help-steps .help-fig { padding: 6px 6px 4px; }
+.help-steps .help-svg { width: 44px; }
+.help-arrow { font-size: 1rem; color: var(--ink-faint); }
+.help-bad { stroke: var(--danger); }
+.help-ring { fill: none; stroke: var(--danger); stroke-width: .05; }
+.help-tag {
+  position: absolute; top: -8px; left: 6px;
+  font-size: .62rem; font-weight: 700; letter-spacing: .04em;
+  padding: 0 6px; border-radius: 999px; color: #fff;
+}
+.help-tag.is-ng { background: var(--danger); }
+.help-tag.is-ok { background: var(--accent); }
+.help-card .note { margin: 12px 0 0; }
+.help-card > .primary { width: 100%; margin-top: 14px; }
+
+/* ---------- 管理画面（admin.html） ---------- */
+.admin { max-width: 1100px; margin: 0 auto; padding: 14px 16px 40px; }
+.admin-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.admin-head .logo { margin-right: auto; }
+.admin-back { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-soft); text-decoration: none; font-size: .86rem; }
+.admin-back .mi { font-size: 1.1rem; }
+.admin-account { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--ink-soft); }
+.admin-gate { max-width: 460px; margin: 40px auto; text-align: center; }
+.admin-gate[hidden], .admin-main[hidden], .admin-book[hidden], .admin-queue-head[hidden] { display: none; }
+.admin-main { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .admin-main { grid-template-columns: 1fr; } }
+.admin h2 { margin: 0 0 10px; font-size: 1rem; }
+.admin h3 { margin: 22px 0 8px; font-size: .95rem; }
+.admin h3 small { font-weight: 400; color: var(--ink-faint); font-size: .8rem; }
+.admin-new-book { display: flex; gap: 6px; margin-bottom: 10px; }
+.admin-new-book input { flex: 1; min-width: 0; }
+.admin-new-book button, .admin-row button, .admin-queue-head button { width: auto; margin: 0; display: inline-flex; align-items: center; gap: 4px; }
+.admin-book-list, .admin-queue, .admin-problems { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.admin-book-item {
+  width: 100%; margin: 0; text-align: left; display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px; border-radius: 10px;
+}
+.admin-book-item small { font-size: .74rem; color: var(--ink-faint); font-weight: 400; }
+.admin-book-item.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.admin-empty { font-size: .84rem; color: var(--ink-faint); padding: 6px 2px; }
+.admin-book { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.admin-book-form { display: grid; gap: 8px; }
+.admin-book-form textarea { resize: vertical; font: inherit; }
+.admin-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-spacer { flex: 1; }
+.admin-check { display: inline-flex; align-items: center; gap: 6px; font-size: .84rem; color: var(--ink-soft); }
+.danger-btn { color: var(--danger); }
+.admin-drop {
+  display: flex; align-items: center; gap: 12px; padding: 18px;
+  border: 2px dashed var(--border); border-radius: 12px; cursor: pointer;
+  font-size: .88rem; color: var(--ink-soft); line-height: 1.6;
+}
+.admin-drop small { color: var(--ink-faint); font-size: .76rem; }
+.admin-drop > .mi { font-size: 2rem; color: var(--accent); }
+.admin-drop.is-over, .admin-drop:hover { border-color: var(--accent); background: var(--accent-soft); }
+.admin-queue-head { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; flex-wrap: wrap; }
+.admin-queue-status { margin: 0 auto 0 0; font-size: .84rem; color: var(--ink-soft); }
+.admin-queue-item, .admin-problem {
+  display: flex; align-items: center; gap: 10px; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.admin-queue-item.is-warn { border-color: color-mix(in srgb, var(--line-hint) 70%, var(--border)); }
+.admin-queue-item.is-error { border-color: color-mix(in srgb, var(--danger) 60%, var(--border)); }
+.admin-queue-item button { width: auto; margin: 0; display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; padding: 5px 10px; }
+.admin-thumb { flex: none; width: 52px; height: 52px; border-radius: 6px; background: var(--surface-2); display: grid; place-items: center; overflow: hidden; }
+.admin-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.admin-thumb .mi { color: var(--ink-faint); }
+.admin-queue-item.is-error .admin-thumb .mi { color: var(--danger); }
+.admin-queue-text, .admin-problem-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.admin-queue-text b, .admin-problem-text b { font-size: .86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-queue-text small, .admin-problem-text small { font-size: .76rem; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-queue-item.is-warn small { color: var(--ink-soft); white-space: normal; }
+.admin-ok { font-size: .74rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 999px; }
+.admin-link { display: inline-flex; align-items: center; gap: 2px; font-size: .8rem; color: var(--accent); text-decoration: none; }
+.admin-link .mi { font-size: 1.05rem; }
+.admin-problem .icon-btn { width: 30px; height: 30px; flex: none; }
