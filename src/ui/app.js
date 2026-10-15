@@ -349,6 +349,7 @@ function openMenu() {
   renderAccount();
   puzzleReport ??= new PuzzleReport(el.puzzleReport, el.reportSummary);
   puzzleReport.show(game.puzzle);
+  el.menuModal.classList.remove('is-closing');
   el.menuModal.hidden = false;
   showMenuView('main');
 }
@@ -371,7 +372,15 @@ function showMenuView(name) {
 
 function closeMenu() {
   if (el.menuModal.hidden) return;
-  el.menuModal.hidden = true;
+  // 右へ引っ込めてから隠す（動きを減らす設定なら、すぐ隠す）
+  const panel = el.menuModal;
+  const done = () => { panel.classList.remove('is-closing'); panel.hidden = true; };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) done();
+  else {
+    panel.classList.add('is-closing');
+    panel.querySelector('.modal-card').addEventListener('animationend', done, { once: true });
+    setTimeout(() => { if (panel.classList.contains('is-closing')) done(); }, 400); // 念のため
+  }
   el.menuBtn.focus();
 }
 

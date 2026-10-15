@@ -1338,3 +1338,32 @@ body.no-anim .app { transition: none !important; }
 .login-status { margin: 8px 0 0; font-size: .82rem; color: var(--danger); min-height: 0; }
 .login-status:empty { display: none; }
 .login-note { margin: 0; font-size: .8rem; color: var(--ink-faint); }
+
+/* ---------- メニュー：定石一覧と同じく、右から出るパネル ---------- */
+.modal.side-panel {
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 0;
+  z-index: 32; /* 定石一覧（サイドバー）より手前 */
+}
+.modal.side-panel .modal-card {
+  width: min(420px, 92vw);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  border-radius: 0;
+  border: none;
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 28px rgba(0, 0, 0, .16);
+  padding: max(16px, env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+  animation: panel-in .26s cubic-bezier(.2, .8, .3, 1);
+}
+.modal.side-panel.is-closing { animation: fade .2s ease reverse forwards; }
+.modal.side-panel.is-closing .modal-card { animation: panel-out .2s ease-in forwards; }
+@keyframes panel-in { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes panel-out { from { transform: none; } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .modal.side-panel .modal-card, .modal.side-panel.is-closing, .modal.side-panel.is-closing .modal-card { animation: none; }
+}
