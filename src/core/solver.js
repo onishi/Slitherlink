@@ -33,16 +33,10 @@ export const RULE_LABELS = {
 };
 
 class DSU {
-  constructor(n) {
-    this.parent = new Int32Array(n);
-    for (let i = 0; i < n; i++) this.parent[i] = i;
-    this.rank = new Uint8Array(n);
-  }
-  clone() {
-    const d = Object.create(DSU.prototype);
-    d.parent = this.parent.slice();
-    d.rank = this.rank.slice();
-    return d;
+  /** parent と rank は、呼び出し側がまとめて確保した配列の一部（複製を安くするため）。 */
+  constructor(parent, rank) {
+    this.parent = parent;
+    this.rank = rank;
   }
   find(x) {
     const p = this.parent;
@@ -75,20 +69,18 @@ export class SolveState {
     const { edgeCount, vertexCount, cellCount } = grid;
     this.grid = grid;
     this.clues = clues;
-    this.edges = new Int8Array(edgeCount);
-    this.cellLine = new Int8Array(cellCount);
-    this.cellUnknown = new Int8Array(cellCount).fill(4);
-    this.vertexLine = new Int8Array(vertexCount);
-    this.vertexUnknown = new Int8Array(vertexCount);
+    // 背理法では状態を何度も複製する。配列を 1 つずつ作ると確保が重いので、
+    // 8 ビットと 32 ビットの 2 本にまとめて確保し、それぞれの配列はその一部を見る
+    const nodes = cellCount + 1;
+    this.mem8 = new Int8Array(edgeCount + 2 * cellCount + 2 * vertexCount + vertexCount + nodes);
+    this.mem32 = new Int32Array(vertexCount + 3 * nodes);
+    this.attach();
+    this.cellUnknown.fill(4);
     for (let v = 0; v < vertexCount; v++) this.vertexUnknown[v] = grid.vertexEdges[v].length;
-    this.dsu = new DSU(vertexCount);
+    for (let v = 0; v < vertexCount; v++) this.dsu.parent[v] = v;
     // R5：マス（と盤の外 = cellCount 番）の内外の関係。親との関係（0 同じ側・1 反対側）と、
     // 同じ組のマスをつなぐ輪状のリスト（組を合わせたとき、決まる辺を探すため）
-    const nodes = cellCount + 1;
-    this.ppar = new Int32Array(nodes);
-    this.prel = new Uint8Array(nodes);
-    this.psize = new Int32Array(nodes).fill(1);
-    this.pnext = new Int32Array(nodes);
+    this.psize.fill(1);
     for (let i = 0; i < nodes; i++) { this.ppar[i] = i; this.pnext[i] = i; }
     this.queueParity = [];
     this.openEnds = 0;       // 次数 1 の頂点の数 (線の端)
@@ -108,20 +100,34 @@ export class SolveState {
     this.seq = 0;
   }
 
+  /** mem8 と mem32 の中に、各配列の置き場所を割り当てる。 */
+  attach() {
+    const { edgeCount, vertexCount, cellCount } = this.grid;
+    const nodes = cellCount + 1;
+    let at = 0;
+    const take8 = (n) => this.mem8.subarray(at, (at += n));
+    this.edges = take8(edgeCount);
+    this.cellLine = take8(cellCount);
+    this.cellUnknown = take8(cellCount);
+    this.vertexLine = take8(vertexCount);
+    this.vertexUnknown = take8(vertexCount);
+    const rank = take8(vertexCount);
+    this.prel = take8(nodes);
+    at = 0;
+    const take32 = (n) => this.mem32.subarray(at, (at += n));
+    this.dsu = new DSU(take32(vertexCount), rank);
+    this.ppar = take32(nodes);
+    this.psize = take32(nodes);
+    this.pnext = take32(nodes);
+  }
+
   clone() {
     const s = Object.create(SolveState.prototype);
     s.grid = this.grid;
     s.clues = this.clues;
-    s.edges = this.edges.slice();
-    s.cellLine = this.cellLine.slice();
-    s.cellUnknown = this.cellUnknown.slice();
-    s.vertexLine = this.vertexLine.slice();
-    s.vertexUnknown = this.vertexUnknown.slice();
-    s.dsu = this.dsu.clone();
-    s.ppar = this.ppar.slice();
-    s.prel = this.prel.slice();
-    s.psize = this.psize.slice();
-    s.pnext = this.pnext.slice();
+    s.mem8 = this.mem8.slice();
+    s.mem32 = this.mem32.slice();
+    s.attach();
     s.queueParity = this.queueParity.slice();
     s.openEnds = this.openEnds;
     s.unsatisfied = this.unsatisfied;
