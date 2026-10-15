@@ -66,3 +66,16 @@ test('問題コードは短い形式で、以前の形式も読める', () => {
   assert.throws(() => decodePuzzle(code.slice(0, -2)));
   assert.throws(() => decodePuzzle(code + 'AA'));
 });
+
+test('大きな盤（20×36、50×50）の問題コードも読める。50 を超えると断る', () => {
+  for (const [rows, cols] of [[36, 20], [50, 50]]) {
+    const clues = new Int8Array(rows * cols).fill(-1).map((_, i) => (i % 7 === 0 ? i % 4 : -1));
+    const code = encodePuzzle({ rows, cols, clues, difficulty: 'hard' });
+    const d = decodePuzzle(code);
+    assert.equal(d.rows, rows);
+    assert.equal(d.cols, cols);
+    assert.deepEqual([...d.clues], [...clues]);
+    assert.ok(code.length <= 1400, `コードが長すぎる: ${code.length}`);
+  }
+  assert.throws(() => decodePuzzle('51x20nA'), /範囲外/);
+});

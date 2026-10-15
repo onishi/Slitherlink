@@ -1470,3 +1470,5 @@ body.no-anim .app { transition: none !important; }
 .admin-link { display: inline-flex; align-items: center; gap: 2px; font-size: .8rem; color: var(--accent); text-decoration: none; }
 .admin-link .mi { font-size: 1.05rem; }
 .admin-problem .icon-btn { width: 30px; height: 30px; flex: none; }
+.admin-stats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; font-size: .72rem; color: var(--ink-faint); }
+.admin-stat { padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); white-space: nowrap; }

@@ -47,3 +47,28 @@ test('傾いた盤の点から、四隅とマス数を見つける（一部の�
   assert.equal(guess.cols, cols);
   guess.corners.forEach((p, i) => assert.ok(Math.hypot(p[0] - truth[i][0], p[1] - truth[i][1]) < 4, `角 ${i}: ${p} ≠ ${truth[i]}`));
 });
+
+test('ニコリの大きな盤（20×36）も、四隅とマス数を見つける（題名の「●」などに惑わされない）', () => {
+  // 見開き 1 ページを 1400px に縮めたくらいの大きさ。点は小さめ
+  const w = 955;
+  const h = 1400;
+  const gray = new Float32Array(w * h).fill(250);
+  const rows = 36;
+  const cols = 20;
+  const x0 = 170;
+  const y0 = 185;
+  const s = 30.6;
+  const blot = (cx, cy, r) => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (dx * dx + dy * dy <= r * r) gray[Math.round(cy + dy) * w + Math.round(cx + dx)] = 20;
+    }
+  };
+  for (let v = 0; v <= rows; v++) for (let u = 0; u <= cols; u++) blot(x0 + u * s, y0 + v * s, 2);
+  blot(x0 + 110, y0 - 45, 3); // 「作●活火山」の●
+  blot(x0 + 5, y0 + rows * s + 50, 2); // ページ番号のあたりの汚れ
+  const guess = guessCorners({ width: w, height: h, gray });
+  assert.equal(guess.rows, rows);
+  assert.equal(guess.cols, cols);
+  const truth = [[x0, y0], [x0 + cols * s, y0], [x0 + cols * s, y0 + rows * s], [x0, y0 + rows * s]];
+  guess.corners.forEach((p, i) => assert.ok(Math.hypot(p[0] - truth[i][0], p[1] - truth[i][1]) < 4, `角 ${i}: ${p} ≠ ${truth[i]}`));
+});

@@ -9,7 +9,7 @@
  * 5 段目　仮定 2 段（仮定の中でさらに仮定する）
  * 浅い段で進める限り深い段は使わない。行き詰まったときだけ 1 つ深くする。
  */
-import { getGrid, UNKNOWN } from './grid.js';
+import { getGrid, UNKNOWN, LINE } from './grid.js';
 import { PATTERNS, isSearchPattern } from './patterns.js';
 import { findMatches } from './pattern-match.js';
 import { collectProofs, proofSize } from './proof.js';
@@ -137,4 +137,24 @@ export function rateImported(puzzle) {
   if (result.status !== 'ok') return result;
   const report = difficultyReport({ ...puzzle, solution: result.solution });
   return { ...result, difficulty: levelOf(report), report };
+}
+
+/**
+ * 問題集にしまう問題の、難易度のほかの目安（分析の結果から、少しの数だけを取り出す）。
+ *   loopLength    答えの輪の長さ（引く線の本数）
+ *   patternShare  定石（ふつうの定石・読みの定石）だけで決まる辺の割合（%）
+ *   freeShare     最初に仮定が要るまでに決まる割合（%）。仮定が要らなければ 100
+ *   assumeCount   仮定が要る回数
+ *   longestSteps  いちばん長い読み（仮定してから矛盾が出るまでの手数）。仮定が要らなければ 0
+ * 数字の個数（clueCount）と 5 段階の難易度は、もとから別に持っている。
+ */
+export function problemStats(report, solution) {
+  const pct = (x) => Math.round(x * 100);
+  return {
+    loopLength: solution ? Array.prototype.reduce.call(solution, (n, v) => n + (v === LINE ? 1 : 0), 0) : null,
+    patternShare: pct((report.decided.plain + report.decided.search) / report.total),
+    freeShare: pct(report.beforeAssume),
+    assumeCount: report.assumeCount,
+    longestSteps: report.longest,
+  };
 }

@@ -11,8 +11,11 @@
 
 import { normalize, cleanMask, classifyShape } from './digit-features.js';
 import { DIGIT_MODEL } from './digit-model.js';
+import { MAX_SIZE } from '../core/puzzle.js';
 
 const MAX_SIDE = 1400;
+// 読み取れる盤の大きさ（縦横どちらも）は、問題コードで扱える大きさと同じ
+const MAX_CELLS = MAX_SIZE;
 const PATCH = 40;    // 1 マスを切り出す大きさ（px）
 const DIGITS = [0, 1, 2, 3];
 const PRINTED = 0.8; // 書体の型との相関がこれ以上なら印刷の文字とみなす
@@ -337,7 +340,7 @@ function fitLattice(pts) {
     marks = next;
   }
   const { H, cols, rows } = fit;
-  if (cols < 2 || rows < 2 || cols > 30 || rows > 30) return null;
+  if (cols < 2 || rows < 2 || cols > MAX_CELLS || rows > MAX_CELLS) return null;
   const corners = [[0, 0], [cols, 0], [cols, rows], [0, rows]].map(([u, v]) => project(H, u, v));
   return { corners, rows, cols };
 }
