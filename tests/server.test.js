@@ -329,3 +329,25 @@ test('問題の出どころ（スキャン／自動作問）を持ち、出ど�
   const user = await loginAs({ sub: 'user-9' });
   assert.equal((await call('/api/admin/compare', { cookie: user.cookie })).status, 403);
 });
+
+test('問題集をまたいだ問題の一覧と、問題集どうしのくらべ', async () => {
+  const { cookie } = await loginAs({ sub: 'admin-1' });
+  const st = (coverage) => ({ loopLength: 20, patternShare: 90, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage });
+  const a = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: 'A' } })).data.book.id;
+  const b = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: 'B' } })).data.book.id;
+  await call(`/api/admin/books/${a}/problems`, { method: 'POST', cookie, body: { problems: [
+    { code: '5nA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 10, origin: 'scan', stats: st(60) },
+    { code: '7hA', rows: 7, cols: 7, difficulty: 'hard', clueCount: 20, origin: 'scan', stats: st(80) },
+  ] } });
+  await call(`/api/admin/books/${b}/problems`, { method: 'POST', cookie, body: { problems: [
+    { code: '5eB', rows: 5, cols: 5, difficulty: 'easy', clueCount: 12, origin: 'generated', stats: st(90) },
+  ] } });
+  const { problems } = (await call('/api/admin/problems', { cookie })).data;
+  assert.deepEqual(problems.map((p) => `${p.bookTitle}:${p.position}:${p.code}:${p.coverage}`), ['A:1:5nA:60', 'A:2:7hA:80', 'B:1:5eB:90']);
+  const cmp = (await call('/api/admin/compare', { cookie })).data;
+  assert.deepEqual(cmp.byBook.map((r) => [r.title, r.count, r.coverage, r.scans, r.generated, r.minCells, r.maxCells]),
+    [['A', 2, 70, 2, 0, 25, 49], ['B', 1, 90, 0, 1, 25, 25]]);
+  assert.equal(cmp.bookLevels.find((r) => r.bookId === a && r.difficulty === 'hard').count, 1);
+  const user = await loginAs({ sub: 'user-9' });
+  assert.equal((await call('/api/admin/problems', { cookie: user.cookie })).status, 403);
+});

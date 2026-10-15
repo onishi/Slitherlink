@@ -339,6 +339,7 @@ async function admin(request, db, url) {
   const method = request.method;
   const parts = url.pathname.split('/').filter(Boolean).slice(2); // ['books', id, 'problems', pid]
   if (parts[0] === 'compare' && parts.length === 1 && method === 'GET') return compareOrigins(db);
+  if (parts[0] === 'problems' && parts.length === 1 && method === 'GET') return allProblems(db);
   if (parts[0] !== 'books') throw new HttpError(404, 'ありません');
   const now = Date.now();
 
@@ -477,13 +478,42 @@ async function compareOrigins(db) {
     AVG(100.0 * loop_length / (rows * cols)) AS loopPerCell,
     AVG(pattern_share) AS patternShare, AVG(free_share) AS freeShare,
     AVG(assume_count) AS assumeCount, AVG(longest_steps) AS longestSteps, AVG(coverage) AS coverage`;
-  const [all, bySize, levels] = await db.batch([
+  const [all, bySize, levels, byBook, bookLevels] = await db.batch([
     db.prepare(`SELECT COALESCE(origin, 'unknown') AS origin, ${metrics} FROM book_problems GROUP BY 1 ORDER BY 1`),
     db.prepare(`SELECT COALESCE(origin, 'unknown') AS origin, rows, cols, ${metrics} FROM book_problems
       GROUP BY 1, rows, cols ORDER BY rows * cols, rows, 1`),
     db.prepare(`SELECT COALESCE(origin, 'unknown') AS origin, difficulty, COUNT(*) AS count FROM book_problems GROUP BY 1, 2`),
+    // 問題集どうしをくらべる
+    db.prepare(`SELECT b.id AS bookId, b.title, COUNT(*) AS count,
+      AVG(100.0 * p.clue_count / (p.rows * p.cols)) AS clueDensity,
+      AVG(100.0 * p.loop_length / (p.rows * p.cols)) AS loopPerCell,
+      AVG(p.pattern_share) AS patternShare, AVG(p.free_share) AS freeShare,
+      AVG(p.assume_count) AS assumeCount, AVG(p.longest_steps) AS longestSteps, AVG(p.coverage) AS coverage,
+      SUM(p.origin = 'scan') AS scans, SUM(p.origin = 'generated') AS generated,
+      MIN(p.rows * p.cols) AS minCells, MAX(p.rows * p.cols) AS maxCells
+      FROM books b JOIN book_problems p ON p.book_id = b.id GROUP BY b.id ORDER BY b.created_at`),
+    db.prepare('SELECT book_id AS bookId, difficulty, COUNT(*) AS count FROM book_problems GROUP BY 1, 2'),
   ]);
-  return json({ all: all.results, bySize: bySize.results, levels: levels.results });
+  return json({
+    all: all.results, bySize: bySize.results, levels: levels.results,
+    byBook: byBook.results, bookLevels: bookLevels.results,
+  });
+}
+
+/** 問題集をまたいだ問題の一覧（絞り込みと並べ替えは管理画面でする）。 */
+async function allProblems(db) {
+  const { results } = await db.prepare(
+    `SELECT p.*, b.title AS book_title FROM book_problems p JOIN books b ON b.id = p.book_id
+     ORDER BY b.created_at, p.position`,
+  ).all();
+  return json({
+    problems: results.map((p) => ({
+      id: p.id, bookId: p.book_id, bookTitle: p.book_title, position: p.position, code: p.code,
+      rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clue_count, origin: p.origin, source: p.source,
+      loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
+      assumeCount: p.assume_count, longestSteps: p.longest_steps, coverage: p.coverage,
+    })),
+  });
 }
 
 /** 問題の出どころ。決まった値のほかは入れない。 */
