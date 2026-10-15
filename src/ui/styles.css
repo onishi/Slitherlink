@@ -1367,3 +1367,44 @@ body.no-anim .app { transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .modal.side-panel .modal-card, .modal.side-panel.is-closing, .modal.side-panel.is-closing .modal-card { animation: none; }
 }
+
+/* ---------- 遊び方（右から出るパネル） ---------- */
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.panel-head h2 { margin: 0; }
+.help-sec { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.help-sec:last-of-type { border-bottom: none; }
+.help-sec h3 { margin: 0 0 6px; font-size: .95rem; color: var(--ink); }
+.help-sec p { margin: 0 0 10px; font-size: .86rem; line-height: 1.75; color: var(--ink-soft); }
+.help-sec p b { color: var(--ink); }
+.help-sec .rules { margin-top: 10px; }
+.help-figs { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.help-fig {
+  position: relative;
+  margin: 0;
+  padding: 8px 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  flex: 0 1 auto;
+}
+.help-fig figcaption { font-size: .74rem; color: var(--ink-soft); text-align: center; }
+.help-figs[data-fig="example"] .help-svg { width: 118px; }
+.help-figs[data-fig="numbers"] .help-svg { width: 52px; }
+.help-figs[data-fig="rules"] .help-svg { width: 72px; height: 72px; }
+.help-figs[data-fig="rules"] { display: grid; grid-template-columns: repeat(2, minmax(0, 132px)); gap: 14px 10px; }
+.help-steps { align-items: center; gap: 4px; flex-wrap: nowrap; }
+.help-steps .help-fig { padding: 6px 6px 4px; }
+.help-steps .help-svg { width: 44px; }
+.help-arrow { font-size: 1rem; color: var(--ink-faint); }
+.help-bad { stroke: var(--danger); }
+.help-ring { fill: none; stroke: var(--danger); stroke-width: .05; }
+.help-tag {
+  position: absolute; top: -8px; left: 6px;
+  font-size: .62rem; font-weight: 700; letter-spacing: .04em;
+  padding: 0 6px; border-radius: 999px; color: #fff;
+}
+.help-tag.is-ng { background: var(--danger); }
+.help-tag.is-ok { background: var(--accent); }
+.help-card .note { margin: 12px 0 0; }
+.help-card > .primary { width: 100%; margin-top: 14px; }
