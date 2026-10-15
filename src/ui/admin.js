@@ -217,7 +217,7 @@ async function removeProblem(p) {
   await loadBooks(current.book.id);
 }
 
-/* ---------------- スキャンと自動作問をくらべる ---------------- */
+/* ---------------- 問題集をまたいでくらべる ---------------- */
 
 const ORIGIN_LABEL = { scan: 'スキャン', generated: '自動作問', unknown: '出どころ不明' };
 const COMPARE_COLS = [
@@ -231,23 +231,6 @@ const COMPARE_COLS = [
   ['longestSteps', '最長の読み', (v) => `${v.toFixed(1)} 手`],
 ];
 
-function compareTable(rows, withSize) {
-  const table = el('table', 'admin-compare-table');
-  const head = el('tr');
-  head.append(el('th', null, '出どころ'));
-  if (withSize) head.append(el('th', null, '大きさ'));
-  for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
-  table.append(head);
-  for (const r of rows) {
-    const tr = el('tr', `is-${r.origin}`);
-    tr.append(el('td', 'admin-compare-origin', ORIGIN_LABEL[r.origin] ?? r.origin));
-    if (withSize) tr.append(el('td', null, `${r.rows}×${r.cols}`));
-    for (const [key, , fmt] of COMPARE_COLS) tr.append(el('td', null, r[key] == null ? '—' : fmt(r[key])));
-    table.append(tr);
-  }
-  return table;
-}
-
 let compareData = null;
 let allRows = null;
 let sortKey = 'bookTitle';
@@ -260,8 +243,12 @@ async function openCompare() {
   document.querySelector('.admin').classList.add('is-wide');
   current = null;
   renderBooks();
-  $('compare-body').textContent = '調べています…';
   $('books-body').textContent = '調べています…';
+  await loadCompare();
+  refillCompare();
+}
+
+async function loadCompare() {
   const [cmp, list] = await Promise.all([api('/api/admin/compare'), api('/api/admin/problems')]);
   compareData = cmp;
   allRows = list.problems.map((p) => ({
@@ -273,7 +260,40 @@ async function openCompare() {
   fillFilters();
   renderProblemTable();
   renderBookCompare();
-  renderOriginCompare();
+}
+
+/**
+ * 目安が欠けている問題（行き渡り率を持つ前に登録した問題など）を、問題集をまたいで計算し直して保存する。
+ * 終わったら表を読み直す。
+ */
+let refilling = false;
+async function refillCompare() {
+  if (refilling) return;
+  const todo = allRows.filter((p) => p.coverage == null || p.patternShare == null);
+  if (!todo.length) return;
+  refilling = true;
+  const status = $('refill-status');
+  status.hidden = false;
+  let done = 0;
+  try {
+    for (const p of todo) {
+      if ($('compare').hidden) return; // ほかの画面に移ったらやめる（次に開いたとき続きから）
+      status.textContent = `目安が欠けている問題を計算し直しています… ${done} / ${todo.length}`;
+      done++;
+      let r;
+      try {
+        const d = decodePuzzle(p.code);
+        r = await checker(d.rows, d.cols, d.clues);
+      } catch { continue; }
+      if (!r.ok || r.status !== 'ok' || !r.report) continue;
+      const stats = problemStats(r.report, r.solution, p);
+      await api(`/api/admin/books/${p.bookId}/problems/${p.id}`, { method: 'PATCH', body: { stats, difficulty: r.difficulty } });
+    }
+    status.hidden = true;
+    if (!$('compare').hidden) await loadCompare();
+  } finally {
+    refilling = false;
+  }
 }
 
 function showTab(name) {
@@ -434,37 +454,37 @@ function renderBookCompare() {
     levels.append(tr);
   }
   body.append(el('h3', null, '難易度の内訳'), levels);
+  body.append(el('h3', null, '大きさごと'), bookSizeTable());
 }
 
-/* ---------- スキャンと自動作問 ---------- */
-
-function renderOriginCompare() {
-  const data = compareData;
-  const body = $('compare-body');
-  body.textContent = '';
-  if (!data.all.length) {
-    body.append(el('p', 'admin-empty', 'まだ問題がありません。'));
-    return;
+/** 問題集と大きさの組ごとに、目安を平均する（大きさをそろえてくらべるため）。 */
+function bookSizeTable() {
+  const groups = new Map();
+  for (const p of allRows) {
+    const key = `${p.bookId}\t${p.size}`;
+    if (!groups.has(key)) groups.set(key, { title: p.bookTitle, size: p.size, cells: p.rows * p.cols, rows: [] });
+    groups.get(key).rows.push(p);
   }
-  body.append(el('h3', null, '全体'), compareTable(data.all, false));
-  // 難易度の内訳（出どころごとに、5 段階それぞれ何問か）
-  const levels = el('table', 'admin-compare-table');
+  const avg = (rows, key) => {
+    const v = rows.map((r) => r[key]).filter((x) => x != null);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  head.append(el('th', null, '出どころ'));
-  for (const k of LEVEL_ORDER) head.append(el('th', null, DIFFICULTIES[k].label));
-  levels.append(head);
-  for (const origin of [...new Set(data.levels.map((r) => r.origin))].sort()) {
-    const tr = el('tr', `is-${origin}`);
-    tr.append(el('td', 'admin-compare-origin', ORIGIN_LABEL[origin] ?? origin));
-    const total = data.levels.filter((r) => r.origin === origin).reduce((n, r) => n + r.count, 0);
-    for (const k of LEVEL_ORDER) {
-      const n = data.levels.find((r) => r.origin === origin && r.difficulty === k)?.count ?? 0;
-      tr.append(el('td', null, n ? `${n}（${Math.round((n / total) * 100)}%）` : '—'));
+  for (const label of ['問題集', '大きさ']) head.append(el('th', null, label));
+  for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
+  table.append(head);
+  const list = [...groups.values()].sort((a, b) => a.cells - b.cells || a.size.localeCompare(b.size));
+  for (const g of list) {
+    const tr = el('tr');
+    tr.append(el('td', 'admin-compare-origin', g.title), el('td', null, g.size));
+    for (const [key, , fmt] of COMPARE_COLS) {
+      const v = key === 'count' ? g.rows.length : avg(g.rows, key);
+      tr.append(el('td', null, v == null ? '—' : fmt(v)));
     }
-    levels.append(tr);
+    table.append(tr);
   }
-  body.append(el('h3', null, '難易度の内訳'), levels);
-  body.append(el('h3', null, '大きさごと'), compareTable(data.bySize, true));
+  return table;
 }
 
 function bindBooks() {
