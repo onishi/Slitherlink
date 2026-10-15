@@ -38,10 +38,10 @@ test('問題集にしまう目安：仮定の要らない問題と、要る問�
   const easy = rateImported(decodePuzzle('5eJgCYLgA'));
   assert.deepEqual(problemStats(easy.report, easy.solution),
     { loopLength: 14, patternShare: 55, freeShare: 100, assumeCount: 0, longestSteps: 0 });
-  const hard = rateImported(decodePuzzle('7hGcMABWllzo9AFA'));
+  const hard = rateImported(decodePuzzle('7hpQrYVs0MqirBdlwA'));
   assert.equal(hard.difficulty, 'hard');
   const st = problemStats(hard.report, hard.solution);
-  assert.equal(st.loopLength, 34);
+  assert.equal(st.loopLength, 46);
   assert.ok(st.freeShare < 100 && st.freeShare > 0);
   assert.ok(st.assumeCount >= 1 && st.longestSteps >= 1);
   assert.ok(st.patternShare > 0 && st.patternShare <= 100);

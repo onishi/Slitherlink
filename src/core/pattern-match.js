@@ -460,9 +460,10 @@ function findShortcutMatches(grid, clues, state) {
   return { fills: [...fills.values()], conflicts: 0, places: fills.size };
 }
 
-/** 証明が「輪はひとつだけ」を使っているか（輪が閉じて矛盾する、または小さな輪を避けて × にした）。 */
+/** 証明が盤面全体を見るルール（輪はひとつだけ・輪の内側と外側）を使っているか。 */
 function usesLoopRule(proof) {
-  return proof.clash.kind === 'loop' || proof.steps.some((s) => s.rule === 'loop_closed' || s.rule === 'loop_done');
+  return proof.clash.kind === 'loop' || proof.clash.kind === 'parity'
+    || proof.steps.some((s) => s.rule === 'loop_closed' || s.rule === 'loop_done' || s.rule === 'parity');
 }
 
 /**

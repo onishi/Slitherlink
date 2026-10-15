@@ -74,3 +74,38 @@ test('誤った既知情報は矛盾として検出される', () => {
   }
   assert.equal(solveLogical(g, clues, { maxDepth: 1, initial }).status, 'contradiction');
 });
+
+test('内側と外側（R5）：確定した辺をたどって両側の内外が分かれば、間の辺が決まる', async () => {
+  const { getGrid, LINE, CROSS, UNKNOWN } = await import('../src/core/grid.js');
+  const { SolveState } = await import('../src/core/solver.js');
+  // 2×2 の盤。左上のマスの上と左を線、右上のマスの上を × にすると、
+  // 左上は内側・右上は外側と分かるので、その間の辺は線
+  const grid = getGrid(2, 2);
+  const st = new SolveState(grid, new Int8Array(4).fill(-1), true);
+  const top0 = grid.cellEdges[0 * 4 + 0];
+  const top1 = grid.cellEdges[1 * 4 + 0];
+  const between = grid.cellEdges.slice(0, 4).find((e) => grid.edgeCells[e].includes(1));
+  assert.ok(st.setEdge(top0, LINE, 'given'));
+  assert.ok(st.setEdge(top1, CROSS, 'given'));
+  assert.equal(st.edges[between], UNKNOWN);
+  // ほかのルール（線の端はつながる）でも同じ辺が決まるので、R5 だけを当てて確かめる
+  assert.ok(st.applyParityRule());
+  assert.equal(st.edges[between], LINE);
+  assert.equal(st.reasons[between].rule, 'parity');
+  assert.deepEqual(new Set(st.reasons[between].premises), new Set([top0, top1]));
+});
+
+test('内側と外側（R5）：つじつまが合わなければ矛盾', async () => {
+  const { getGrid, LINE, CROSS } = await import('../src/core/grid.js');
+  const { SolveState } = await import('../src/core/solver.js');
+  const grid = getGrid(2, 2);
+  const st = new SolveState(grid, new Int8Array(4).fill(-1), true);
+  const top0 = grid.cellEdges[0];
+  const top1 = grid.cellEdges[4];
+  const between = grid.cellEdges.slice(0, 4).find((e) => grid.edgeCells[e].includes(1));
+  assert.ok(st.setEdge(top0, LINE, 'given'));
+  assert.ok(st.setEdge(top1, CROSS, 'given'));
+  // 左上（内）と右上（外）の間を × にすると食い違う
+  assert.equal(st.setEdge(between, CROSS, 'given'), false);
+  assert.equal(st.clash.kind, 'parity');
+});
