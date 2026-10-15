@@ -13,7 +13,7 @@ const SESSION_DAYS = 60;
 const MAX_LIBRARY = 200;
 const MAX_HISTORY = 1000;
 const HISTORY_PAGE = 200;
-const MAX_CODE = 1200;
+const MAX_CODE = 1400; // 50×50 の盤のコードも入る長さ
 const MAX_GAME_BYTES = 64 * 1024;
 
 export default {

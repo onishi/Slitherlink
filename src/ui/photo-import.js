@@ -5,7 +5,7 @@
  */
 
 import { loadPhoto, guessCorners, readClues, homography, project, rectify } from './image-reader.js';
-import { encodePuzzle } from '../core/puzzle.js';
+import { encodePuzzle, MAX_SIZE } from '../core/puzzle.js';
 import { rateImported } from '../core/difficulty-report.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { renderReport } from './puzzle-report.js';
@@ -353,5 +353,5 @@ export class PhotoImport {
 
 function clampSize(v) {
   const n = Math.round(Number(v));
-  return Number.isFinite(n) ? Math.max(2, Math.min(30, n)) : 10;
+  return Number.isFinite(n) ? Math.max(2, Math.min(MAX_SIZE, n)) : 10;
 }

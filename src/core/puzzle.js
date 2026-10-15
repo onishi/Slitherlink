@@ -55,8 +55,11 @@ function encodeLegacy(puzzle, d) {
   return `${puzzle.rows}x${puzzle.cols}:${d}:${body}`;
 }
 
+/** 扱える盤の大きさ（縦横どちらも）。ニコリの大きな盤（20×36）も入るように。 */
+export const MAX_SIZE = 50;
+
 function checkSize(rows, cols) {
-  if (rows < 2 || cols < 2 || rows > 30 || cols > 30) throw new Error('盤面サイズが範囲外です');
+  if (rows < 2 || cols < 2 || rows > MAX_SIZE || cols > MAX_SIZE) throw new Error('盤面サイズが範囲外です');
 }
 
 export function decodePuzzle(text) {
