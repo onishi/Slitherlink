@@ -8,7 +8,7 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = ['0001_init.sql', '0002_books.sql']
+const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql']
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
@@ -281,4 +281,23 @@ test('問題集を作り、問題をまとめて足し、並べ替え・外し�
   await call(`/api/admin/books/${id}`, { method: 'DELETE', cookie });
   assert.equal((await call(`/api/admin/books/${id}`, { cookie })).status, 404);
   assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM book_problems').get().n, 0);
+});
+
+test('問題集の問題に、難易度のほかの目安を持つ', async () => {
+  const { cookie } = await loginAs({ sub: 'admin-1' });
+  const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: '目安' } })).data.book.id;
+  const stats = { loopLength: 24, patternShare: 70, freeShare: 55, assumeCount: 2, longestSteps: 9 };
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
+    { code: '7hAAA', rows: 7, cols: 7, difficulty: 'hard', clueCount: 20, stats },
+    { code: '5nBBB', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9 },
+  ] } });
+  let { problems } = (await call(`/api/admin/books/${id}`, { cookie })).data;
+  assert.deepEqual(problems[0].stats, stats);
+  assert.equal(problems[1].stats, null);
+  // 目安を持たずに入った問題は、あとから埋められる（おかしな値は丸める）
+  await call(`/api/admin/books/${id}/problems/${problems[1].id}`, {
+    method: 'PATCH', cookie, body: { stats: { loopLength: 14, patternShare: 140, freeShare: 100, assumeCount: 0, longestSteps: 0 } },
+  });
+  ({ problems } = (await call(`/api/admin/books/${id}`, { cookie })).data);
+  assert.deepEqual(problems[1].stats, { loopLength: 14, patternShare: 100, freeShare: 100, assumeCount: 0, longestSteps: 0 });
 });

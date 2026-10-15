@@ -10,6 +10,8 @@ import { account, api } from './account.js';
 import { loadPhoto, guessCorners, readClues, rectify } from './image-reader.js';
 import { PhotoImport } from './photo-import.js';
 import { DIFFICULTIES } from '../core/generator.js';
+import { problemStats } from '../core/difficulty-report.js';
+import { decodePuzzle } from '../core/puzzle.js';
 import { unzip } from './zip.js';
 import { pdfPages } from './pdf-pages.js';
 
@@ -29,6 +31,7 @@ const icon = (name) => {
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|heic)$/i;
 
 let books = [];
+let booksLoading = null;
 let current = null;   // 開いている問題集 { book, problems }
 let queue = [];       // 取り込み中のもの
 let queueSeq = 0;
@@ -48,7 +51,8 @@ function gate() {
   $('admin-gate').hidden = ok;
   renderAccount();
   if (ok) {
-    if (!books.length) loadBooks();
+    // ログインの確かめで何度か呼ばれても、読み込みは 1 回だけ
+    if (!books.length) booksLoading ??= loadBooks().finally(() => { booksLoading = null; });
     return;
   }
   const text = $('gate-text');
@@ -110,6 +114,7 @@ async function openBook(id) {
   $('book-published').checked = current.book.published;
   renderBooks();
   renderProblems();
+  fillMissingStats();
 }
 
 function renderProblems() {
@@ -126,6 +131,7 @@ function renderProblems() {
     text.append(
       el('b', null, `${p.position}. ${p.rows}×${p.cols} ${DIFFICULTIES[p.difficulty]?.label ?? ''}`),
       el('small', null, `数字 ${p.clueCount}${p.source ? `・${p.source}` : ''}`),
+      statsLine(p.stats),
     );
     const play = el('a', 'admin-link');
     play.href = `./?p=${encodeURIComponent(p.code)}`;
@@ -140,6 +146,51 @@ function renderProblems() {
     li.append(text, play, up, down, del);
     list.append(li);
   });
+}
+
+/** 難易度のほかの目安を 1 行で。まだ計算していなければ、そう出す。 */
+function statsLine(st) {
+  const line = el('span', 'admin-stats');
+  if (!st) { line.textContent = '目安を計算しています…'; return line; }
+  const chip = (label, value, title) => {
+    const c = el('span', 'admin-stat', `${label} ${value}`);
+    c.title = title;
+    return c;
+  };
+  line.append(
+    chip('線', `${st.loopLength ?? '?'} 本`, '答えの輪の長さ（引く線の本数）'),
+    chip('定石', `${st.patternShare}%`, '定石（ふつう・読み）だけで決まる辺の割合'),
+    chip('仮定なし', `${st.freeShare}%`, '最初に仮定が要るまでに決まる割合（要らなければ 100%）'),
+    chip('仮定', st.assumeCount ? `${st.assumeCount} 回・最長 ${st.longestSteps} 手` : 'なし', '仮定が要る回数と、いちばん長い読みの手数'),
+  );
+  return line;
+}
+
+/** 目安を持たずに登録した問題（前からある問題）を、開いたときに計算して埋める。 */
+let filling = false;
+async function fillMissingStats() {
+  if (filling || !current) return;
+  filling = true;
+  try {
+    const bookId = current.book.id;
+    for (const p of current.problems.filter((x) => !x.stats)) {
+      let r;
+      try {
+        const d = decodePuzzle(p.code);
+        r = await checker(d.rows, d.cols, d.clues);
+      } catch { continue; }
+      if (!r.ok || r.status !== 'ok' || !r.report) continue;
+      const stats = problemStats(r.report, r.solution);
+      await api(`/api/admin/books/${bookId}/problems/${p.id}`, { method: 'PATCH', body: { stats, difficulty: r.difficulty } });
+      if (current?.book.id !== bookId) return;
+      // 計算しているあいだに読み直していても、いま出している方を直す
+      const shown = current.problems.find((x) => x.id === p.id);
+      if (shown) { shown.stats = stats; shown.difficulty = r.difficulty; }
+      renderProblems();
+    }
+  } finally {
+    filling = false;
+  }
 }
 
 function iconButton(name, label, run) {
@@ -309,7 +360,10 @@ function applyCheck(item, rows, cols, r) {
     item.message = `確かめられませんでした（${r.error}）`;
   } else if (r.status === 'ok') {
     item.state = 'ok';
-    item.result = { code: r.code, rows, cols, difficulty: r.difficulty, clueCount: r.clueCount };
+    item.result = {
+      code: r.code, rows, cols, difficulty: r.difficulty, clueCount: r.clueCount,
+      stats: r.report ? problemStats(r.report, r.solution) : null,
+    };
     item.message = `${rows}×${cols}・${DIFFICULTIES[r.difficulty]?.label ?? ''}・数字 ${r.clueCount}`;
   } else {
     item.state = 'warn';
@@ -388,7 +442,10 @@ const editor = new PhotoImport({
   onSave: (p) => {
     if (!editing) return false;
     editing.state = 'ok';
-    editing.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount };
+    editing.result = {
+      code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount,
+      stats: p.report ? problemStats(p.report, p.solution) : null,
+    };
     editing.message = `${p.rows}×${p.cols}・${DIFFICULTIES[p.difficulty]?.label ?? ''}・数字 ${p.clueCount}（直したもの）`;
     renderQueue();
     editor.close();

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generatePuzzle } from '../src/core/generator.js';
-import { difficultyReport, rateImported } from '../src/core/difficulty-report.js';
+import { difficultyReport, rateImported, problemStats } from '../src/core/difficulty-report.js';
+import { decodePuzzle } from '../src/core/puzzle.js';
 
 test('解き味の分析：最後まで解け、内訳の合計が辺の数になる', () => {
   for (const [n, difficulty] of [[5, 'easy'], [7, 'normal'], [7, 'hard']]) {
@@ -31,4 +32,17 @@ test('持ち込まれた問題に、解き味から難易度を付ける', () =>
   const r = rateImported({ rows: 6, cols: 6, clues: p.clues });
   assert.equal(r.status, 'ok');
   assert.equal(r.difficulty, 'normal');
+});
+
+test('問題集にしまう目安：仮定の要らない問題と、要る問題', () => {
+  const easy = rateImported(decodePuzzle('5eJgCYLgA'));
+  assert.deepEqual(problemStats(easy.report, easy.solution),
+    { loopLength: 14, patternShare: 55, freeShare: 100, assumeCount: 0, longestSteps: 0 });
+  const hard = rateImported(decodePuzzle('7hGcMABWllzo9AFA'));
+  assert.equal(hard.difficulty, 'hard');
+  const st = problemStats(hard.report, hard.solution);
+  assert.equal(st.loopLength, 34);
+  assert.ok(st.freeShare < 100 && st.freeShare > 0);
+  assert.ok(st.assumeCount >= 1 && st.longestSteps >= 1);
+  assert.ok(st.patternShare > 0 && st.patternShare <= 100);
 });

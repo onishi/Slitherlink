@@ -372,6 +372,10 @@ async function admin(request, db, url) {
       problems: results.map((p) => ({
         id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols,
         difficulty: p.difficulty, clueCount: p.clue_count, source: p.source, createdAt: p.created_at,
+        stats: p.pattern_share == null ? null : {
+          loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
+          assumeCount: p.assume_count, longestSteps: p.longest_steps,
+        },
       })),
     });
   }
@@ -408,11 +412,14 @@ async function admin(request, db, url) {
     let pos = last;
     for (const raw of list) {
       const e = cleanEntry({ ...raw, source: undefined });
+      const st = cleanStats(raw.stats);
       pos += 1;
       statements.push(db.prepare(
-        `INSERT INTO book_problems (book_id, position, code, rows, cols, difficulty, clue_count, source, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
-      ).bind(id, pos, e.code, e.rows, e.cols, e.difficulty, e.clueCount, text(raw.source, 200) || null, now));
+        `INSERT INTO book_problems (book_id, position, code, rows, cols, difficulty, clue_count, source, created_at,
+           loop_length, pattern_share, free_share, assume_count, longest_steps)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
+      ).bind(id, pos, e.code, e.rows, e.cols, e.difficulty, e.clueCount, text(raw.source, 200) || null, now,
+        st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps));
     }
     statements.push(db.prepare('UPDATE books SET updated_at = ? WHERE id = ?').bind(now, id));
     await db.batch(statements);
@@ -429,9 +436,19 @@ async function admin(request, db, url) {
     await renumber(db, id);
     return json({ ok: true });
   }
-  // 順番を 1 つ上げる・下げる
+  // 順番を 1 つ上げる・下げる／目安（stats）を入れる（目安を持たずに登録した問題をあとで埋める）
   if (method === 'PATCH') {
-    const { move } = await body(request);
+    const { move, stats, difficulty } = await body(request);
+    if (stats) {
+      const st = cleanStats(stats);
+      if (st.patternShare == null) throw new HttpError(400, '目安の形が違います');
+      await db.prepare(
+        `UPDATE book_problems SET loop_length = ?, pattern_share = ?, free_share = ?, assume_count = ?, longest_steps = ?,
+           difficulty = COALESCE(?, difficulty) WHERE id = ? AND book_id = ?`,
+      ).bind(st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps,
+        shortText(difficulty), pid, id).run();
+      return json({ ok: true });
+    }
     const cur = await db.prepare('SELECT position FROM book_problems WHERE id = ? AND book_id = ?').bind(pid, id).first();
     if (!cur) throw new HttpError(404, 'その問題はありません');
     const target = cur.position + (move === 'up' ? -1 : 1);
@@ -445,6 +462,19 @@ async function admin(request, db, url) {
     return json({ ok: true });
   }
   throw new HttpError(404, 'ありません');
+}
+
+/** 難易度のほかの目安。おかしな値は入れない（無いものは NULL）。 */
+function cleanStats(st) {
+  const n = (v, hi) => (Number.isFinite(v) ? Math.max(0, Math.min(hi, Math.round(v))) : null);
+  if (!st || typeof st !== 'object') return { loopLength: null, patternShare: null, freeShare: null, assumeCount: null, longestSteps: null };
+  return {
+    loopLength: n(st.loopLength, 7200),
+    patternShare: n(st.patternShare, 100),
+    freeShare: n(st.freeShare, 100),
+    assumeCount: n(st.assumeCount, 100000),
+    longestSteps: n(st.longestSteps, 100000),
+  };
 }
 
 /** 問題集の中の番号を 1, 2, 3… に詰め直す。 */
