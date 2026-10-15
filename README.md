@@ -349,6 +349,27 @@ API トークンは Cloudflare の **My Profile → API Tokens → Create Token*
 - ビルドコマンド: `npm run build:site`
 - ビルド出力ディレクトリ: `_site`
 
+### ログイン（Google アカウント）とサーバー
+
+`server/worker.js` が `/api/` を受け、それ以外は静的ファイルをそのまま返します（`wrangler.jsonc` の `run_worker_first`）。
+ログインした人ごとに、問題リスト・解いた履歴（解いた問題・時間・ヒントの回数）・自己ベスト・途中の盤面を
+Cloudflare D1（データベース名 `gridloop`、スキーマは `migrations/`）に持ち、どの端末からでも同じものが見えます。
+
+- ログインは Google の「Google でログイン」ボタンでもらう ID トークンを、サーバーが Google の公開鍵で確かめてから
+  （署名・発行元・宛先・期限）、こちらのセッションを HttpOnly の Cookie で出します（60 日）。パスワードは扱いません。
+- ゲストのあいだは、問題リストと解いた履歴は使えず、押すとログインを促します。遊ぶこと・自己ベスト・途中の盤面は端末の中で続けられます。
+- 初めてログインしたときは、その端末にあった問題リスト・自己ベスト・途中の盤面をアカウントへ取り込みます（1 回だけ）。
+- 途中の盤面は、動かすたびに少しまとめてから送り、閉じるときにも送ります。ほかの端末で進めたほうが新しければ、
+  開いたときにそちらへ切り替えます（その端末でまだ手を動かしていないときだけ。送られてきたリンクで開いた問題はそのまま）。
+
+使うには、Google Cloud Console で **OAuth 2.0 クライアント ID（ウェブ アプリケーション）** を作り、
+「承認済みの JavaScript 生成元」に公開先（例 `https://gridloop.<サブドメイン>.workers.dev`）を入れて、
+そのクライアント ID を `wrangler.jsonc` の `vars.GOOGLE_CLIENT_ID` に書きます（秘密の値ではありません）。
+空のあいだは、ログインのボタンの代わりに「準備中」と出し、ゲストとしてだけ遊べます。
+
+データベースの変更は、公開のたびに `wrangler d1 migrations apply gridloop --remote` で当てます（GitHub Actions でも同じ）。
+手元で試すときは `npm run build:site` のあと `npx wrangler dev`（D1 は手元の写しを使います）。
+
 ### GitHub Pages（手動）
 
 `.github/workflows/pages.yml` を Actions タブから手動実行すると GitHub Pages へ配信します。
@@ -475,10 +496,13 @@ src/ui/digit-features.js 文字の切り出し・そろえ方と、手書き数�
 src/ui/digit-model.js  手書き数字のネットの重み（tools/train-digits.js が書き出す）
 src/ui/photo-import.js  写真から問題を作る画面
 src/ui/camera-capture.js パソコンのカメラで問題を撮る画面
+src/ui/account.js       Google アカウントでのログインと、サーバーとの同期
 src/ui/puzzle-report.js メニューの「この問題の難易度」（写真から作るときの分析も同じ描き方）
 src/worker/            作問ワーカー・持ち込まれた問題を確かめるワーカー
 tools/                 開発用サーバ・検証スクリプト・公開用ビルド・定石の洗い出しと出番の実測
-wrangler.jsonc         Cloudflare への配信設定
+wrangler.jsonc         Cloudflare への配信設定（静的ファイル・サーバー・D1）
+server/                ログインと、問題リスト・履歴・途中の盤面を持つサーバー（Cloudflare Workers）
+migrations/            D1 のスキーマ
 tests/                 単体テスト
 ```
 
