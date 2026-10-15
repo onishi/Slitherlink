@@ -47,6 +47,7 @@ const el = {
   rulesModal: $('rules-modal'),
   rulesBtn: $('btn-rules'),
   closeRules: $('btn-close-rules'),
+  keysModal: $('keys-modal'),
   theme: $('btn-theme'),
   hintPanel: $('hint-panel'),
   hintBadge: $('hint-badge'),
@@ -249,10 +250,25 @@ function bindUI() {
   });
   el.theme.addEventListener('click', toggleTheme);
 
+  // キーボード操作の一覧。Mac では Ctrl の代わりに ⌘ と書く
+  if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+    for (const k of el.keysModal.querySelectorAll('.kbd-mod')) k.textContent = '⌘';
+    for (const m of el.keysModal.querySelectorAll('.mac-only')) m.hidden = false;
+  }
+  $('btn-rules-keys').addEventListener('click', () => {
+    el.rulesModal.hidden = true;
+    el.keysModal.hidden = false;
+  });
+  $('btn-close-keys').addEventListener('click', () => { el.keysModal.hidden = true; });
+  el.keysModal.addEventListener('click', (ev) => {
+    if (ev.target === el.keysModal) el.keysModal.hidden = true;
+  });
+
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       // 手前に重なっているものから閉じる
       if (camera?.isOpen) { camera.close(); return; }
+      if (!el.keysModal.hidden) { el.keysModal.hidden = true; return; }
       if (isDrawerOpen()) { closeDrawer(); return; }
       if (!el.hintPanel.hidden) { hideHint(); board.clearHints(); return; }
       if (isPatternsOpen()) { hidePatterns(); return; }
@@ -280,6 +296,15 @@ function bindUI() {
     } else if (!mod && !isTyping(ev.target) && (ev.key === 'm' || ev.key === 'M')) {
       ev.preventDefault();
       setInputMode(board.inputMode === 'cross' ? 'line' : 'cross');
+    } else if (!mod && !isTyping(ev.target) && ev.key === '?') {
+      ev.preventDefault();
+      el.keysModal.hidden = !el.keysModal.hidden;
+    } else if (!mod && ev.key.startsWith('Arrow') && (ev.target === document.body || ev.target === document.documentElement)
+      && !isAnyModalOpen()) {
+      // どこにも焦点が無いときの矢印キーは、盤面に渡す（先に盤面をクリックしなくても動かせる）
+      ev.preventDefault();
+      el.board.focus();
+      el.board.dispatchEvent(new KeyboardEvent('keydown', { key: ev.key, bubbles: false }));
     }
   });
 
@@ -354,6 +379,7 @@ function setupPhotoImport() {
     editStep: $('photo-step-edit'),
     grid: $('photo-grid'),
     status: $('photo-status'),
+    report: $('photo-report'),
     backBtn: $('photo-back'),
     saveBtn: $('photo-save'),
     playBtn: $('photo-play'),
@@ -361,6 +387,9 @@ function setupPhotoImport() {
   }, {
     onPlay: (p) => {
       photoImport.close();
+      // 確かめのときに調べた分析を、メニューの「この問題の難易度」でもそのまま使う
+      puzzleReport ??= new PuzzleReport(el.puzzleReport, el.reportSummary);
+      puzzleReport.remember(p, p.report);
       startChecked(p);
       say('写真から作った問題です');
     },
@@ -633,6 +662,10 @@ function applyPattern(pattern) {
 }
 
 /** 文字入力中かどうか。入力欄ではショートカットを横取りしない。 */
+function isAnyModalOpen() {
+  return [...document.querySelectorAll('.modal')].some((m) => !m.hidden) || isDrawerOpen();
+}
+
 function isTyping(target) {
   if (!target || !target.tagName) return false;
   const tag = target.tagName;
@@ -643,6 +676,7 @@ function isTyping(target) {
 function setInputMode(mode) {
   const next = mode === 'cross' ? 'cross' : 'line';
   board.inputMode = next;
+  board.updatePointerLook();
   el.modeLine.setAttribute('aria-checked', String(next === 'line'));
   el.modeCross.setAttribute('aria-checked', String(next === 'cross'));
   savePrefs();

@@ -298,6 +298,9 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 }
 .zoom-ctl .icon-btn:disabled { opacity: .35; }
 #board.zoomed { cursor: grab; }
+/* ⌘ を押しているあいだは、クリックで付く印の形にする */
+#board.pointer-line { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M4 14h20' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M4 14h20' stroke='%231d3b34' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, crosshair; }
+#board.pointer-cross { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M7 7l14 14M21 7L7 21' stroke='%23fff' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M7 7l14 14M21 7L7 21' stroke='%236d6659' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, crosshair; }
 
 .board-overlay {
   position: absolute;
@@ -484,6 +487,26 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 .modal-card h3 { margin: 16px 0 6px; font-size: .92rem; color: var(--ink-soft); }
 .rules { margin: 0; padding-left: 1.25em; font-size: .86rem; line-height: 1.75; }
 .rules li { margin-bottom: 2px; }
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 5px;
+  margin: 0 1px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font: 600 .78rem/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  text-align: center;
+  color: var(--ink);
+}
+.keys-card { max-width: 540px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.keys-card h3 { margin: 14px 0 6px; font-size: .82rem; color: var(--ink-soft); }
+.keys { display: grid; grid-template-columns: 10.5em 1fr; gap: 6px 14px; margin: 0; font-size: .86rem; align-items: baseline; }
+.keys dt { white-space: nowrap; }
+@media (max-width: 420px) { .keys { grid-template-columns: 1fr; gap: 0; } .keys dd { margin-bottom: 8px; } }
+.keys dd { margin: 0; color: var(--ink-soft); line-height: 1.6; }
+.keys-card .primary { margin-top: 18px; width: 100%; }
 .note {
   margin: 16px 0 0;
   padding: 10px 12px;
@@ -1138,11 +1161,37 @@ body.no-anim .app { transition: none !important; }
 .photo-status { margin: 6px 0; font-size: .84rem; line-height: 1.6; color: var(--ink-soft); }
 .photo-status.ok { color: var(--accent); }
 .photo-status.warn { color: var(--danger); }
+.report-link {
+  display: inline; padding: 0; margin: 0; border: 0; background: none; width: auto;
+  font: inherit; font-weight: 700; color: var(--accent);
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.report-link::after { content: ' ▸'; font-size: .8em; }
+.report-link[aria-expanded="true"]::after { content: ' ▾'; }
+.photo-report { margin: 4px 0 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
 .photo-repair { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; color: var(--ink); }
 .photo-repair button { font-size: .8rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
 .photo-cell.suggest { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .photo-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .photo-actions button { display: inline-flex; align-items: center; gap: 4px; font-size: .84rem; }
+/* リストに入れたあと：押せないが薄くはせず、色とチェックで入ったことを見せる */
+#photo-save.is-saved,
+#photo-save.is-saved:disabled {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+  cursor: default;
+  animation: saved-pop .32s ease;
+}
+#photo-save.is-saved .mi { font-variation-settings: 'FILL' 1; }
+@keyframes saved-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { #photo-save.is-saved { animation: none; } }
 .modal-card .photo-actions .primary { width: auto; margin-top: 0; flex: 1; justify-content: center; }
 .photo-actions .mi { font-size: 1.1rem; }
 
@@ -1176,6 +1225,12 @@ body.no-anim .app { transition: none !important; }
 .seg-assume2 { background: var(--danger); }
 .report-notes { margin: 0; padding-left: 1.2em; }
 .report-notes li { margin: 2px 0; }
+.report-scale-head { margin: 10px 0 4px; font-size: .78rem; font-weight: 600; color: var(--ink-soft); }
+.report-scale { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: .78rem; }
+.report-scale li { display: grid; grid-template-columns: 5.5em 1fr; gap: 8px; padding: 3px 6px; border-radius: 6px; color: var(--ink-faint); line-height: 1.5; }
+.report-scale li b { color: var(--ink-soft); font-weight: 600; }
+.report-scale li.is-current { background: var(--accent-soft); color: var(--ink); }
+.report-scale li.is-current b { color: var(--accent); }
 
 /* ---------- スマホの横画面：盤面を左いっぱいに、ボタン・ヒント・定石を右の列にまとめる ---------- */
 @media (orientation: landscape) and (max-height: 540px) {
