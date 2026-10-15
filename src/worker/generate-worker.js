@@ -19,7 +19,7 @@ self.onmessage = (ev) => {
         clueCount: p.clueCount,
         code: encodePuzzle(p),
         // 管理画面で問題集に入れるときは、難易度のほかの目安も付ける
-        stats: withStats ? problemStats(difficultyReport(p), p.solution) : undefined,
+        stats: withStats ? problemStats(difficultyReport(p), p.solution, p) : undefined,
       },
     });
   } catch (err) {
