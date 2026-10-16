@@ -14,7 +14,7 @@ import { solveLogical } from './solver.js';
 import { solveWithProofs } from './proof.js';
 import { difficultyReport, levelOf, LEVELS, problemStats } from './difficulty-report.js';
 import { nikoliCheck } from './nikoli.js';
-import { thinkMoves } from './feel.js';
+import { thinkMoves, feelProfile } from './feel.js';
 
 /** xorshift32 による決定的な乱数生成器。 */
 export function makeRng(seed) {
@@ -46,13 +46,27 @@ export const DIFFICULTIES = {
  *   nikoli-1  ニコリ風の初版。輪を盤いっぱいにくねらせ、数字を点対称の組で削り、ニコリ風の条件で合格を決める
  *   nikoli-2  ニコリ風の 2 版。数字をむらなく置く（密なところ・1 や 0 から削る、空の行・列や数字のない 3×3 を作らない、
  *             詰まった行・列を間引く）。入門・やさしいも少し先を読む深さまで削り、考える手が 3 回以上あるものだけにする
+ *   nikoli-3  ニコリ風の 3 版。2 版に加えて、数字の内訳（0／1／2／3）をニコリに寄せ、考える手が多すぎれば
+ *             難易度を保って数字を戻し（入り口が広く、息つける区間ができる）、山場が後半にある問題を選ぶ
  */
 export const GENERATORS = {
   'random-1': { label: 'ランダム v1', options: {} },
   'nikoli-1': { label: 'ニコリ風 v1', options: { style: 'nikoli', version: 1 } },
   'nikoli-2': { label: 'ニコリ風 v2', options: { style: 'nikoli', version: 2 } },
+  'nikoli-3': { label: 'ニコリ風 v3', options: { style: 'nikoli', version: 3 } },
 };
-export const LATEST_GENERATOR = 'nikoli-2';
+export const LATEST_GENERATOR = 'nikoli-3';
+
+/** ニコリ（とことん01）の数字の内訳：0, 1, 2, 3 の割合。3 版はこれに寄せて削る。 */
+const CLUE_MIX = [0.13, 0.26, 0.29, 0.32];
+/**
+ * 3 版の手触りの目安（src/core/feel.js の feelProfile）。ニコリの 24×14 ふつうは、
+ * 考える手 10 回／100 辺・入り口 0.19／マス・山場の位置 0.60 くらい。
+ * むずかしさごとの、考える手の上限（これより多ければ数字を戻す）。
+ */
+const FEEL_MAX_RATE = { intro: 10, easy: 10, normal: 12, hard: 15, expert: Infinity };
+const FEEL_MIN_OPENINGS = 0.12;
+const FEEL_MIN_MID = 0.55;
 
 /**
  * 1 本の輪をランダムに作る。
@@ -160,12 +174,16 @@ export function generatePuzzle(options = {}) {
   const deadline = options.deadline ?? (Date.now() + (options.timeLimitMs ?? 20000));
   const nikoli = options.style === 'nikoli';
   // ニコリ風 2 版の工夫（数字をむらなく・3 を残す・入門にも考える手）。1 版はそれ無しで作る
-  const v2 = nikoli && (options.version ?? 2) >= 2;
+  const version = options.version ?? 3;
+  const v2 = nikoli && version >= 2;
+  // 3 版：数字の内訳をニコリに寄せ、手触り（考える手の多さ・入り口・山場）を合わせる
+  const v3 = nikoli && version >= 3;
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
   // ニコリ風の入門・やさしいは数字が多めになるので、少しのあいだ作り直して数字のいちばん少ないものを選ぶ
   const relaxClues = nikoli && rank < LEVELS.indexOf('normal');
-  const softDeadline = Math.min(deadline, Date.now() + Math.max(2000, rows * cols * 15));
+  // 入門・やさしい（数字が多め）や 3 版の手触りは、少しのあいだ作り直して、いちばん良いものを選ぶ
+  const softDeadline = Math.min(deadline, Date.now() + (v3 ? Math.max(3000, rows * cols * 25) : Math.max(2000, rows * cols * 15)));
   let fewest = null;
 
   for (let attempt = 0; attempt < 200; attempt++) {
@@ -204,20 +222,33 @@ export function generatePuzzle(options = {}) {
     for (let depth = nikoli ? 0 : Math.min(conf.depth, 1); depth <= cutDepth; depth++) {
       const deep = depth >= 2;
       // ニコリ風は、数字が密なところ・1 や 0 から先に削る（数字をむらなく置き、3 を残しやすくする）
-      const order = v2 ? evenRemovalOrder(grid, clues, rng) : shuffled(n, rng);
+      // 3 版は数字の内訳を見ながら削るので、何組か試すごとに削る順を作り直す
+      const tried = new Set();
+      const refreshEvery = Math.max(4, Math.floor(n / 24));
+      const nextOrder = () => (v2 ? evenRemovalOrder(grid, clues, rng, v3 ? CLUE_MIX : null) : shuffled(n, rng)).filter((c) => !tried.has(c));
+      let order = nextOrder();
+      let stop = false;
+      while (order.length && !stop) {
+      let used = 0;
       for (const cell of order) {
+        if (v3 && used >= refreshEvery) break;
+        tried.add(cell);
+        used++;
         if (nikoli && cell > n - 1 - cell) continue; // 組は小さい方のマスで 1 回だけ
         const group = nikoli && cell !== n - 1 - cell ? [cell, n - 1 - cell] : [cell];
         if (clues[group[0]] < 0) continue;
         // ニコリ風は、空の行・列や数字のない 3×3 ができる削り方はしない
         if (v2 && leavesHole(grid, clues, group)) continue;
-        if (Date.now() > deadline && best) break;
+        if (Date.now() > deadline && best) { stop = true; break; }
         const saved = group.map((x) => clues[x]);
         for (const x of group) clues[x] = -1;
         const res = solveLogical(grid, clues, { maxDepth: depth, budget: deep ? 10000 : 200000 });
         if (res.status !== 'solved') { group.forEach((x, i) => { clues[x] = saved[i]; }); continue; }
         removedOrder.push(group);
-        if (deep && levelAt(clues) >= rank) break;
+        if (deep && levelAt(clues) >= rank) { stop = true; break; }
+      }
+      if (!v3) break;
+      order = nextOrder();
       }
     }
 
@@ -262,6 +293,15 @@ export function generatePuzzle(options = {}) {
     // ニコリ風の仕上げ：数字が 7 割以上並ぶ行・列（ニコリの問題には無い）を、難易度を保って削れるだけ削る
     if (v2) finalClues = thinDenseLines(grid, finalClues, (c) => solveLogical(grid, c, { maxDepth: cutDepth, budget: 200000 }).status === 'solved' && levelAt(c) === got, deadline);
 
+    // 3 版の仕上げ：考える手が多すぎれば（休む間がない・入り口が狭い）、難易度を変えない範囲で数字を戻す
+    let feel = null;
+    if (v3) {
+      const eased = easeFeel(grid, finalClues, full, removedOrder, solution, LEVELS[got],
+        (c) => levelAt(c) === got && (got < LEVELS.indexOf('normal') || countOf(c) < grid.cellCount * 0.5), deadline);
+      finalClues = eased.clues;
+      feel = eased.feel;
+    }
+
     const proved = solveWithProofs(grid, finalClues, { maxDepth: Math.max(0, cutDepth - 1), solution });
     if (!proved.solved || proved.edges.some((v, e) => v !== solution[e])) continue;
 
@@ -281,9 +321,14 @@ export function generatePuzzle(options = {}) {
       puzzle.style = 'nikoli';
       puzzle.styleOk = failed.length === 0;
     }
+    // 3 版は手触り（考える手の多さ・入り口・山場）も見る。合わなければ少しのあいだ作り直して、近いものを選ぶ
+    const feelMiss = v3 ? feelGap(feel, LEVELS[got]) : 0;
+    if (feel) puzzle.feel = feel;
     if (got === rank && !missed) {
-      if (!relaxClues || puzzle.styleOk) return puzzle;
-      if (!fewest || puzzle.clueCount < fewest.clueCount) fewest = puzzle;
+      if ((!relaxClues || puzzle.styleOk) && feelMiss === 0) return puzzle;
+      const key = (q) => [q.styleOk ? 0 : 1, q.feelMiss ?? 0, q.clueCount];
+      puzzle.feelMiss = feelMiss;
+      if (!fewest || compareKeys(key(puzzle), key(fewest)) < 0) fewest = puzzle;
       if (Date.now() > softDeadline) return fewest;
       continue;
     }
@@ -297,14 +342,77 @@ export function generatePuzzle(options = {}) {
   throw new Error('問題の生成に失敗しました');
 }
 
+const countOf = (clues) => { let k = 0; for (let i = 0; i < clues.length; i++) if (clues[i] >= 0) k++; return k; };
+const compareKeys = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+
+/** 手触りが目安からどれだけ外れているか（0 なら合格）。 */
+function feelGap(feel, level) {
+  if (!feel) return 1;
+  return Math.max(0, feel.thinkRate - FEEL_MAX_RATE[level]) / 4
+    + Math.max(0, FEEL_MIN_OPENINGS - feel.openings) * 10
+    + (feel.thinkMid == null ? 0 : Math.max(0, FEEL_MIN_MID - feel.thinkMid) * 10);
+}
+
+/**
+ * 考える手が多すぎるとき、最後に削った組から順に数字を戻す（ok を保てるものだけ）。
+ * 数字が 6 割以上並ぶ行・列には戻さない（むらを作らない）。
+ * 手触りを測るのは重い（24×14 で 1 秒ほど）ので、何組かずつまとめて戻しては測る。
+ * 1 組あたりで考える手がどれだけ減ったかから、目安に届くのに要る組の数を見積もり、戻しすぎないようにする。
+ * @returns {{clues: Int8Array, feel: object}}
+ */
+function easeFeel(grid, clues, full, removedOrder, solution, level, ok, deadline) {
+  const out = Int8Array.from(clues);
+  const { rows, cols } = grid;
+  const max = FEEL_MAX_RATE[level];
+  let feel = feelProfile({ rows, cols, clues: out, solution });
+  const crowded = (cell) => {
+    const r = Math.floor(cell / cols);
+    const c = cell % cols;
+    let rowN = 0;
+    let colN = 0;
+    for (let x = 0; x < cols; x++) if (out[r * cols + x] >= 0) rowN++;
+    for (let y = 0; y < rows; y++) if (out[y * cols + c] >= 0) colN++;
+    return rowN + 1 > cols * 0.6 || colN + 1 > rows * 0.6;
+  };
+  const back = removedOrder.slice().reverse().filter((g) => g.every((x) => out[x] < 0));
+  let i = 0;
+  let step = Math.max(1, Math.ceil(back.length / 12)); // はじめの見積もり（控えめに）
+  for (let round = 0; round < 10 && i < back.length && feel.thinkRate > max; round++) {
+    if (Date.now() > deadline) break;
+    const before = feel.thinkRate;
+    let added = 0;
+    while (i < back.length && added < step) {
+      const group = back[i++];
+      if (group.some(crowded)) continue;
+      for (const x of group) out[x] = full[x];
+      if (ok(out)) added++;
+      else for (const x of group) out[x] = -1;
+    }
+    if (!added) break;
+    feel = feelProfile({ rows, cols, clues: out, solution });
+    // 1 組あたりの減り方から、あと何組で目安に届くかを見積もる。見積もりは揺れるので、2 回目からは小刻みに
+    const perGroup = (before - feel.thinkRate) / added;
+    step = perGroup > 0 ? Math.min(3, Math.max(1, Math.ceil((feel.thinkRate - max) / perGroup))) : step;
+  }
+  return { clues: out, feel };
+}
+
 /**
  * ニコリ風の数字の削る順。数字が密なところ（同じ行・列、まわりの 3×3 に数字が多い）と、
  * 1・0・2 を先に、3 は後に回す（ニコリの問題は 3 が 4 割で、数字がむらなく散っている）。
  * 少しだけ乱数を混ぜて、毎回同じ形にならないようにする。
  */
 const KEEP_WEIGHT = [2, 3, 1, -2]; // 数字ごとの「先に削る」重み：0, 1, 2, 3
-function evenRemovalOrder(grid, clues, rng) {
+function evenRemovalOrder(grid, clues, rng, mix = null) {
   const { rows, cols, cellCount } = grid;
+  // 3 版：いまの内訳が目安より多い数字ほど先に削る
+  let weight = KEEP_WEIGHT;
+  if (mix) {
+    const h = [0, 0, 0, 0];
+    let total = 0;
+    for (let i = 0; i < cellCount; i++) if (clues[i] >= 0) { h[clues[i]]++; total++; }
+    weight = mix.map((target, v) => (total ? (4 * (h[v] / total - target)) / target : 0));
+  }
   const rowN = new Int32Array(rows);
   const colN = new Int32Array(cols);
   for (let i = 0; i < cellCount; i++) {
@@ -325,7 +433,7 @@ function evenRemovalOrder(grid, clues, rng) {
         if (rr >= 0 && rr < rows && cc >= 0 && cc < cols && clues[rr * cols + cc] >= 0) near++;
       }
     }
-    score[i] = rowN[r] / cols + colN[c] / rows + near / 3 + KEEP_WEIGHT[clues[i]] + rng() * 1.5;
+    score[i] = rowN[r] / cols + colN[c] / rows + near / 3 + weight[clues[i]] + rng() * 1.5;
   }
   // 組（点対称の 2 マス）は合わせた点で並べる
   const order = Array.from({ length: cellCount }, (_, i) => i);
