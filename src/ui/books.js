@@ -6,7 +6,9 @@
  */
 
 import { api } from './account.js';
+import { store } from './storage.js';
 import { DIFFICULTIES } from '../core/generator.js';
+import { samePuzzle } from '../core/puzzle.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, className, text) => {
@@ -141,7 +143,32 @@ export class BookShelf {
   /** 問題集の i 番目の問題で遊び始める。 */
   playAt(set, i) {
     this.current = { book: set.book, problems: set.problems, index: i };
+    this.remember();
     if (this.hooks.play(set.problems[i].code)) this.hooks.closeMenu();
+  }
+
+  /** いま遊んでいる問題集と問題を端末に覚える（ページを開き直しても、問題集の続きとして扱えるように）。 */
+  remember() {
+    const { book, problems, index } = this.current;
+    store.saveBookPlay({ bookId: book.id, code: problems[index].code });
+  }
+
+  /**
+   * 開き直したとき：覚えておいた問題集の問題と同じ問題を遊んでいれば、問題集をサーバーから読み直して、
+   * 問題集で遊んでいる状態に戻す（解いたときに問題集の名前と「次の問題へ」を出すため）。
+   */
+  async resume(code) {
+    const saved = store.bookPlay();
+    if (this.current || !saved || !code || !samePuzzle(saved.code, code)) return;
+    try {
+      const set = await api(`/api/books/${saved.bookId}`);
+      const index = set.problems.findIndex((p) => samePuzzle(p.code, code));
+      // 待っているあいだに別の問題へ移っていたら、何もしない
+      if (index < 0 || this.current || !samePuzzle(store.bookPlay()?.code ?? '', code)) return;
+      this.current = { book: set.book, problems: set.problems, index };
+    } catch {
+      // ログインしていない・問題集が非公開になったなど：ふつうの問題として遊ぶ
+    }
   }
 
   /**
@@ -149,10 +176,20 @@ export class BookShelf {
    * （問題集の中の別の問題なら、その番号へ移る）。
    */
   onPuzzleChanged(code) {
-    if (!this.current) return;
+    if (!this.current) {
+      // 問題集の問題でない問題に移ったら、覚えていた問題集の問題も忘れる
+      const saved = store.bookPlay();
+      if (saved && !samePuzzle(saved.code, code)) store.clearBookPlay();
+      return;
+    }
     const i = this.current.problems.findIndex((p) => p.code === code);
-    if (i < 0) this.current = null;
-    else this.current.index = i;
+    if (i < 0) {
+      this.current = null;
+      store.clearBookPlay();
+    } else {
+      this.current.index = i;
+      this.remember();
+    }
   }
 
   /** いま遊んでいる問題集の問題の説明（「とことん01　3 / 99」）。問題集で遊んでいなければ null。 */
@@ -160,6 +197,13 @@ export class BookShelf {
     if (!this.current) return null;
     const { book, problems, index } = this.current;
     return `${book.title}　${problems[index].position} / ${problems.length}`;
+  }
+
+  /** いま遊んでいる問題集の名前と、何番か（{ title, position, count }）。問題集で遊んでいなければ null。 */
+  where() {
+    if (!this.current) return null;
+    const { book, problems, index } = this.current;
+    return { title: book.title, position: problems[index].position, count: problems.length };
   }
 
   /** 解いたとき：印（時間・ヒントの回数）を付けて、次に遊ぶ問題（まだ解いていない、後ろの問題。無ければ前から）を返す。 */
