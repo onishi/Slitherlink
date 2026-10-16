@@ -1506,3 +1506,41 @@ body.no-anim .app { transition: none !important; }
 .admin.is-wide { max-width: none; }
 .admin.is-wide .admin-main { grid-template-columns: 220px minmax(0, 1fr); }
 @media (max-width: 760px) { .admin.is-wide .admin-main { grid-template-columns: 1fr; } }
+.admin-page-main { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.admin-page-main[hidden] { display: none; }
+.admin-page-main h2 { margin: 0 0 8px; }
+/* サイドの「問題一覧」はボタンと同じ見た目のリンク */
+a.admin-compare-btn {
+  box-sizing: border-box; padding: 9px 13px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--ink); text-decoration: none;
+}
+a.admin-compare-btn:hover { background: var(--accent-soft); }
+.admin-row-link { cursor: pointer; }
+.admin-row-link:hover td { background: var(--accent-soft); }
+.admin-problem-table td .admin-link { font-size: inherit; }
+/* 問題の詳細 */
+.admin-detail-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-bottom: 8px; }
+.admin-detail-nav .admin-link { font-size: .86rem; }
+.admin-detail-nav .admin-link[hidden] { display: none; }
+.admin-detail-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.admin-detail-body[hidden], .admin-detail-report[hidden] { display: none; }
+@media (max-width: 760px) { .admin-detail-body { grid-template-columns: 1fr; } }
+.admin-detail-board { margin: 0; }
+.admin-detail-board figcaption { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.admin-board { display: block; width: 100%; height: auto; max-height: 75vh; background: var(--surface-2); border-radius: 8px; }
+.admin-board-dot { fill: var(--ink); }
+.admin-board-clue { font-size: 6.4px; font-weight: 600; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+.admin-board-line { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.admin-detail-info h3 { margin: 0 0 6px; font-size: .9rem; }
+.admin-detail-info h3 ~ h3 { margin-top: 16px; }
+.admin-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: .86rem; }
+.admin-facts dt { color: var(--ink-soft); }
+.admin-facts dd { margin: 0; overflow-wrap: anywhere; }
+.admin-facts dd small { display: block; color: var(--ink-faint); font-size: .74rem; }
+.admin-detail-report { margin-top: 18px; }
+.admin-guide { margin: 6px 0 10px; font-size: .84rem; }
+.admin-guide summary { cursor: pointer; color: var(--accent); width: max-content; }
+.admin-guide .admin-facts { margin-top: 8px; padding: 10px 12px; background: var(--surface-2); border-radius: 8px; font-size: .82rem; }
+.admin-guide .admin-facts dt { font-weight: 600; color: var(--ink); }
+.admin-detail-info .admin-guide { margin-top: 12px; }
+.admin-detail-report h3 { margin: 0 0 6px; font-size: .9rem; }

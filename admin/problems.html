@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f5f0">
+<meta name="robots" content="noindex">
+<title>問題一覧 - Grid Loop 管理</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6f5e'/%3E%3Cpath d='M8 11h9v10h7' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&display=block">
+<link rel="stylesheet" href="../src/ui/styles.css">
+</head>
+<body class="admin-page">
+<div class="admin is-wide">
+  <header class="admin-head">
+    <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>Grid Loop 管理</h1>
+    <a class="admin-back" href="../admin.html"><span class="mi" aria-hidden="true">arrow_back</span>問題集へ</a>
+    <div class="admin-account" id="admin-account"></div>
+  </header>
+
+  <section class="admin-gate" id="admin-gate">
+    <p id="gate-text">確かめています…</p>
+    <div class="login-google" id="gate-login"></div>
+  </section>
+
+  <!-- 全部の問題集の問題を 1 つの表に。絞り込みと並べ替え、行を押すと詳細へ -->
+  <main class="admin-page-main" id="admin-main" hidden>
+    <h2>問題集をまたいだ問題一覧</h2>
+    <div class="admin-filters">
+      <label class="field"><span>問題集</span><select id="f-book"><option value="">すべて</option></select></label>
+      <label class="field"><span>出どころ</span><select id="f-origin"><option value="">すべて</option><option value="scan">スキャン</option><option value="generated">自動作問</option></select></label>
+      <label class="field"><span>大きさ</span><select id="f-size"><option value="">すべて</option></select></label>
+      <label class="field"><span>むずかしさ</span><select id="f-level"><option value="">すべて</option></select></label>
+    </div>
+    <p class="admin-filter-count" id="f-count"></p>
+    <div class="admin-table-wrap"><table class="admin-compare-table admin-problem-table" id="problem-table"></table></div>
+  </main>
+</div>
+<script type="module" src="../src/ui/admin-problems.js"></script>
+</body>
+</html>

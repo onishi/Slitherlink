@@ -12,7 +12,8 @@ const out = process.argv[2] ? join(process.cwd(), process.argv[2]) : join(root, 
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
-const PAGES = ['index.html', 'patterns.html', 'admin.html'];
+const PAGES = ['index.html', 'patterns.html', 'admin.html', 'admin/problems.html', 'admin/problem.html'];
+await mkdir(join(out, 'admin'), { recursive: true });
 for (const page of PAGES) await cp(join(root, page), join(out, page));
 await cp(join(root, 'src'), join(out, 'src'), { recursive: true });
 // GitHub Pages で Jekyll の処理を通さないための目印

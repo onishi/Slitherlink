@@ -8,7 +8,7 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql']
+const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql']
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
@@ -286,7 +286,7 @@ test('問題集を作り、問題をまとめて足し、並べ替え・外し�
 test('問題集の問題に、難易度のほかの目安を持つ', async () => {
   const { cookie } = await loginAs({ sub: 'admin-1' });
   const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: '目安' } })).data.book.id;
-  const stats = { loopLength: 24, patternShare: 70, freeShare: 55, assumeCount: 2, longestSteps: 9, coverage: 81 };
+  const stats = { loopLength: 24, patternShare: 70, freeShare: 55, assumeCount: 2, longestSteps: 9, coverage: 81, largestGap: 12.5 };
   await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
     { code: '7hAAA', rows: 7, cols: 7, difficulty: 'hard', clueCount: 20, stats },
     { code: '5nBBB', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9 },
@@ -296,16 +296,22 @@ test('問題集の問題に、難易度のほかの目安を持つ', async () =>
   assert.equal(problems[1].stats, null);
   // 目安を持たずに入った問題は、あとから埋められる（おかしな値は丸める）
   await call(`/api/admin/books/${id}/problems/${problems[1].id}`, {
-    method: 'PATCH', cookie, body: { stats: { loopLength: 14, patternShare: 140, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage: 44 } },
+    method: 'PATCH', cookie, body: { stats: { loopLength: 14, patternShare: 140, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage: 44, largestGap: 56.04 } },
   });
   ({ problems } = (await call(`/api/admin/books/${id}`, { cookie })).data);
-  assert.deepEqual(problems[1].stats, { loopLength: 14, patternShare: 100, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage: 44 });
+  assert.deepEqual(problems[1].stats, { loopLength: 14, patternShare: 100, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage: 44, largestGap: 56 });
+  // 最大の空き地を持たない問題は、目安が欠けている（管理画面で計算し直す）
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
+    { code: '5nCCC', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, stats: { ...stats, largestGap: undefined } },
+  ] } });
+  ({ problems } = (await call(`/api/admin/books/${id}`, { cookie })).data);
+  assert.equal(problems[2].stats, null);
 });
 
 test('問題の出どころ（スキャン／自動作問）を持ち、出どころごとに目安をくらべられる', async () => {
   const { cookie } = await loginAs({ sub: 'admin-1' });
   const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: 'くらべ' } })).data.book.id;
-  const st = (patternShare, coverage) => ({ loopLength: 20, patternShare, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage });
+  const st = (patternShare, coverage) => ({ loopLength: 20, patternShare, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage, largestGap: coverage / 10 });
   await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
     { code: '5nA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 10, origin: 'scan', stats: st(80, 70) },
     { code: '5nB', rows: 5, cols: 5, difficulty: 'hard', clueCount: 5, origin: 'scan', stats: st(60, 90) },
@@ -320,6 +326,7 @@ test('問題の出どころ（スキャン／自動作問）を持ち、出ど�
   assert.equal(scan.count, 2);
   assert.equal(scan.patternShare, 70);
   assert.equal(scan.coverage, 80);
+  assert.equal(scan.largestGap, 8);
   assert.equal(scan.clueDensity, 30); // (10 + 5) / 2 / 25
   assert.equal(cmp.all.find((r) => r.origin === 'generated').count, 1);
   assert.equal(cmp.all.find((r) => r.origin === 'unknown').count, 1);
@@ -332,7 +339,7 @@ test('問題の出どころ（スキャン／自動作問）を持ち、出ど�
 
 test('問題集をまたいだ問題の一覧と、問題集どうしのくらべ', async () => {
   const { cookie } = await loginAs({ sub: 'admin-1' });
-  const st = (coverage) => ({ loopLength: 20, patternShare: 90, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage });
+  const st = (coverage) => ({ loopLength: 20, patternShare: 90, freeShare: 100, assumeCount: 0, longestSteps: 0, coverage, largestGap: 100 - coverage });
   const a = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: 'A' } })).data.book.id;
   const b = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: 'B' } })).data.book.id;
   await call(`/api/admin/books/${a}/problems`, { method: 'POST', cookie, body: { problems: [
@@ -348,6 +355,21 @@ test('問題集をまたいだ問題の一覧と、問題集どうしのくら�
   assert.deepEqual(cmp.byBook.map((r) => [r.title, r.count, r.coverage, r.scans, r.generated, r.minCells, r.maxCells]),
     [['A', 2, 70, 2, 0, 25, 49], ['B', 1, 90, 0, 1, 25, 25]]);
   assert.equal(cmp.bookLevels.find((r) => r.bookId === a && r.difficulty === 'hard').count, 1);
+  // 1 問の詳細：問題集の中での前後と、問題集の問題数
+  const [p1, p2, p3] = problems;
+  const one = (await call(`/api/admin/problems/${p1.id}`, { cookie })).data;
+  assert.equal(one.problem.code, '5nA');
+  assert.equal(one.problem.bookTitle, 'A');
+  assert.equal(one.problem.coverage, 60);
+  assert.equal(one.problem.largestGap, 40);
+  assert.deepEqual([one.bookCount, one.prevId, one.nextId], [2, null, p2.id]);
+  const two = (await call(`/api/admin/problems/${p2.id}`, { cookie })).data;
+  assert.deepEqual([two.prevId, two.nextId], [p1.id, null]);
+  const three = (await call(`/api/admin/problems/${p3.id}`, { cookie })).data;
+  assert.deepEqual([three.bookCount, three.prevId, three.nextId], [1, null, null]);
+  assert.equal((await call('/api/admin/problems/99999', { cookie })).status, 404);
+  assert.equal((await call('/api/admin/problems/abc', { cookie })).status, 404);
   const user = await loginAs({ sub: 'user-9' });
   assert.equal((await call('/api/admin/problems', { cookie: user.cookie })).status, 403);
+  assert.equal((await call(`/api/admin/problems/${p1.id}`, { cookie: user.cookie })).status, 403);
 });
