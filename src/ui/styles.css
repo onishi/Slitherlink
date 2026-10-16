@@ -1211,6 +1211,8 @@ body.no-anim .app { transition: none !important; }
 .book-item > .mi:first-child { color: var(--accent); }
 .book-item .library-text { flex: 1; }
 .book-item .library-text small { white-space: normal; }
+.book-admin-tag { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: .68rem; font-weight: 500;
+  color: var(--ink-soft); border: 1px solid var(--border); vertical-align: middle; }
 .book-bar-wrap { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .book-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
 .book-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
@@ -1472,6 +1474,8 @@ body.no-anim .app { transition: none !important; }
 .admin-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .admin-spacer { flex: 1; }
 .admin-check { display: inline-flex; align-items: center; gap: 6px; font-size: .84rem; color: var(--ink-soft); }
+.admin-visibility { min-width: 0; max-width: 100%; }
+.admin-visibility select { max-width: 100%; }
 .danger-btn { color: var(--danger); }
 .admin-drop {
   display: flex; align-items: center; gap: 12px; padding: 18px;
