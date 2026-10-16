@@ -36,6 +36,7 @@ export function thinkMoves(puzzle, stopAt = Infinity) {
  *   thinkRate  決まる辺 100 本あたりの、考える手の回数。多いほど休む間がない
  *   thinkMid   考える手が出てくる位置の平均（0 が序盤、1 が終盤）。大きいほど山場が後ろ
  *   quietGap   考える手のない区間のうち、いちばん長いもの（全体に対する割合）。息つける区間
+ *   thinkEdges 考える手で決めた辺（どこで考えさせられたか）
  * ニコリ（とことん01）の 24×14 ふつうは、openings 0.2・thinkRate 10・thinkMid 0.58 くらい。
  */
 export function feelProfile(puzzle) {
@@ -43,6 +44,7 @@ export function feelProfile(puzzle) {
   const board = new Int8Array(grid.edgeCount);
   const solution = Int8Array.from(puzzle.solution);
   const at = [];
+  const thinkEdges = [];
   let filled = 0;
   let openings = null;
   while (board.includes(UNKNOWN)) {
@@ -54,6 +56,7 @@ export function feelProfile(puzzle) {
     } else {
       if (openings == null) openings = 0;
       at.push(filled / grid.edgeCount);
+      thinkEdges.push(proofs[0].edge);
       board[proofs[0].edge] = proofs[0].value;
       filled++;
     }
@@ -68,5 +71,6 @@ export function feelProfile(puzzle) {
     thinkMid: at.length ? at.reduce((a, b) => a + b, 0) / at.length : null,
     quietGap: gap,
     think: at.length,
+    thinkEdges,
   };
 }

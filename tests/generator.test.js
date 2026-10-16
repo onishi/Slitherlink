@@ -156,4 +156,13 @@ test('ニコリ風 v3：手触り（考える手の多さ・入り口・山場�
 test('作問ロジックの版：ニコリ風 v3 が最新で、版を省くと最新で作る', () => {
   assert.equal(LATEST_GENERATOR, 'nikoli-3');
   assert.deepEqual(GENERATORS['nikoli-3'].options, { style: 'nikoli', version: 3 });
+  assert.deepEqual(GENERATORS['nikoli-4'].options, { style: 'nikoli', version: 4 });
+});
+
+test('ニコリ風 v4：入門は考える手を軽めに（決まる辺 100 本あたり 8 回くらいまで）', () => {
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'nikoli', version: 4, seed: 77, timeLimitMs: 30000 });
+  assert.equal(p.difficulty, 'intro');
+  assert.ok(isPointSymmetric(p.clues, 10, 10));
+  const f = feelProfile(p);
+  assert.ok(f.thinkRate <= 8 + 1e-9, `考える手 ${f.thinkRate}`);
 });
