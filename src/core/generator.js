@@ -53,6 +53,8 @@ export const DIFFICULTIES = {
  *   nikoli-5  ニコリ風の 5 版。3 版を元に（4 版の工夫は使わない）、0 を固めずに離して置き（固まった 0 は × を付けるだけの
  *             作業が続く。ニコリの 0 は 8 割がまわり 2 歩以内にほかの 0 が無い）、数字を戻すときは 3・2 から戻し、
  *             候補を選ぶときに作業の続く区間の長さも見る
+ *   nikoli-6  ニコリ風の 6 版。5 版に加えて、数字を戻すときは考えさせられた場所の近くの 3・2 から戻し（4 版と 5 版の
+ *             戻し方を合わせる。少ない数字で考える手を減らせる）、ふつうの考える手の上限を 12 から 11 に下げる
  */
 export const GENERATORS = {
   'random-1': { label: 'ランダム v1', options: {} },
@@ -61,6 +63,7 @@ export const GENERATORS = {
   'nikoli-3': { label: 'ニコリ風 v3', options: { style: 'nikoli', version: 3 } },
   'nikoli-4': { label: 'ニコリ風 v4', options: { style: 'nikoli', version: 4 } },
   'nikoli-5': { label: 'ニコリ風 v5', options: { style: 'nikoli', version: 5 } },
+  'nikoli-6': { label: 'ニコリ風 v6', options: { style: 'nikoli', version: 6 } },
 };
 // 最初に選ばれる作り方。4 版は入門・やさしいを軽くできるが、遊び比べでは作業の続く区間が延び、
 // 全体としては 3 版のほうがニコリに近かったので、3 版のままにしておく
@@ -80,6 +83,8 @@ const FEEL_MAX_RATE = { intro: 10, easy: 10, normal: 12, hard: 15, expert: Infin
  */
 const FEEL_RATE_V4 = { intro: [5, 8], easy: [5, 8], normal: [9, 12], hard: [12, 16], expert: [0, Infinity] };
 const FEEL_MIN_OPENINGS = 0.12;
+/** 6 版の、むずかしさごとの考える手の上限。ふつうを 3 版の 12 から 11 に（ニコリのふつうは 10.7）。 */
+const FEEL_MAX_RATE_V6 = { ...FEEL_MAX_RATE, normal: 11 };
 const FEEL_MIN_MID = 0.55;
 /**
  * 5 版の、作業の続く区間（src/core/feel.js の workRun）の上限。
@@ -201,7 +206,9 @@ export function generatePuzzle(options = {}) {
   const v4 = nikoli && version === 4;
   // 5 版：0 を離して置き、3・2 から数字を戻し、作業の続く区間も見て候補を選ぶ
   const v5 = nikoli && version >= 5;
-  const rateRange = (level) => (v4 ? FEEL_RATE_V4[level] : [0, FEEL_MAX_RATE[level]]);
+  // 6 版：考えさせられた場所の近くの 3・2 から数字を戻し（少ない数字で軽くする）、ふつうの考える手の上限を少し下げる
+  const v6 = nikoli && version >= 6;
+  const rateRange = (level) => (v4 ? FEEL_RATE_V4[level] : [0, (v6 ? FEEL_MAX_RATE_V6 : FEEL_MAX_RATE)[level]]);
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
   // ニコリ風の入門・やさしいは数字が多めになるので、少しのあいだ作り直して数字のいちばん少ないものを選ぶ
@@ -326,7 +333,7 @@ export function generatePuzzle(options = {}) {
     // 3 版の仕上げ：考える手が多すぎれば（休む間がない・入り口が狭い）、難易度を変えない範囲で数字を戻す
     let feel = null;
     if (v3) {
-      const eased = easeFeel(grid, finalClues, full, removedOrder, solution, rateRange(LEVELS[got])[1], v4 ? 'think' : v5 ? 'value' : null,
+      const eased = easeFeel(grid, finalClues, full, removedOrder, solution, rateRange(LEVELS[got])[1], v6 ? 'both' : v4 ? 'think' : v5 ? 'value' : null,
         (c) => levelAt(c) === got && (got < LEVELS.indexOf('normal') || countOf(c) < grid.cellCount * 0.5), deadline);
       finalClues = eased.clues;
       feel = eased.feel;
@@ -391,14 +398,19 @@ function feelGap(feel, range) {
 
 /**
  * 考える手が多すぎるとき、最後に削った組から順に数字を戻す（ok を保てるものだけ）。
- * order が 'think' なら考えさせられた場所の近くから（4 版）、'value' なら 3・2 の組から（5 版）戻す。
+ * order が 'think' なら考えさせられた場所の近くから（4 版）、'value' なら 3・2 の組から（5 版）、
+ * 'both' なら考えさせられた場所の近くの 3・2 から（6 版）戻す。
  * 数字が 6 割以上並ぶ行・列には戻さない（むらを作らない）。
  * 手触りを測るのは重い（24×14 で 1 秒ほど）ので、何組かずつまとめて戻しては測る。
  * 1 組あたりで考える手がどれだけ減ったかから、目安に届くのに要る組の数を見積もり、戻しすぎないようにする。
  * @returns {{clues: Int8Array, feel: object}}
  */
 function easeFeel(grid, clues, full, removedOrder, solution, max, order, ok, deadline) {
-  const nearThink = order === 'think';
+  const nearThink = order === 'think' || order === 'both';
+  const byValue = order === 'value' || order === 'both';
+  // 数字の「戻したい度合い」：3・2 は線を引く手が出る。0 は × を付けるだけなので最後
+  //   6 版は、まわりに 0 の無い 0 は 1 と同じに扱う（離れた 0 は入り口になる）
+  const worth = (g) => g.reduce((a, x) => a + (full[x] === 0 && order === 'both' && !zerosNear(grid, out, x) ? 0 : [-3, 0, 1, 2][full[x]]), 0);
   const out = Int8Array.from(clues);
   const { rows, cols } = grid;
   let feel = feelProfile({ rows, cols, clues: out, solution });
@@ -428,7 +440,7 @@ function easeFeel(grid, clues, full, removedOrder, solution, max, order, ok, dea
         }
       }
     }
-    const score = (g) => g.reduce((a, x) => a + (near.get(x) ?? 0), 0);
+    const score = (g) => g.reduce((a, x) => a + (near.get(x) ?? 0), 0) + (order === 'both' ? worth(g) : 0);
     back = back.slice(i).sort((a, b) => score(b) - score(a));
     i = 0;
   };
@@ -436,7 +448,6 @@ function easeFeel(grid, clues, full, removedOrder, solution, max, order, ok, dea
   if (nearThink) byThink();
   // 5 版：3・2 の組から戻す（線を引く手が出る数字なので、× を付けるだけの作業が続かない）。0 は最後
   if (order === 'value') {
-    const worth = (g) => g.reduce((a, x) => a + [-3, 0, 1, 2][full[x]], 0);
     back = back.map((g, j) => [g, j]).sort((a, b) => worth(b[0]) - worth(a[0]) || a[1] - b[1]).map(([g]) => g);
   }
   // はじめの見積もり（控えめに）。4 版は狙った場所の数字なので 1 組の効き目が大きく、1〜2 組ずつ戻す
@@ -449,8 +460,8 @@ function easeFeel(grid, clues, full, removedOrder, solution, max, order, ok, dea
     while (i < back.length && added < step) {
       const group = back[i++];
       if (group.some(crowded)) continue;
-      // 5 版：近くにほかの 0 がある 0 は戻さない
-      if (order === 'value' && group.some((x) => full[x] === 0 && zerosNear(grid, out, x) > 0)) continue;
+      // 5 版から：近くにほかの 0 がある 0 は戻さない
+      if (byValue && group.some((x) => full[x] === 0 && zerosNear(grid, out, x) > 0)) continue;
       for (const x of group) out[x] = full[x];
       if (ok(out)) added++;
       else for (const x of group) out[x] = -1;
