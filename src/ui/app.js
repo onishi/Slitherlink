@@ -169,10 +169,15 @@ function init() {
   const fromUrl = new URLSearchParams(location.search).get('p');
   // URL の問題が、途中まで解いて保存してある問題と同じなら、続きから
   const saved = store.game();
-  if (fromUrl && saved?.code && samePuzzle(fromUrl, saved.code) && restoreSaved()) return;
-  if (fromUrl && tryLoadCode(fromUrl, true)) { game.openedFromUrl = true; return; }
-  if (restoreSaved()) return;
+  if (fromUrl && saved?.code && samePuzzle(fromUrl, saved.code) && restoreSaved()) return resumeBook();
+  if (fromUrl && tryLoadCode(fromUrl, true)) { game.openedFromUrl = true; return resumeBook(); }
+  if (restoreSaved()) return resumeBook();
   newPuzzle();
+}
+
+/** 開き直したとき、問題集の問題を遊んでいたなら、問題集の続きとして扱う（解いたら名前と「次の問題へ」を出す）。 */
+function resumeBook() {
+  if (store.bookPlay()) shelf().resume(game.puzzle.code);
 }
 
 function bindUI() {
@@ -435,7 +440,7 @@ function setupAccount() {
   account.onRemoteGame = () => {
     // 送られてきたリンク（?p=）で開いた問題は、そのままにする
     if (game.undoStack?.length || game.solved || game.openedFromUrl) return;
-    if (restoreSaved()) say('ほかの端末で進めていた続きを開きました');
+    if (restoreSaved()) { say('ほかの端末で進めていた続きを開きました'); resumeBook(); }
   };
   $('btn-close-login').addEventListener('click', closeLogin);
   el.loginModal.addEventListener('click', (ev) => { if (ev.target === el.loginModal) closeLogin(); });
@@ -1238,33 +1243,39 @@ function showOverlay(isBest) {
   const sub = document.createElement('p');
   sub.textContent = `${game.puzzle.rows} × ${game.puzzle.cols} ・ ${diff}`;
   el.overlayCard.append(h, big, sub);
-  // 問題集で遊んでいるなら、どの問題集の何番かと、次の問題へ進むボタン
-  const bookLabel = shelfInstance?.label();
-  if (bookLabel) {
+  // 問題集で遊んでいるなら、問題集の名前と何番か、次の問題へ進むか・メニュー（問題集の問題の一覧）へ戻るか
+  const where = shelfInstance?.where();
+  if (where) {
     const next = shelfInstance.onSolved({ seconds: game.elapsed, hints: game.hints ?? 0 });
-    const where = document.createElement('p');
-    where.className = 'overlay-book';
-    where.append(icon('menu_book'), bookLabel);
-    el.overlayCard.appendChild(where);
+    const book = document.createElement('div');
+    book.className = 'overlay-book';
+    const name = document.createElement('b');
+    name.append(icon('menu_book'), where.title);
+    const pos = document.createElement('span');
+    pos.textContent = next == null ? `${where.position} / ${where.count}・ぜんぶ解きました！` : `${where.position} / ${where.count}`;
+    book.append(name, pos);
+    el.overlayCard.appendChild(book);
     const row = document.createElement('div');
     row.className = 'row';
+    const toMenu = () => { hideOverlay(); openMenu(); shelfInstance.openCurrent(); };
     const go = document.createElement('button');
     go.className = 'primary';
     if (next == null) {
-      go.textContent = '問題集を見る';
-      where.append('・ぜんぶ解きました！');
-      go.addEventListener('click', () => { hideOverlay(); openMenu(); shelfInstance.openCurrent(); });
+      go.textContent = 'メニューへ';
+      go.addEventListener('click', toMenu);
     } else {
       go.textContent = '次の問題へ';
       go.addEventListener('click', () => { hideOverlay(); shelfInstance.playNext(next); });
     }
-    const list = document.createElement('button');
-    list.textContent = next == null ? '盤面を見る' : '問題集を見る';
-    list.addEventListener('click', () => {
-      hideOverlay();
-      if (next != null) { openMenu(); shelfInstance.openCurrent(); }
-    });
-    row.append(go, list);
+    const other = document.createElement('button');
+    if (next == null) {
+      other.textContent = '盤面を見る';
+      other.addEventListener('click', hideOverlay);
+    } else {
+      other.textContent = 'メニューへ';
+      other.addEventListener('click', toMenu);
+    }
+    row.append(go, other);
     el.overlayCard.appendChild(row);
     el.overlay.hidden = false;
     go.focus();

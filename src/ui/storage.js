@@ -91,7 +91,7 @@ export const store = {
   /** 初めてのログインで取り込む、ゲストのデータ。 */
   guestData: () => ({ library: read('library', []), records: read('records', {}), game: read('game', null) }),
   clearAccountCopy() {
-    for (const k of ['library', 'history', 'records', 'game', 'user']) {
+    for (const k of ['library', 'history', 'records', 'game', 'bookplay', 'user']) {
       try { localStorage.removeItem(PREFIX + ACCT + k); } catch { /* 無視 */ }
     }
   },
@@ -112,6 +112,14 @@ export const store = {
     clearTimeout(gameTimer);
     pendingGame = null;
     send((r) => r.deleteGame());
+  },
+
+  /* ---------- 問題集で遊んでいる問題 ---------- */
+  /** どの問題集のどの問題を遊んでいるか（開き直したときに、問題集の続きとして扱うため）。この端末にだけ持つ。 */
+  bookPlay: () => read(key('bookplay'), null),
+  saveBookPlay: (v) => write(key('bookplay'), v),
+  clearBookPlay() {
+    try { localStorage.removeItem(PREFIX + key('bookplay')); } catch { /* 無視 */ }
   },
 
   /* ---------- 自己ベスト ---------- */
