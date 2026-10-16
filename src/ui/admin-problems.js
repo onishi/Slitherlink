@@ -24,6 +24,7 @@ const COLS = [
   ['clueDensity', '数字の割合', (r) => `${r.clueDensity.toFixed(0)}%`],
   ['loopPerCell', '線／マス', (r) => (r.loopPerCell == null ? '—' : (r.loopPerCell / 100).toFixed(2))],
   ['coverage', '行き渡り', (r) => pctOrDash(r.coverage)],
+  ['largestGap', '最大の空き地', (r) => pctOrDash(r.largestGap)],
   ['patternShare', '定石', (r) => pctOrDash(r.patternShare)],
   ['freeShare', '仮定なし', (r) => pctOrDash(r.freeShare)],
   ['assumeCount', '仮定', (r) => (r.assumeCount == null ? '—' : `${r.assumeCount}`)],
@@ -34,6 +35,7 @@ const COLS = [
 const AVG_FMT = {
   clueDensity: (v) => `${v.toFixed(0)}%`,
   coverage: (v) => `${v.toFixed(0)}%`,
+  largestGap: (v) => `${v.toFixed(1)}%`,
   patternShare: (v) => `${v.toFixed(0)}%`,
   freeShare: (v) => `${v.toFixed(0)}%`,
   loopPerCell: (v) => (v / 100).toFixed(2),

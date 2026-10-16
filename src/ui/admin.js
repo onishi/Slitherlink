@@ -124,6 +124,7 @@ function statsLine(st) {
     chip('仮定なし', `${st.freeShare}%`, '最初に仮定が要るまでに決まる割合（要らなければ 100%）'),
     chip('仮定', st.assumeCount ? `${st.assumeCount} 回・最長 ${st.longestSteps} 手` : 'なし', '仮定が要る回数と、いちばん長い読みの手数'),
     chip('行き渡り', `${st.coverage}%`, '線の行き渡り率：4 辺のどれかが線になるマスの割合'),
+    chip('最大の空き地', `${st.largestGap}%`, '線の通らないマスがつながった、いちばん大きいかたまり（盤の %）'),
   );
   return line;
 }
@@ -183,6 +184,7 @@ const COMPARE_COLS = [
   ['clueDensity', '数字の割合', (v) => `${v.toFixed(0)}%`],
   ['loopPerCell', '線の本数／マス', (v) => `${(v / 100).toFixed(2)}`],
   ['coverage', '行き渡り', (v) => `${v.toFixed(0)}%`],
+  ['largestGap', '最大の空き地', (v) => `${v.toFixed(1)}%`],
   ['patternShare', '定石', (v) => `${v.toFixed(0)}%`],
   ['freeShare', '仮定なし', (v) => `${v.toFixed(0)}%`],
   ['assumeCount', '仮定の回数', (v) => v.toFixed(1)],
@@ -217,13 +219,13 @@ async function loadCompare() {
 }
 
 /**
- * 目安が欠けている問題（行き渡り率を持つ前に登録した問題など）を、問題集をまたいで計算し直して保存する。
+ * 目安が欠けている問題（行き渡り率・最大の空き地を持つ前に登録した問題など）を、問題集をまたいで計算し直して保存する。
  * 終わったら表を読み直す。
  */
 let refilling = false;
 async function refillCompare() {
   if (refilling) return;
-  const todo = allRows.filter((p) => p.coverage == null || p.patternShare == null);
+  const todo = allRows.filter((p) => p.coverage == null || p.patternShare == null || p.largestGap == null);
   if (!todo.length) return;
   refilling = true;
   const status = $('refill-status');
@@ -243,8 +245,8 @@ async function refillCompare() {
       const stats = problemStats(r.report, r.solution, p);
       await api(`/api/admin/books/${p.bookId}/problems/${p.id}`, { method: 'PATCH', body: { stats, difficulty: r.difficulty } });
     }
-    status.hidden = true;
     if (!$('compare').hidden) await loadCompare();
+    status.hidden = true;
   } finally {
     refilling = false;
   }

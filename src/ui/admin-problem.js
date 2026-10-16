@@ -81,6 +81,7 @@ function renderMetrics(p) {
     ['数字', `${p.clueCount} 個（${Math.round((100 * p.clueCount) / cells)}%）`, 'マス数に対する数字の割合'],
     ['線', dash(p.loopLength, (v) => `${v} 本（1 マスあたり ${(v / cells).toFixed(2)}）`), '答えの輪の長さ'],
     ['行き渡り', dash(p.coverage, (v) => `${v}%`), '4 辺のどれか 1 本でも線が通るマスの割合'],
+    ['最大の空き地', dash(p.largestGap, (v) => `${v}%（${Math.round((v * cells) / 100)} マス）`), '線の通らないマスがつながった、いちばん大きいかたまり'],
     ['定石', dash(p.patternShare, (v) => `${v}%`), '定石（ふつう・読み）だけで決まる辺の割合'],
     ['仮定なし', dash(p.freeShare, (v) => `${v}%`), '最初に仮定が要るまでに決まる割合'],
     ['仮定', dash(p.assumeCount, (v) => (v ? `${v} 回・最長 ${p.longestSteps} 手` : 'なし')), '仮定が要る回数と、いちばん長い読みの手数'],
@@ -99,7 +100,7 @@ async function analyze(p) {
   $('show-answer').disabled = false;
   renderReport(box, r.report);
   // 目安が欠けていれば（目安を持つ前に登録した問題）、いま調べた結果で埋めて保存する
-  if (p.coverage == null || p.patternShare == null) {
+  if (p.coverage == null || p.patternShare == null || p.largestGap == null) {
     const stats = problemStats(r.report, r.solution, p);
     await api(`/api/admin/books/${p.bookId}/problems/${p.id}`, { method: 'PATCH', body: { stats, difficulty: r.difficulty } });
     renderMetrics({ ...p, ...stats, difficulty: r.difficulty });

@@ -139,6 +139,29 @@ export function rateImported(puzzle) {
   return { ...result, difficulty: levelOf(report), report };
 }
 
+/** 上下左右でつながった空きマスのかたまりのうち、いちばん大きいものの大きさ（マス数）。 */
+function largestRegion(empty, rows, cols) {
+  const seen = new Uint8Array(empty.length);
+  const stack = [];
+  let best = 0;
+  for (let start = 0; start < empty.length; start++) {
+    if (!empty[start] || seen[start]) continue;
+    seen[start] = 1;
+    stack.push(start);
+    let n = 0;
+    while (stack.length) {
+      const cell = stack.pop();
+      n++;
+      const r = Math.floor(cell / cols);
+      const c = cell % cols;
+      const near = [r > 0 ? cell - cols : -1, r < rows - 1 ? cell + cols : -1, c > 0 ? cell - 1 : -1, c < cols - 1 ? cell + 1 : -1];
+      for (const x of near) if (x >= 0 && empty[x] && !seen[x]) { seen[x] = 1; stack.push(x); }
+    }
+    if (n > best) best = n;
+  }
+  return best;
+}
+
 /**
  * 問題集にしまう問題の、難易度のほかの目安（分析の結果から、少しの数だけを取り出す）。
  *   loopLength    答えの輪の長さ（引く線の本数）
@@ -147,24 +170,33 @@ export function rateImported(puzzle) {
  *   assumeCount   仮定が要る回数
  *   longestSteps  いちばん長い読み（仮定してから矛盾が出るまでの手数）。仮定が要らなければ 0
  *   coverage      線の行き渡り率（%）：4 辺のどれかが線になるマスの割合。角だけ触れるマスは数えない
+ *   largestGap    最大の空き地（盤の %、小数 1 桁）：線の通らないマスが上下左右でつながったかたまりのうち、
+ *                 いちばん大きいもの。行き渡り率が同じでも、空きが 1 か所に固まっているか散っているかが分かる
  * 数字の個数（clueCount）と 5 段階の難易度は、もとから別に持っている。
- * @param {{rows:number, cols:number}} [size] 盤の大きさ（行き渡り率を出すのに使う。無ければ coverage は null）
+ * @param {{rows:number, cols:number}} [size] 盤の大きさ（行き渡り率と最大の空き地を出すのに使う。無ければどちらも null）
  */
 export function problemStats(report, solution, size) {
   const pct = (x) => Math.round(x * 100);
   let coverage = null;
+  let largestGap = null;
   if (solution && size) {
     const grid = getGrid(size.rows, size.cols);
+    // 4 辺のどれにも線が通らないマス（空きマス）
+    const empty = new Uint8Array(grid.cellCount);
     let touched = 0;
     for (let cell = 0; cell < grid.cellCount; cell++) {
+      let hit = false;
       for (let k = 0; k < 4; k++) {
-        if (solution[grid.cellEdges[cell * 4 + k]] === LINE) { touched++; break; }
+        if (solution[grid.cellEdges[cell * 4 + k]] === LINE) { hit = true; break; }
       }
+      if (hit) touched++; else empty[cell] = 1;
     }
     coverage = pct(touched / grid.cellCount);
+    largestGap = Math.round((1000 * largestRegion(empty, size.rows, size.cols)) / grid.cellCount) / 10;
   }
   return {
     coverage,
+    largestGap,
     loopLength: solution ? Array.prototype.reduce.call(solution, (n, v) => n + (v === LINE ? 1 : 0), 0) : null,
     patternShare: pct((report.decided.plain + report.decided.search) / report.total),
     freeShare: pct(report.beforeAssume),
