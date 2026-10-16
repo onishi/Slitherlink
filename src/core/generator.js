@@ -40,6 +40,21 @@ export const DIFFICULTIES = {
 };
 
 /**
+ * 作問のやり方の版。問題集に入れる問題には、どの版で作ったかを残す（あとで版どうしをくらべるため）。
+ * 版を変えるときは、古い版もそのまま作れるように残し、ここに足す。
+ *   random-1  最初の作り方。ランダムな輪から、数字をランダムな順に削る
+ *   nikoli-1  ニコリ風の初版。輪を盤いっぱいにくねらせ、数字を点対称の組で削り、ニコリ風の条件で合格を決める
+ *   nikoli-2  ニコリ風の 2 版。数字をむらなく置く（密なところ・1 や 0 から削る、空の行・列や数字のない 3×3 を作らない、
+ *             詰まった行・列を間引く）。入門・やさしいも少し先を読む深さまで削り、考える手が 3 回以上あるものだけにする
+ */
+export const GENERATORS = {
+  'random-1': { label: 'ランダム v1', options: {} },
+  'nikoli-1': { label: 'ニコリ風 v1', options: { style: 'nikoli', version: 1 } },
+  'nikoli-2': { label: 'ニコリ風 v2', options: { style: 'nikoli', version: 2 } },
+};
+export const LATEST_GENERATOR = 'nikoli-2';
+
+/**
  * 1 本の輪をランダムに作る。
  * 内側集合にマスを足し引きして、境界が常に単一ループであることを保てる変更だけ採用する。
  */
@@ -131,6 +146,7 @@ function validRegion(grid, inside) {
  * @param {'intro'|'easy'|'normal'|'hard'|'expert'} [options.difficulty]
  * @param {'nikoli'} [options.style] 'nikoli' なら、輪を盤いっぱいにくねらせ、数字を点対称の組で削り、
  *   ニコリ風の条件（src/core/nikoli.js）を満たすものだけを合格にする。入門・やさしいだけは数字の割合を問わない
+ * @param {number} [options.version] ニコリ風の版（1 か 2。省略すると最新）。GENERATORS を参照
  * @param {number} [options.seed]
  * @returns {{rows:number, cols:number, difficulty:string, clues:Int8Array, solution:Int8Array, seed:number, clueCount:number}}
  */
@@ -143,6 +159,8 @@ export function generatePuzzle(options = {}) {
   const seed = options.seed ?? (Math.floor(Math.random() * 0xffffffff) >>> 0);
   const deadline = options.deadline ?? (Date.now() + (options.timeLimitMs ?? 20000));
   const nikoli = options.style === 'nikoli';
+  // ニコリ風 2 版の工夫（数字をむらなく・3 を残す・入門にも考える手）。1 版はそれ無しで作る
+  const v2 = nikoli && (options.version ?? 2) >= 2;
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
   // ニコリ風の入門・やさしいは数字が多めになるので、少しのあいだ作り直して数字のいちばん少ないものを選ぶ
@@ -181,18 +199,18 @@ export function generatePuzzle(options = {}) {
     const clues = Int8Array.from(full);
     const removedOrder = []; // 削った組（マスの配列）の順
     const n = grid.cellCount;
-    const cutDepth = nikoli ? Math.max(conf.depth, 1) : conf.depth;
+    const cutDepth = v2 ? Math.max(conf.depth, 1) : conf.depth;
     // ニコリ風は盤が大きいことが多いので、まず安い推論（深さ 0）で削れるだけ削ってから深くする
     for (let depth = nikoli ? 0 : Math.min(conf.depth, 1); depth <= cutDepth; depth++) {
       const deep = depth >= 2;
       // ニコリ風は、数字が密なところ・1 や 0 から先に削る（数字をむらなく置き、3 を残しやすくする）
-      const order = nikoli ? evenRemovalOrder(grid, clues, rng) : shuffled(n, rng);
+      const order = v2 ? evenRemovalOrder(grid, clues, rng) : shuffled(n, rng);
       for (const cell of order) {
         if (nikoli && cell > n - 1 - cell) continue; // 組は小さい方のマスで 1 回だけ
         const group = nikoli && cell !== n - 1 - cell ? [cell, n - 1 - cell] : [cell];
         if (clues[group[0]] < 0) continue;
         // ニコリ風は、空の行・列や数字のない 3×3 ができる削り方はしない
-        if (nikoli && leavesHole(grid, clues, group)) continue;
+        if (v2 && leavesHole(grid, clues, group)) continue;
         if (Date.now() > deadline && best) break;
         const saved = group.map((x) => clues[x]);
         for (const x of group) clues[x] = -1;
@@ -232,7 +250,7 @@ export function generatePuzzle(options = {}) {
         const group = removedOrder[i];
         const saved = group.map((x) => finalClues[x]);
         if (finalClues[group[0]] < 0) continue;
-        if (leavesHole(grid, finalClues, group)) continue;
+        if (v2 && leavesHole(grid, finalClues, group)) continue;
         for (const x of group) finalClues[x] = -1;
         const ok = solveLogical(grid, finalClues, { maxDepth: cutDepth, budget: 200000 }).status === 'solved'
           && levelAt(finalClues) === got;
@@ -242,7 +260,7 @@ export function generatePuzzle(options = {}) {
 
     // ヒントが根拠つきで最後まで示せるか（証明つきの手だけで正解まで届くか）
     // ニコリ風の仕上げ：数字が 7 割以上並ぶ行・列（ニコリの問題には無い）を、難易度を保って削れるだけ削る
-    if (nikoli) finalClues = thinDenseLines(grid, finalClues, (c) => solveLogical(grid, c, { maxDepth: cutDepth, budget: 200000 }).status === 'solved' && levelAt(c) === got, deadline);
+    if (v2) finalClues = thinDenseLines(grid, finalClues, (c) => solveLogical(grid, c, { maxDepth: cutDepth, budget: 200000 }).status === 'solved' && levelAt(c) === got, deadline);
 
     const proved = solveWithProofs(grid, finalClues, { maxDepth: Math.max(0, cutDepth - 1), solution });
     if (!proved.solved || proved.edges.some((v, e) => v !== solution[e])) continue;
@@ -259,7 +277,7 @@ export function generatePuzzle(options = {}) {
       const failed = nikoliCheck({ rows, cols, clues: finalClues, clueCount, ...st }).failed;
       missed = failed.filter((f) => !(f === '数字' && rank < LEVELS.indexOf('normal'))).length;
       // 入門・やさしいでも、少し先を読む手が 3 回はある問題にする（作業だけで終わらないように）
-      if (rank < LEVELS.indexOf('normal') && thinkMoves({ rows, cols, clues: finalClues, solution }, 3) < 3) missed++;
+      if (v2 && rank < LEVELS.indexOf('normal') && thinkMoves({ rows, cols, clues: finalClues, solution }, 3) < 3) missed++;
       puzzle.style = 'nikoli';
       puzzle.styleOk = failed.length === 0;
     }

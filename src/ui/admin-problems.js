@@ -4,12 +4,12 @@
  * 絞り込みと並べ替えは URL に残す（詳細から戻ったとき、同じ表に戻れるように）。
  */
 
-import { $, el, icon, api, startAdmin, metricGuide, METRIC_HELP, ORIGIN_LABEL, LEVEL_ORDER } from './admin-common.js';
+import { $, el, icon, api, startAdmin, metricGuide, METRIC_HELP, kindOf, kindLabel, KIND_LABEL, LEVEL_ORDER } from './admin-common.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { decodePuzzle } from '../core/puzzle.js';
 import { nikoliCheck } from '../core/nikoli.js';
 
-const FILTERS = [['f-book', 'book'], ['f-origin', 'origin'], ['f-size', 'size'], ['f-level', 'level'], ['f-nikoli', 'nikoli']];
+const FILTERS = [['f-book', 'book'], ['f-kind', 'kind'], ['f-size', 'size'], ['f-level', 'level'], ['f-nikoli', 'nikoli']];
 
 let allRows = [];
 let sortKey = 'bookTitle';
@@ -22,7 +22,7 @@ const COLS = [
   ['position', '番号', (r) => `${r.position}`],
   ['cells', '大きさ', (r) => r.size],
   ['level', 'むずかしさ', (r) => DIFFICULTIES[r.difficulty]?.label ?? '—', 'text'],
-  ['origin', '出どころ', (r) => ORIGIN_LABEL[r.origin ?? 'unknown'], 'text'],
+  ['kind', '作り方', (r) => kindLabel(r), 'text'],
   ['nikoli', 'ニコリ風', (r) => (r.nikoli.ok === true ? '○' : r.nikoli.ok === false ? `× ${r.nikoli.failed.join('・')}` : '？'), 'text'],
   ['clueDensity', '数字の割合', (r) => `${r.clueDensity.toFixed(0)}%`],
   ['loopPerCell', '線／マス', (r) => (r.loopPerCell == null ? '—' : (r.loopPerCell / 100).toFixed(2))],
@@ -49,6 +49,7 @@ const AVG_FMT = {
 const sortValue = (r, key) => {
   if (key === 'cells') return r.rows * r.cols * 1000 + r.rows;
   if (key === 'level') return LEVEL_ORDER.indexOf(r.difficulty);
+  if (key === 'kind') return Object.keys(KIND_LABEL).indexOf(kindOf(r));
   if (key === 'nikoli') return r.nikoli.ok === true ? 0 : r.nikoli.ok === false ? 1 + r.nikoli.failed.length : 0.5;
   if (key === 'bookTitle') return `${r.bookTitle}\u0000${String(r.position).padStart(5, '0')}`;
   return r[key];
@@ -86,6 +87,8 @@ function fillFilters() {
   const sizes = [...new Map(allRows.map((r) => [r.size, r.rows * r.cols])).entries()].sort((a, b) => a[1] - b[1]);
   set('f-size', sizes.map(([s]) => [s, s]));
   set('f-level', LEVEL_ORDER.map((k) => [k, DIFFICULTIES[k].label]));
+  const kinds = new Set(allRows.map(kindOf));
+  set('f-kind', Object.keys(KIND_LABEL).filter((k) => kinds.has(k)).map((k) => [k, KIND_LABEL[k]]));
 }
 
 function readUrl() {
@@ -111,9 +114,9 @@ function writeUrl() {
 }
 
 function filteredRows() {
-  const [book, origin, size, level, nikoli] = FILTERS.map(([id]) => $(id).value);
+  const [book, kind, size, level, nikoli] = FILTERS.map(([id]) => $(id).value);
   return allRows.filter((r) => (!book || String(r.bookId) === book)
-    && (!origin || r.origin === origin) && (!size || r.size === size) && (!level || r.difficulty === level)
+    && (!kind || kindOf(r) === kind) && (!size || r.size === size) && (!level || r.difficulty === level)
     && (!nikoli || (nikoli === 'yes' ? r.nikoli.ok === true : r.nikoli.ok === false)));
 }
 
@@ -153,7 +156,7 @@ function render() {
   head.append(el('th'));
   table.append(head);
   for (const r of rows) {
-    const tr = el('tr', `admin-row-link is-${r.origin ?? 'unknown'}`);
+    const tr = el('tr', 'admin-row-link');
     for (const [key, , fmt, kind] of COLS) {
       const td = el('td', kind === 'text' ? 'is-text' : null);
       if (key === 'position') {
