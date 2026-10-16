@@ -1218,16 +1218,23 @@ body.no-anim .app { transition: none !important; }
 .book-desc { margin: 0 0 6px; font-size: .84rem; color: var(--ink-soft); }
 .book-desc:empty { display: none; }
 .book-progress { margin-bottom: 10px; }
-.book-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.book-grid { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .book-problem {
-  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; line-height: 1.25; position: relative;
+  width: 100%; display: grid; grid-template-columns: 2.4em 1fr auto; align-items: center; gap: 10px;
+  padding: 8px 12px; text-align: left; line-height: 1.25;
 }
-.book-problem b { font-size: 1rem; }
-.book-problem small { font-size: .68rem; color: var(--ink-faint); }
-.book-problem.is-solved { background: var(--accent-soft); border-color: var(--accent); }
-.book-problem.is-current { outline: 2px solid var(--accent); outline-offset: 1px; }
-.book-check { display: inline-flex; align-items: center; gap: 1px; font-size: .66rem; color: var(--accent); font-weight: 600; }
-.book-check .mi { font-size: .9rem; }
+.book-problem-no { font-size: 1rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.book-problem-what { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.book-problem-what small { color: var(--ink-faint); font-size: .76rem; }
+.book-problem-result { display: flex; flex-direction: column; align-items: flex-end; }
+.book-problem-result small { font-size: .7rem; color: var(--ink-faint); }
+.book-check { display: inline-flex; align-items: center; gap: 3px; font-size: .9rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+.book-check .mi { font-size: 1.05rem; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+.book-unsolved { font-size: .76rem; color: var(--ink-faint); }
+.book-problem.is-solved { background: var(--accent-soft); border-color: transparent; }
+.book-problem.is-solved .book-problem-no { color: var(--accent); }
+.book-problem.is-current { outline: 2px solid var(--accent); outline-offset: -2px; }
+.book-problem.is-current .book-unsolved { color: var(--accent); font-weight: 600; }
 .overlay-card .overlay-book { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
 .overlay-card .overlay-book .mi { font-size: 1.05rem; color: var(--accent); }
 

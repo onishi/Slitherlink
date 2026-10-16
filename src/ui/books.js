@@ -85,7 +85,10 @@ export class BookShelf {
     }
     // いま遊んでいる問題集なら、手元で付けた印も合わせる（サーバーへの記録が届く前でも）
     if (this.current?.book.id === id) {
-      for (const p of this.opened.problems) if (this.current.problems.find((x) => x.id === p.id)?.solved) p.solved = true;
+      for (const p of this.opened.problems) {
+        const mine = this.current.problems.find((x) => x.id === p.id);
+        if (mine?.solved && !p.solved) Object.assign(p, { solved: true, seconds: mine.seconds, hints: mine.hints, solvedAt: mine.solvedAt });
+      }
     }
     this.renderBook();
   }
@@ -100,22 +103,28 @@ export class BookShelf {
     progress.append(progressBar(solved, problems.length));
     const grid = $('book-grid');
     grid.textContent = '';
+    // 1 問 1 行：番号・大きさとむずかしさ・解いた時間（ヒントの回数と日付）
     problems.forEach((p, i) => {
       const li = el('li');
       const btn = el('button', `book-problem${p.solved ? ' is-solved' : ''}${this.isPlaying(p) ? ' is-current' : ''}`);
       btn.type = 'button';
-      btn.append(
-        el('b', null, String(p.position)),
-        el('small', null, `${p.rows}×${p.cols}`),
-        el('small', null, DIFFICULTIES[p.difficulty]?.label ?? ''),
-      );
+      const level = DIFFICULTIES[p.difficulty]?.label ?? '';
+      const what = el('span', 'book-problem-what');
+      what.append(el('span', null, `${p.rows}×${p.cols}`), el('small', null, level));
+      const result = el('span', 'book-problem-result');
       if (p.solved) {
-        const mark = el('span', 'book-check');
-        mark.append(icon('check'));
-        if (p.seconds != null) mark.append(formatTime(p.seconds));
-        btn.append(mark);
+        const time = el('b', 'book-check');
+        time.append(icon('check_circle'), p.seconds != null ? formatTime(p.seconds) : '解いた');
+        const notes = [];
+        if (p.hints) notes.push(`ヒント ${p.hints}`);
+        if (p.solvedAt) { const d = new Date(p.solvedAt); notes.push(`${d.getMonth() + 1}/${d.getDate()}`); }
+        result.append(time);
+        if (notes.length) result.append(el('small', null, notes.join('・')));
+      } else {
+        result.append(el('small', 'book-unsolved', this.isPlaying(p) ? '遊んでいる' : 'まだ'));
       }
-      btn.setAttribute('aria-label', `${p.position} 番 ${p.rows}×${p.cols} ${DIFFICULTIES[p.difficulty]?.label ?? ''}${p.solved ? ' 解いた' : ''}`);
+      btn.append(el('b', 'book-problem-no', String(p.position)), what, result);
+      btn.setAttribute('aria-label', `${p.position} 番 ${p.rows}×${p.cols} ${level}${p.solved ? ` 解いた${p.seconds != null ? ` ${formatTime(p.seconds)}` : ''}` : ''}`);
       btn.addEventListener('click', () => this.playAt(this.opened, i));
       li.append(btn);
       grid.append(li);
@@ -150,11 +159,16 @@ export class BookShelf {
     return `${book.title}　${problems[index].position} / ${problems.length}`;
   }
 
-  /** 解いたとき：印を付けて、次に遊ぶ問題（まだ解いていない、後ろの問題。無ければ前から）を返す。 */
-  onSolved() {
+  /** 解いたとき：印（時間・ヒントの回数）を付けて、次に遊ぶ問題（まだ解いていない、後ろの問題。無ければ前から）を返す。 */
+  onSolved({ seconds, hints } = {}) {
     if (!this.current) return null;
     const { problems, index } = this.current;
-    problems[index].solved = true;
+    const p = problems[index];
+    if (!p.solved || (seconds != null && (p.seconds == null || seconds < p.seconds))) {
+      if (seconds != null) { p.seconds = seconds; p.hints = hints ?? 0; }
+    }
+    if (!p.solved) p.solvedAt = Date.now();
+    p.solved = true;
     for (let k = 1; k < problems.length; k++) {
       const j = (index + k) % problems.length;
       if (!problems[j].solved) return j;

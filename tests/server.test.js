@@ -413,3 +413,14 @@ test('公開した問題集を、ログインした人が遊べて、解いた�
   await call(`/api/admin/books/${open}/problems/${p2}`, { method: 'DELETE', cookie: admin });
   assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM book_solved').get().n, 0);
 });
+
+test('問題リストに、解いた日時といちばん速い時間も残せる', async () => {
+  const { cookie } = await loginAs({ sub: 'list-1' });
+  await call('/api/library', { method: 'POST', cookie, body: { entry: { code: '5nLIB', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, source: 'solved', solvedAt: 1234, seconds: 75 } } });
+  await call('/api/library', { method: 'POST', cookie, body: { entry: { code: '5nLIC', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, source: 'photo', solvedAt: 'x' } } });
+  const { library } = (await call('/api/data', { cookie })).data;
+  const a = library.find((e) => e.code === '5nLIB');
+  assert.deepEqual([a.source, a.solvedAt, a.seconds], ['solved', 1234, 75]);
+  const b = library.find((e) => e.code === '5nLIC');
+  assert.equal(b.solvedAt, undefined);
+});
