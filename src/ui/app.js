@@ -44,6 +44,7 @@ const el = {
   autocross: $('opt-autocross'),
   errors: $('opt-errors'),
   fade: $('opt-fade'),
+  fadeLines: $('opt-fade-lines'),
   code: $('puzzle-code'),
   copy: $('btn-copy'),
   load: $('btn-load'),
@@ -129,11 +130,12 @@ function init() {
   patternsOnlyUsable = prefs.patternsOnlyUsable === true;
   if (prefs.size) el.size.value = prefs.size;
   if (prefs.difficulty) el.difficulty.value = prefs.difficulty;
-  // 既定は「自動 × なし・矛盾表示なし・使い終わった数字は薄く」。
+  // 既定は「自動 × なし・矛盾表示なし・線の数が揃った数字は薄く」。
   // 一度でも触った設定は localStorage の値が優先される。
   el.autocross.checked = prefs.autocross === true;
   el.errors.checked = prefs.errors === true;
   el.fade.checked = prefs.fade !== false;
+  el.fadeLines.checked = prefs.fadeLines !== false;
   if (prefs.theme) document.documentElement.dataset.theme = prefs.theme;
 
   board = new Board(el.board, {
@@ -156,7 +158,7 @@ function init() {
     ],
   });
   board.showErrors = el.errors.checked;
-  board.fadeDone = el.fade.checked;
+  applyFadeOptions();
   setInputMode(prefs.inputMode === 'cross' ? 'cross' : 'line');
 
   bindUI();
@@ -204,12 +206,14 @@ function bindUI() {
     board.refresh();
     savePrefs();
   });
-  el.fade.addEventListener('change', () => {
-    board.fadeDone = el.fade.checked;
-    board.rendered.fill(-1);
-    board.refresh();
-    savePrefs();
-  });
+  for (const box of [el.fade, el.fadeLines]) {
+    box.addEventListener('change', () => {
+      applyFadeOptions();
+      board.rendered.fill(-1);
+      board.refresh();
+      savePrefs();
+    });
+  }
 
   el.copy.addEventListener('click', copyCode);
   el.load.addEventListener('click', () => { if (tryLoadCode(el.code.value, false)) closeMenu(); });
@@ -892,6 +896,17 @@ function setInputMode(mode) {
   savePrefs();
 }
 
+/**
+ * 数字を薄くする 2 つの設定を盤に伝える。「線の数が揃ったら」が入っていれば、
+ * 「まわりの辺が全部決まったら」はそれに含まれるので、選べないようにしておく。
+ */
+function applyFadeOptions() {
+  board.fadeLines = el.fadeLines.checked;
+  board.fadeDone = el.fade.checked;
+  el.fade.disabled = el.fadeLines.checked;
+  el.fade.closest('label').classList.toggle('is-off', el.fadeLines.checked);
+}
+
 function savePrefs() {
   store.savePrefs({
     size: el.size.value,
@@ -899,6 +914,7 @@ function savePrefs() {
     autocross: el.autocross.checked,
     errors: el.errors.checked,
     fade: el.fade.checked,
+    fadeLines: el.fadeLines.checked,
     inputMode: board ? board.inputMode : 'line',
     drawer: isDrawerOpen(),
     patternsOnlyUsable,

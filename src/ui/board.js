@@ -36,7 +36,8 @@ export class Board {
     // 点線のカーソルは、キーボードで操作しているときだけ出す
     this.showCursor = false;
     this.showErrors = true;
-    this.fadeDone = true;
+    this.fadeDone = true;   // まわりの辺が全部決まり、線の数が数字と同じなら薄くする
+    this.fadeLines = true;  // 線の数が数字と同じになったら薄くする（× を付け終わっていなくても）
     this.inputMode = 'line'; // 'line' か 'cross'。タップで最初に付く印が変わる
     this.flipMode = false;   // ⌘ を押しているあいだは true（クリックの印を入れ替える）
     this.cursor = -1;
@@ -204,7 +205,9 @@ export class Board {
       }
       const bad = this.showErrors && (lines > clue || lines + unknown < clue);
       el.classList.toggle('bad', bad);
-      el.classList.toggle('done', !bad && this.fadeDone && lines === clue && unknown === 0);
+      // 線の数で薄くするのは 1〜3 だけ（0 は最初から揃っているので、まわりに × を付け終わってから薄くする）
+      const fadeNow = (this.fadeLines && clue > 0) || ((this.fadeDone || this.fadeLines) && unknown === 0);
+      el.classList.toggle('done', !bad && lines === clue && fadeNow);
     }
 
     // ヒントの根拠
