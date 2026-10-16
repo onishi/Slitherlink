@@ -340,6 +340,7 @@ async function admin(request, db, url) {
   const parts = url.pathname.split('/').filter(Boolean).slice(2); // ['books', id, 'problems', pid]
   if (parts[0] === 'compare' && parts.length === 1 && method === 'GET') return compareOrigins(db);
   if (parts[0] === 'problems' && parts.length === 1 && method === 'GET') return allProblems(db);
+  if (parts[0] === 'problems' && parts.length === 2 && method === 'GET') return oneProblem(db, Number(parts[1]));
   if (parts[0] !== 'books') throw new HttpError(404, 'ありません');
   const now = Date.now();
 
@@ -501,18 +502,39 @@ async function compareOrigins(db) {
 }
 
 /** 問題集をまたいだ問題の一覧（絞り込みと並べ替えは管理画面でする）。 */
+/** 問題集をまたいだ一覧・1 問の詳細で返す、問題 1 問ぶんの形。 */
+const listedProblem = (p) => ({
+  id: p.id, bookId: p.book_id, bookTitle: p.book_title, position: p.position, code: p.code,
+  rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clue_count, origin: p.origin, source: p.source,
+  loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
+  assumeCount: p.assume_count, longestSteps: p.longest_steps, coverage: p.coverage, createdAt: p.created_at,
+});
+
 async function allProblems(db) {
   const { results } = await db.prepare(
     `SELECT p.*, b.title AS book_title FROM book_problems p JOIN books b ON b.id = p.book_id
      ORDER BY b.created_at, b.id, p.position`,
   ).all();
+  return json({ problems: results.map(listedProblem) });
+}
+
+/** 1 問の詳細。問題集の中で前後の問題と、問題集の問題数も添える。 */
+async function oneProblem(db, id) {
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'ありません');
+  const p = await db.prepare(
+    'SELECT p.*, b.title AS book_title FROM book_problems p JOIN books b ON b.id = p.book_id WHERE p.id = ?',
+  ).bind(id).first();
+  if (!p) throw new HttpError(404, 'その問題はありません');
+  const [prev, next, count] = await db.batch([
+    db.prepare('SELECT id FROM book_problems WHERE book_id = ? AND position < ? ORDER BY position DESC LIMIT 1').bind(p.book_id, p.position),
+    db.prepare('SELECT id FROM book_problems WHERE book_id = ? AND position > ? ORDER BY position LIMIT 1').bind(p.book_id, p.position),
+    db.prepare('SELECT COUNT(*) AS n FROM book_problems WHERE book_id = ?').bind(p.book_id),
+  ]);
   return json({
-    problems: results.map((p) => ({
-      id: p.id, bookId: p.book_id, bookTitle: p.book_title, position: p.position, code: p.code,
-      rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clue_count, origin: p.origin, source: p.source,
-      loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
-      assumeCount: p.assume_count, longestSteps: p.longest_steps, coverage: p.coverage,
-    })),
+    problem: listedProblem(p),
+    bookCount: count.results[0].n,
+    prevId: prev.results[0]?.id ?? null,
+    nextId: next.results[0]?.id ?? null,
   });
 }
 

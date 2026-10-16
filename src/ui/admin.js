@@ -6,7 +6,7 @@
  * 写真から作るときと同じ画面を開いて手で直せる。解けたものだけを問題集に足す。
  */
 
-import { account, api } from './account.js';
+import { $, el, icon, api, startAdmin, checker, ORIGIN_LABEL, LEVEL_ORDER } from './admin-common.js';
 import { loadPhoto, guessCorners, readClues, rectify } from './image-reader.js';
 import { PhotoImport } from './photo-import.js';
 import { DIFFICULTIES } from '../core/generator.js';
@@ -14,19 +14,6 @@ import { problemStats } from '../core/difficulty-report.js';
 import { decodePuzzle } from '../core/puzzle.js';
 import { unzip } from './zip.js';
 import { pdfPages } from './pdf-pages.js';
-
-const $ = (id) => document.getElementById(id);
-const el = (tag, className, text) => {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text != null) node.textContent = text;
-  return node;
-};
-const icon = (name) => {
-  const s = el('span', 'mi', name);
-  s.setAttribute('aria-hidden', 'true');
-  return s;
-};
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|heic)$/i;
 
@@ -39,43 +26,12 @@ let editing = null;   // 「直す」で開いている取り込み
 
 /* ---------------- 起動とログイン ---------------- */
 
-async function start() {
-  account.onChange = () => gate();
-  await account.init();
-  gate();
-}
-
-function gate() {
-  const ok = account.loggedIn && account.isAdmin;
-  $('admin-main').hidden = !ok;
-  $('admin-gate').hidden = ok;
-  renderAccount();
-  if (ok) {
-    // ログインの確かめで何度か呼ばれても、読み込みは 1 回だけ
-    if (!books.length) booksLoading ??= loadBooks().finally(() => { booksLoading = null; });
-    return;
-  }
-  const text = $('gate-text');
-  const login = $('gate-login');
-  login.textContent = '';
-  if (!account.ready) { text.textContent = '確かめています…'; return; }
-  if (!account.loggedIn) {
-    text.textContent = '管理画面を使うには、管理者の Google アカウントでログインしてください。';
-    account.renderButton(login);
-  } else {
-    text.textContent = 'このアカウントは管理者ではありません。';
-  }
-}
-
-function renderAccount() {
-  const box = $('admin-account');
-  box.textContent = '';
-  if (!account.loggedIn) return;
-  box.append(el('span', null, account.user.name || account.user.email || ''));
-  const out = el('button', 'account-logout', 'ログアウト');
-  out.type = 'button';
-  out.addEventListener('click', () => account.logout());
-  box.append(out);
+function start() {
+  startAdmin(() => {
+    // 問題の詳細から「問題集で開く」で来たときは、その問題集を開く
+    const want = Number(new URLSearchParams(location.search).get('book')) || undefined;
+    booksLoading ??= loadBooks(want).finally(() => { booksLoading = null; });
+  });
 }
 
 /* ---------------- 問題集 ---------------- */
@@ -140,12 +96,15 @@ function renderProblems() {
     play.target = '_blank';
     play.rel = 'noopener';
     play.append(icon('play_arrow'), '遊ぶ');
+    const detail = el('a', 'admin-link');
+    detail.href = `admin/problem.html?id=${p.id}`;
+    detail.append(icon('info'), '詳しく');
     const up = iconButton('arrow_upward', '1 つ上へ', () => moveProblem(p, 'up'));
     up.disabled = i === 0;
     const down = iconButton('arrow_downward', '1 つ下へ', () => moveProblem(p, 'down'));
     down.disabled = i === current.problems.length - 1;
     const del = iconButton('delete', 'この問題を外す', () => removeProblem(p));
-    li.append(text, play, up, down, del);
+    li.append(text, detail, play, up, down, del);
     list.append(li);
   });
 }
@@ -219,7 +178,6 @@ async function removeProblem(p) {
 
 /* ---------------- 問題集をまたいでくらべる ---------------- */
 
-const ORIGIN_LABEL = { scan: 'スキャン', generated: '自動作問', unknown: '出どころ不明' };
 const COMPARE_COLS = [
   ['count', '問題数', (v) => `${v}`],
   ['clueDensity', '数字の割合', (v) => `${v.toFixed(0)}%`],
@@ -233,8 +191,6 @@ const COMPARE_COLS = [
 
 let compareData = null;
 let allRows = null;
-let sortKey = 'bookTitle';
-let sortDir = 1;
 
 async function openCompare() {
   $('book').hidden = true;
@@ -257,8 +213,6 @@ async function loadCompare() {
     clueDensity: (100 * p.clueCount) / (p.rows * p.cols),
     loopPerCell: p.loopLength == null ? null : (100 * p.loopLength) / (p.rows * p.cols),
   }));
-  fillFilters();
-  renderProblemTable();
   renderBookCompare();
 }
 
@@ -294,119 +248,6 @@ async function refillCompare() {
   } finally {
     refilling = false;
   }
-}
-
-function showTab(name) {
-  for (const t of document.querySelectorAll('#compare [data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === name));
-  for (const p of document.querySelectorAll('#compare [data-panel]')) p.hidden = p.dataset.panel !== name;
-}
-
-/* ---------- 問題一覧 ---------- */
-
-const PROBLEM_COLS = [
-  ['bookTitle', '問題集', (r) => r.bookTitle, 'text'],
-  ['position', '番号', (r) => `${r.position}`],
-  ['cells', '大きさ', (r) => r.size],
-  ['level', 'むずかしさ', (r) => DIFFICULTIES[r.difficulty]?.label ?? '—', 'text'],
-  ['origin', '出どころ', (r) => ORIGIN_LABEL[r.origin ?? 'unknown'], 'text'],
-  ['clueDensity', '数字の割合', (r) => `${r.clueDensity.toFixed(0)}%`],
-  ['loopPerCell', '線／マス', (r) => (r.loopPerCell == null ? '—' : (r.loopPerCell / 100).toFixed(2))],
-  ['coverage', '行き渡り', (r) => (r.coverage == null ? '—' : `${r.coverage}%`)],
-  ['patternShare', '定石', (r) => (r.patternShare == null ? '—' : `${r.patternShare}%`)],
-  ['freeShare', '仮定なし', (r) => (r.freeShare == null ? '—' : `${r.freeShare}%`)],
-  ['assumeCount', '仮定', (r) => (r.assumeCount == null ? '—' : `${r.assumeCount}`)],
-  ['longestSteps', '最長の読み', (r) => (r.longestSteps == null ? '—' : `${r.longestSteps} 手`)],
-];
-
-const sortValue = (r, key) => {
-  if (key === 'cells') return r.rows * r.cols * 1000 + r.rows;
-  if (key === 'level') return LEVEL_ORDER.indexOf(r.difficulty);
-  if (key === 'bookTitle') return `${r.bookTitle}\u0000${String(r.position).padStart(5, '0')}`;
-  return r[key];
-};
-
-function fillFilters() {
-  const set = (id, items) => {
-    const sel = $(id);
-    const keep = sel.value;
-    sel.length = 1;
-    for (const [value, label] of items) sel.add(new Option(label, value));
-    sel.value = items.some(([v]) => v === keep) ? keep : '';
-  };
-  const books = new Map(allRows.map((r) => [String(r.bookId), r.bookTitle]));
-  set('f-book', [...books]);
-  const sizes = [...new Map(allRows.map((r) => [r.size, r.rows * r.cols])).entries()].sort((a, b) => a[1] - b[1]);
-  set('f-size', sizes.map(([s]) => [s, s]));
-  set('f-level', LEVEL_ORDER.map((k) => [k, DIFFICULTIES[k].label]));
-}
-
-function filteredRows() {
-  const book = $('f-book').value;
-  const origin = $('f-origin').value;
-  const size = $('f-size').value;
-  const level = $('f-level').value;
-  return allRows.filter((r) => (!book || String(r.bookId) === book)
-    && (!origin || r.origin === origin) && (!size || r.size === size) && (!level || r.difficulty === level));
-}
-
-function renderProblemTable() {
-  const rows = filteredRows().sort((a, b) => {
-    const x = sortValue(a, sortKey);
-    const y = sortValue(b, sortKey);
-    if (x == null && y == null) return 0;
-    if (x == null) return 1; // 値の無いものは下へ
-    if (y == null) return -1;
-    return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
-  });
-  const table = $('problem-table');
-  table.textContent = '';
-  const head = el('tr');
-  for (const [key, label] of PROBLEM_COLS) {
-    const th = el('th');
-    const b = el('button', `admin-sort${sortKey === key ? ' is-on' : ''}`, label + (sortKey === key ? (sortDir > 0 ? ' ▲' : ' ▼') : ''));
-    b.type = 'button';
-    b.addEventListener('click', () => {
-      if (sortKey === key) sortDir = -sortDir; else { sortKey = key; sortDir = 1; }
-      renderProblemTable();
-    });
-    th.append(b);
-    head.append(th);
-  }
-  head.append(el('th'));
-  table.append(head);
-  for (const r of rows) {
-    const tr = el('tr', `is-${r.origin ?? 'unknown'}`);
-    for (const [key, , fmt, kind] of PROBLEM_COLS) tr.append(el('td', kind === 'text' ? 'is-text' : null, fmt(r)));
-    const td = el('td');
-    const a = el('a', 'admin-link');
-    a.href = `./?p=${encodeURIComponent(r.code)}`;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.append(icon('play_arrow'), '遊ぶ');
-    td.append(a);
-    tr.append(td);
-    table.append(tr);
-  }
-  // 絞り込んだ問題の平均（くらべたいものだけ残して見る）
-  const avg = (key) => {
-    const v = rows.map((r) => r[key]).filter((x) => x != null);
-    return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
-  };
-  if (rows.length) {
-    const tr = el('tr', 'admin-avg-row');
-    for (const [key] of PROBLEM_COLS) {
-      let text = '';
-      if (key === 'bookTitle') text = `平均（${rows.length} 問）`;
-      else if (key === 'clueDensity' || key === 'coverage' || key === 'patternShare' || key === 'freeShare') text = avg(key) == null ? '—' : `${avg(key).toFixed(0)}%`;
-      else if (key === 'loopPerCell') text = avg(key) == null ? '—' : (avg(key) / 100).toFixed(2);
-      else if (key === 'assumeCount') text = avg(key) == null ? '—' : avg(key).toFixed(1);
-      else if (key === 'longestSteps') text = avg(key) == null ? '—' : `${avg(key).toFixed(1)} 手`;
-      tr.append(el('td', key === 'bookTitle' ? 'is-text' : null, text));
-    }
-    tr.append(el('td'));
-    table.append(tr);
-  }
-  $('f-count').textContent = `${rows.length} 問 / 全 ${allRows.length} 問`;
 }
 
 /* ---------- 問題集どうし ---------- */
@@ -489,8 +330,6 @@ function bookSizeTable() {
 
 function bindBooks() {
   $('open-compare').addEventListener('click', () => openCompare());
-  for (const t of document.querySelectorAll('#compare [data-tab]')) t.addEventListener('click', () => showTab(t.dataset.tab));
-  for (const id of ['f-book', 'f-origin', 'f-size', 'f-level']) $(id).addEventListener('change', () => renderProblemTable());
   $('new-book').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const title = $('new-book-title').value.trim();
@@ -519,19 +358,6 @@ function bindBooks() {
 /* ---------------- まとめて取り込む ---------------- */
 
 // 論理だけで解けるかは、写真から作るときと同じワーカーで確かめる
-const checker = (() => {
-  let worker = null;
-  let seq = 0;
-  const waiting = new Map();
-  return (rows, cols, clues) => new Promise((resolve) => {
-    worker ??= new Worker(new URL('../worker/check-worker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = (ev) => { waiting.get(ev.data.id)?.(ev.data); waiting.delete(ev.data.id); };
-    const id = ++seq;
-    waiting.set(id, resolve);
-    worker.postMessage({ id, rows, cols, clues: Array.from(clues) });
-  });
-})();
-
 /** 落とされたファイルを、1 問ずつの画像に分けて並べる。 */
 async function addFiles(fileList) {
   const files = [...fileList];
@@ -762,7 +588,6 @@ async function addSolved() {
 
 /* ---------------- ランダムに作る ---------------- */
 
-const LEVEL_ORDER = ['intro', 'easy', 'normal', 'hard', 'expert'];
 let genWorker = null;
 let genStop = false;
 let genPending = null; // いま待っている 1 問（止めたときに、待ちを終わらせる）

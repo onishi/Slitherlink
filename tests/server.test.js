@@ -348,6 +348,20 @@ test('問題集をまたいだ問題の一覧と、問題集どうしのくら�
   assert.deepEqual(cmp.byBook.map((r) => [r.title, r.count, r.coverage, r.scans, r.generated, r.minCells, r.maxCells]),
     [['A', 2, 70, 2, 0, 25, 49], ['B', 1, 90, 0, 1, 25, 25]]);
   assert.equal(cmp.bookLevels.find((r) => r.bookId === a && r.difficulty === 'hard').count, 1);
+  // 1 問の詳細：問題集の中での前後と、問題集の問題数
+  const [p1, p2, p3] = problems;
+  const one = (await call(`/api/admin/problems/${p1.id}`, { cookie })).data;
+  assert.equal(one.problem.code, '5nA');
+  assert.equal(one.problem.bookTitle, 'A');
+  assert.equal(one.problem.coverage, 60);
+  assert.deepEqual([one.bookCount, one.prevId, one.nextId], [2, null, p2.id]);
+  const two = (await call(`/api/admin/problems/${p2.id}`, { cookie })).data;
+  assert.deepEqual([two.prevId, two.nextId], [p1.id, null]);
+  const three = (await call(`/api/admin/problems/${p3.id}`, { cookie })).data;
+  assert.deepEqual([three.bookCount, three.prevId, three.nextId], [1, null, null]);
+  assert.equal((await call('/api/admin/problems/99999', { cookie })).status, 404);
+  assert.equal((await call('/api/admin/problems/abc', { cookie })).status, 404);
   const user = await loginAs({ sub: 'user-9' });
   assert.equal((await call('/api/admin/problems', { cookie: user.cookie })).status, 403);
+  assert.equal((await call(`/api/admin/problems/${p1.id}`, { cookie: user.cookie })).status, 403);
 });
