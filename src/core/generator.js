@@ -129,7 +129,7 @@ function validRegion(grid, inside) {
  * @param {number} options.cols
  * @param {'intro'|'easy'|'normal'|'hard'|'expert'} [options.difficulty]
  * @param {'nikoli'} [options.style] 'nikoli' なら、輪を盤いっぱいにくねらせ、数字を点対称の組で削り、
- *   ニコリ風の条件（src/core/nikoli.js）を満たすものだけを合格にする
+ *   ニコリ風の条件（src/core/nikoli.js）を満たすものだけを合格にする。入門・やさしいだけは数字の割合を問わない
  * @param {number} [options.seed]
  * @returns {{rows:number, cols:number, difficulty:string, clues:Int8Array, solution:Int8Array, seed:number, clueCount:number}}
  */
@@ -144,6 +144,10 @@ export function generatePuzzle(options = {}) {
   const nikoli = options.style === 'nikoli';
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
+  // ニコリ風の入門・やさしいは数字が多めになるので、少しのあいだ作り直して数字のいちばん少ないものを選ぶ
+  const relaxClues = nikoli && rank < LEVELS.indexOf('normal');
+  const softDeadline = Math.min(deadline, Date.now() + Math.max(2000, rows * cols * 15));
+  let fewest = null;
 
   for (let attempt = 0; attempt < 200; attempt++) {
     const attemptSeed = (seed + attempt * 0x9e3779b1) >>> 0;
@@ -234,19 +238,28 @@ export function generatePuzzle(options = {}) {
     for (let i = 0; i < finalClues.length; i++) if (finalClues[i] >= 0) clueCount++;
     const puzzle = { rows, cols, difficulty: LEVELS[got], clues: finalClues, solution, seed: attemptSeed, clueCount };
     // ニコリ風は、数字の割合・定石・仮定の回数まで含めて条件を満たすものだけを合格にする
+    //    入門・やさしいは定石だけで解けるよう数字を多めに残すので、「数字 50% 未満」だけは合格の条件から外す
+    //    （点対称と輪の形は守る）。styleOk はゆるめずに、全部満たしたかを正直に返す
     let missed = 0;
     if (nikoli) {
       const st = problemStats(difficultyReport({ rows, cols, clues: finalClues, solution }), solution, { rows, cols });
-      missed = nikoliCheck({ rows, cols, clues: finalClues, clueCount, ...st }).failed.length;
+      const failed = nikoliCheck({ rows, cols, clues: finalClues, clueCount, ...st }).failed;
+      missed = failed.filter((f) => !(f === '数字' && rank < LEVELS.indexOf('normal'))).length;
       puzzle.style = 'nikoli';
-      puzzle.styleOk = missed === 0;
+      puzzle.styleOk = failed.length === 0;
     }
-    if (got === rank && !missed) return puzzle;
+    if (got === rank && !missed) {
+      if (!relaxClues || puzzle.styleOk) return puzzle;
+      if (!fewest || puzzle.clueCount < fewest.clueCount) fewest = puzzle;
+      if (Date.now() > softDeadline) return fewest;
+      continue;
+    }
     // 時間切れのときは、外れた条件の少ないもの・狙いの難易度に近いものを返す
     const score = missed * 10 + Math.abs(got - rank);
     if (score < bestScore) { best = puzzle; bestScore = score; }
-    if (Date.now() > deadline) return best;
+    if (Date.now() > deadline) return fewest ?? best;
   }
+  if (fewest) return fewest;
   if (best) return best;
   throw new Error('問題の生成に失敗しました');
 }

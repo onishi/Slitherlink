@@ -614,8 +614,12 @@ let genPending = null; // いま待っている 1 問（止めたときに、待
 
 /** 作る問題ごとの難易度。「いろいろ」なら 5 段階を同じくらいずつ、やさしい順に並べる。 */
 function plannedLevels(choice, count) {
-  // ニコリ風の「いろいろ」は、ニコリの問題集にならって ふつう 2：むずかしい 1
-  if (choice === 'nikoli-mix') return Array.from({ length: count }, (_, i) => (i % 3 === 2 ? 'hard' : 'normal'));
+  // ニコリ風の「いろいろ」は、ニコリの問題集にならって ふつうを多めに（入門 1：やさしい 1：ふつう 3：むずかしい 1）
+  if (choice === 'nikoli-mix') {
+    const weights = [['intro', 1], ['easy', 1], ['normal', 3], ['hard', 1]];
+    const bag = weights.flatMap(([k, w]) => new Array(w).fill(k)); // やさしい順
+    return Array.from({ length: count }, (_, i) => bag[Math.floor((i * bag.length) / count)]);
+  }
   if (choice !== 'mix') return new Array(count).fill(choice);
   return Array.from({ length: count }, (_, i) => LEVEL_ORDER[Math.floor((i * LEVEL_ORDER.length) / count)]);
 }
@@ -662,7 +666,11 @@ async function generateBatch(rows, cols, count, choice, style) {
       item.state = 'ok';
       item.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount, stats: p.stats ?? null };
       let missed = p.difficulty !== item.level ? `（「${DIFFICULTIES[item.level].label}」は時間内に作れず）` : '';
-      if (p.style === 'nikoli' && !p.styleOk) missed += '（ニコリ風の条件を満たすものは時間内に作れず）';
+      if (p.style === 'nikoli' && !p.styleOk) {
+        missed += ['intro', 'easy'].includes(p.difficulty) && p.difficulty === item.level
+          ? '（定石で解けるよう数字は多め）'
+          : '（ニコリ風の条件を満たすものは時間内に作れず）';
+      }
       item.message = `${p.rows}×${p.cols}・${DIFFICULTIES[p.difficulty]?.label ?? ''}・数字 ${p.clueCount}${missed}`;
       renderQueue();
     }
@@ -683,12 +691,12 @@ function bindGenerate() {
     const nikoli = $('gen-nikoli').checked;
     generateBatch(n('gen-rows', 3, 50), n('gen-cols', 3, 50), n('gen-count', 1, 100), $('gen-difficulty').value, nikoli ? 'nikoli' : undefined);
   });
-  // ニコリ風は ふつう・むずかしい だけ（入門・やさしいは数字が 50% を超え、鬼は仮定が多すぎる）
+  // ニコリ風に鬼は無い（仮定が多すぎる）。入門・やさしいは数字が多めになる
   $('gen-nikoli').addEventListener('change', () => {
     const on = $('gen-nikoli').checked;
     const sel = $('gen-difficulty');
     for (const o of sel.options) {
-      const allowed = on ? ['nikoli-mix', 'normal', 'hard'].includes(o.value) : o.value !== 'nikoli-mix';
+      const allowed = on ? o.value !== 'mix' && o.value !== 'expert' : o.value !== 'nikoli-mix';
       o.hidden = !allowed;
       o.disabled = !allowed;
     }
