@@ -4,7 +4,7 @@
  * 目安が欠けていれば、調べた結果で埋めて保存する。
  */
 
-import { $, el, api, startAdmin, checker, boardSvg, ORIGIN_LABEL } from './admin-common.js';
+import { $, el, api, startAdmin, checker, boardSvg, metricGuide, ORIGIN_LABEL } from './admin-common.js';
 import { renderReport } from './puzzle-report.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { problemStats } from '../core/difficulty-report.js';
@@ -80,7 +80,7 @@ function renderMetrics(p) {
   facts($('metrics'), [
     ['数字', `${p.clueCount} 個（${Math.round((100 * p.clueCount) / cells)}%）`, 'マス数に対する数字の割合'],
     ['線', dash(p.loopLength, (v) => `${v} 本（1 マスあたり ${(v / cells).toFixed(2)}）`), '答えの輪の長さ'],
-    ['行き渡り', dash(p.coverage, (v) => `${v}%`), '4 辺のどれかが線になるマスの割合'],
+    ['行き渡り', dash(p.coverage, (v) => `${v}%`), '4 辺のどれか 1 本でも線が通るマスの割合'],
     ['定石', dash(p.patternShare, (v) => `${v}%`), '定石（ふつう・読み）だけで決まる辺の割合'],
     ['仮定なし', dash(p.freeShare, (v) => `${v}%`), '最初に仮定が要るまでに決まる割合'],
     ['仮定', dash(p.assumeCount, (v) => (v ? `${v} 回・最長 ${p.longestSteps} 手` : 'なし')), '仮定が要る回数と、いちばん長い読みの手数'],
@@ -106,6 +106,7 @@ async function analyze(p) {
   }
 }
 
+$('metrics').after(metricGuide());
 $('show-answer').addEventListener('change', drawBoard);
 // 一覧に戻るときは、最後に見ていた絞り込みと並べ替えのまま
 try {

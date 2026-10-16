@@ -81,6 +81,28 @@ export const checker = (() => {
   });
 })();
 
+/** 目安の説明（問題一覧・問題の詳細・くらべる画面で共通）。[名前, 説明] */
+export const METRIC_HELP = [
+  ['数字の割合', 'マス数に対する、数字（ヒント）の数の割合。'],
+  ['線の本数／マス', '答えの輪の長さ（引く線の本数）を、マス数で割ったもの。'],
+  ['行き渡り', '答えの線が盤にどれだけ行き渡っているか。4 辺のどれか 1 本でも線が通るマスの割合です（角だけ触れるマスは数えません）。100% ならどのマスも輪に接していて、低いほど線の通らない空き地が広い盤です。'],
+  ['定石', '空の盤から解き進めたとき、定石（ふつうの定石・読みの定石）だけで決まる辺の割合。'],
+  ['仮定なし', '最初に仮定（「ここに線を引いたら…」と考えて矛盾を見る）が要るまでに決まる辺の割合。最後まで要らなければ 100%。'],
+  ['仮定', '解き終わるまでに仮定が要る回数。'],
+  ['最長の読み', 'いちばん長い読み（仮定してから矛盾が出るまで）の手数。'],
+  ['むずかしさ', '解き味から決める 5 段階。入門・やさしいは定石と基本ルールだけ、ふつうは読みの定石、むずかしいは仮定 1 段、鬼は仮定 2 段が要ります。'],
+];
+
+/** 目安の説明を、開け閉めできる欄にして返す。 */
+export function metricGuide() {
+  const box = el('details', 'admin-guide');
+  box.append(el('summary', null, '目安の見方'));
+  const dl = el('dl', 'admin-facts');
+  for (const [name, text] of METRIC_HELP) dl.append(el('dt', null, name), el('dd', null, text));
+  box.append(dl);
+  return box;
+}
+
 const SVG = 'http://www.w3.org/2000/svg';
 const svgEl = (tag, attrs) => {
   const n = document.createElementNS(SVG, tag);

@@ -1538,4 +1538,9 @@ a.admin-compare-btn:hover { background: var(--accent-soft); }
 .admin-facts dd { margin: 0; overflow-wrap: anywhere; }
 .admin-facts dd small { display: block; color: var(--ink-faint); font-size: .74rem; }
 .admin-detail-report { margin-top: 18px; }
+.admin-guide { margin: 6px 0 10px; font-size: .84rem; }
+.admin-guide summary { cursor: pointer; color: var(--accent); width: max-content; }
+.admin-guide .admin-facts { margin-top: 8px; padding: 10px 12px; background: var(--surface-2); border-radius: 8px; font-size: .82rem; }
+.admin-guide .admin-facts dt { font-weight: 600; color: var(--ink); }
+.admin-detail-info .admin-guide { margin-top: 12px; }
 .admin-detail-report h3 { margin: 0 0 6px; font-size: .9rem; }

@@ -6,7 +6,7 @@
  * 写真から作るときと同じ画面を開いて手で直せる。解けたものだけを問題集に足す。
  */
 
-import { $, el, icon, api, startAdmin, checker, ORIGIN_LABEL, LEVEL_ORDER } from './admin-common.js';
+import { $, el, icon, api, startAdmin, checker, metricGuide, ORIGIN_LABEL, LEVEL_ORDER } from './admin-common.js';
 import { loadPhoto, guessCorners, readClues, rectify } from './image-reader.js';
 import { PhotoImport } from './photo-import.js';
 import { DIFFICULTIES } from '../core/generator.js';
@@ -686,6 +686,8 @@ function bindImport() {
   });
 }
 
+$('books-body').before(metricGuide());
+$('problems').before(metricGuide());
 bindBooks();
 bindImport();
 bindGenerate();

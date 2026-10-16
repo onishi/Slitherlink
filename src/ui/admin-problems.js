@@ -4,7 +4,7 @@
  * 絞り込みと並べ替えは URL に残す（詳細から戻ったとき、同じ表に戻れるように）。
  */
 
-import { $, el, icon, api, startAdmin, ORIGIN_LABEL, LEVEL_ORDER } from './admin-common.js';
+import { $, el, icon, api, startAdmin, metricGuide, METRIC_HELP, ORIGIN_LABEL, LEVEL_ORDER } from './admin-common.js';
 import { DIFFICULTIES } from '../core/generator.js';
 
 const FILTERS = [['f-book', 'book'], ['f-origin', 'origin'], ['f-size', 'size'], ['f-level', 'level']];
@@ -102,6 +102,12 @@ function filteredRows() {
     && (!origin || r.origin === origin) && (!size || r.size === size) && (!level || r.difficulty === level));
 }
 
+/** 列の見出しに添える説明（見出しの名前と目安の名前が違うものはそろえる）。 */
+const helpOf = (label) => {
+  const name = { '線／マス': '線の本数／マス' }[label] ?? label;
+  return METRIC_HELP.find(([n]) => n === name)?.[1];
+};
+
 const detailUrl = (r) => `problem.html?id=${r.id}`;
 
 function render() {
@@ -121,6 +127,7 @@ function render() {
     const th = el('th');
     const b = el('button', `admin-sort${sortKey === key ? ' is-on' : ''}`, label + (sortKey === key ? (sortDir > 0 ? ' ▲' : ' ▼') : ''));
     b.type = 'button';
+    b.title = helpOf(label) ?? '';
     b.addEventListener('click', () => {
       if (sortKey === key) sortDir = -sortDir; else { sortKey = key; sortDir = 1; }
       render();
@@ -179,4 +186,5 @@ function render() {
 }
 
 for (const [id] of FILTERS) $(id).addEventListener('change', render);
+$('f-count').before(metricGuide());
 startAdmin(() => load().catch((err) => { $('f-count').textContent = err.message || '読み込めませんでした'; }));
