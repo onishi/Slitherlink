@@ -158,6 +158,7 @@ test('作問ロジックの版：ニコリ風 v3 が最新で、版を省くと�
   assert.deepEqual(GENERATORS['nikoli-3'].options, { style: 'nikoli', version: 3 });
   assert.deepEqual(GENERATORS['nikoli-4'].options, { style: 'nikoli', version: 4 });
   assert.deepEqual(GENERATORS['nikoli-5'].options, { style: 'nikoli', version: 5 });
+  assert.deepEqual(GENERATORS['nikoli-6'].options, { style: 'nikoli', version: 6 });
 });
 
 test('ニコリ風 v5：0 を固めずに置く（まわり 2 歩以内にほかの 0 がある 0 を残さない）', () => {
@@ -176,6 +177,13 @@ test('ニコリ風 v5：0 を固めずに置く（まわり 2 歩以内にほか
   }
   assert.equal(crowded, 0);
   assert.equal(typeof p.workRun, 'number');
+});
+
+test('ニコリ風 v6：ふつうは考える手を 100 本あたり 11 回までにする', () => {
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 6, seed: 321, timeLimitMs: 30000 });
+  assert.equal(p.difficulty, 'normal');
+  assert.ok(isPointSymmetric(p.clues, 10, 10));
+  assert.ok(feelProfile(p).thinkRate <= 11 + 1e-9, `考える手 ${feelProfile(p).thinkRate}`);
 });
 
 test('作業の続く区間：盤面を見ただけで × が続く手数を数える', () => {
