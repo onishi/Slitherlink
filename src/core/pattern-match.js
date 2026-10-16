@@ -108,6 +108,30 @@ export function orientationsOf(pattern) {
 
 const cmp = (a, b) => String(a) < String(b) ? -1 : 1;
 
+// 定石の向き・別の形・置ける位置は、定石と盤の大きさだけで決まるので、一度求めたら覚えておく
+// （作問では同じ定石を何千回も当てはめるので、毎回求め直すと遅い）
+const orientationCache = new WeakMap();
+const formCache = new WeakMap();
+const placementCache = new WeakMap();
+function cachedOrientations(pattern) {
+  let list = orientationCache.get(pattern);
+  if (!list) orientationCache.set(pattern, (list = orientationsOf(pattern)));
+  return list;
+}
+function formsOf(pattern) {
+  let list = formCache.get(pattern);
+  if (!list) formCache.set(pattern, (list = expandForms(pattern)));
+  return list;
+}
+function cachedPlacements(variant, rows, cols) {
+  let bySize = placementCache.get(variant);
+  if (!bySize) placementCache.set(variant, (bySize = new Map()));
+  const key = rows * 1000 + cols;
+  let list = bySize.get(key);
+  if (!list) bySize.set(key, (list = placements(variant, rows, cols)));
+  return list;
+}
+
 const edgeOf = (grid, dir, r, c) => (dir === 'h' ? grid.h(r, c) : grid.v(r, c));
 const valueOf = (kind) => (kind === 'line' ? LINE : CROSS);
 
@@ -193,7 +217,7 @@ export function findMatches(grid, clues, state, pattern) {
     const fills = new Map();
     let conflicts = 0;
     let places = 0;
-    for (const form of expandForms(pattern)) {
+    for (const form of formsOf(pattern)) {
       const r = findMatches(grid, clues, state, form);
       for (const f of r.fills) fills.set(f.edge, f);
       conflicts += r.conflicts;
@@ -222,8 +246,8 @@ export function findMatches(grid, clues, state, pattern) {
   let conflicts = 0;
   let places = 0;
 
-  for (const variant of orientationsOf(pattern)) {
-    for (const [dr, dc] of placements(variant, grid.rows, grid.cols)) {
+  for (const variant of cachedOrientations(pattern)) {
+    for (const [dr, dc] of cachedPlacements(variant, grid.rows, grid.cols)) {
       if (!matchesHere(grid, clues, state, variant, dr, dc)) continue;
 
       const found = [];

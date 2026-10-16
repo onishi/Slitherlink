@@ -74,3 +74,45 @@ export function feelProfile(puzzle) {
     thinkEdges,
   };
 }
+
+/** 作業だけの手（線を引かずに × を付けるだけの手）。続けて打つほど、作業の続く区間が長い。 */
+const WORK_RULES = new Set(['clue_full', 'vertex_dead', 'vertex_two']);
+
+/**
+ * 作業の続く区間のいちばん長いもの（手数）。人のように 1 手ずつ解く：いま決まる手のうち、
+ * 直前の手にいちばん近いもの（同じ距離なら根拠の少ないもの）を打ち、作業だけの手が何手続いたかを数える。
+ * ニコリ（とことん01）の 24×14 は中央値 19 手、ニコリ風 3 版は 29 手だった。
+ * 1 手ずつ証明を集めるので重い（24×14 で 1 秒ほど）。作問では最後の候補選びにだけ使う。
+ * @param {{rows:number, cols:number, clues:ArrayLike<number>, solution:ArrayLike<number>}} puzzle
+ * @param {number} [stopAt] これだけ続いたら打ち切る（合格かどうかだけ知りたいとき）
+ * @returns {number}
+ */
+export function workRun(puzzle, stopAt = Infinity) {
+  const grid = getGrid(puzzle.rows, puzzle.cols);
+  const board = new Int8Array(grid.edgeCount);
+  const solution = Int8Array.from(puzzle.solution);
+  const mid = (e) => {
+    const i = grid.edgeInfo[e];
+    return i.dir === 'h' ? [i.r, i.c + 0.5] : [i.r + 0.5, i.c];
+  };
+  let last = null;
+  let run = 0;
+  let longest = 0;
+  while (board.includes(UNKNOWN) && longest < stopAt) {
+    const proofs = collectProofs(grid, puzzle.clues, board, { solution, limit: 50 });
+    if (!proofs.length) break;
+    let best = proofs[0];
+    let bestScore = Infinity;
+    for (const p of proofs) {
+      const [r, c] = mid(p.edge);
+      const dist = last ? Math.abs(r - last[0]) + Math.abs(c - last[1]) : 0;
+      const score = dist * 10 + (p.kind === 'direct' ? (p.step.premises?.length ?? 0) : 100);
+      if (score < bestScore) { bestScore = score; best = p; }
+    }
+    if (best.kind === 'direct' && WORK_RULES.has(best.step?.rule)) longest = Math.max(longest, ++run);
+    else run = 0;
+    board[best.edge] = best.value;
+    last = mid(best.edge);
+  }
+  return longest;
+}
