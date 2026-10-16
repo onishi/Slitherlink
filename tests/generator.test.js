@@ -5,6 +5,7 @@ import { solveLogical, countSolutions } from '../src/core/solver.js';
 import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES } from '../src/core/generator.js';
 import { difficultyReport, levelOf, problemStats } from '../src/core/difficulty-report.js';
 import { nikoliCheck, isPointSymmetric } from '../src/core/nikoli.js';
+import { thinkMoves } from '../src/core/feel.js';
 
 test('randomLoop は必ず単一ループを返す', () => {
   for (let seed = 1; seed <= 12; seed++) {
@@ -112,4 +113,30 @@ test('stretchLoop：輪は 1 本のまま、マス数の 0.85 倍くらいまで
     assert.ok(after >= before);
     assert.ok(after >= 144 * 0.8, `輪の長さ ${after}`);
   }
+});
+
+test('ニコリ風の入門：少し先を読む手があり、空の行・列や数字のない 3×3 が無い', () => {
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'nikoli', seed: 7000, timeLimitMs: 30000 });
+  assert.equal(p.difficulty, 'intro');
+  assert.ok(thinkMoves(p) >= 3, '考える手が少ない');
+  assert.ok(isPointSymmetric(p.clues, 10, 10));
+  const has = (r, c) => p.clues[r * 10 + c] >= 0;
+  for (let i = 0; i < 10; i++) {
+    assert.ok([...Array(10).keys()].some((j) => has(i, j)), `空の行 ${i}`);
+    assert.ok([...Array(10).keys()].some((j) => has(j, i)), `空の列 ${i}`);
+  }
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      let any = false;
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) any ||= has(r + i, c + j);
+      assert.ok(any, `数字のない 3×3（${r},${c}）`);
+    }
+  }
+});
+
+test('考える手：盤面を見ただけで解ける問題は 0、少し先を読む問題は 1 以上', () => {
+  const easy = generatePuzzle({ rows: 6, cols: 6, difficulty: 'intro', seed: 11 });
+  assert.equal(thinkMoves(easy), 0);
+  const normal = generatePuzzle({ rows: 7, cols: 7, difficulty: 'normal', seed: 12 });
+  assert.ok(thinkMoves(normal) >= 1);
 });
