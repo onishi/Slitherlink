@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getGrid, isSingleLoop, cluesFromEdges, LINE } from '../src/core/grid.js';
 import { solveLogical, countSolutions } from '../src/core/solver.js';
-import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES } from '../src/core/generator.js';
+import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES, GENERATORS, LATEST_GENERATOR } from '../src/core/generator.js';
 import { difficultyReport, levelOf, problemStats } from '../src/core/difficulty-report.js';
 import { nikoliCheck, isPointSymmetric } from '../src/core/nikoli.js';
-import { thinkMoves } from '../src/core/feel.js';
+import { thinkMoves, feelProfile } from '../src/core/feel.js';
 
 test('randomLoop は必ず単一ループを返す', () => {
   for (let seed = 1; seed <= 12; seed++) {
@@ -139,4 +139,21 @@ test('考える手：盤面を見ただけで解ける問題は 0、少し先を
   assert.equal(thinkMoves(easy), 0);
   const normal = generatePuzzle({ rows: 7, cols: 7, difficulty: 'normal', seed: 12 });
   assert.ok(thinkMoves(normal) >= 1);
+});
+
+test('ニコリ風 v3：手触り（考える手の多さ・入り口・山場）と数字の内訳をニコリに寄せる', () => {
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 3, seed: 321, timeLimitMs: 30000 });
+  assert.equal(p.difficulty, 'normal');
+  assert.ok(isPointSymmetric(p.clues, 10, 10));
+  const f = feelProfile(p);
+  assert.ok(f.thinkRate <= 12 + 1e-9, `考える手 ${f.thinkRate}`);
+  assert.ok(f.think >= 1);
+  const h = [0, 0, 0, 0];
+  for (const v of p.clues) if (v >= 0) h[v]++;
+  assert.ok(h[3] > 0 && h[1] > 0);
+});
+
+test('作問ロジックの版：ニコリ風 v3 が最新で、版を省くと最新で作る', () => {
+  assert.equal(LATEST_GENERATOR, 'nikoli-3');
+  assert.deepEqual(GENERATORS['nikoli-3'].options, { style: 'nikoli', version: 3 });
 });
