@@ -8,7 +8,7 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql']
+const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql', '0007_generator.sql']
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
@@ -423,4 +423,30 @@ test('問題リストに、解いた日時といちばん速い時間も残せ�
   assert.deepEqual([a.source, a.solvedAt, a.seconds], ['solved', 1234, 75]);
   const b = library.find((e) => e.code === '5nLIC');
   assert.equal(b.solvedAt, undefined);
+});
+
+test('自動作問の問題に、作問ロジックの版を持つ', async () => {
+  const { cookie } = await loginAs({ sub: 'admin-1' });
+  const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: '版' } })).data.book.id;
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
+    { code: '5nV1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'nikoli-2' },
+    { code: '5nV2', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'whatever' },
+    { code: '5nV3', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'scan', generator: 'random-1' },
+  ] } });
+  const { problems } = (await call(`/api/admin/books/${id}`, { cookie })).data;
+  assert.deepEqual(problems.map((p) => p.generator), ['nikoli-2', null, null]);
+  const all = (await call('/api/admin/problems', { cookie })).data.problems.filter((p) => p.bookId === id);
+  assert.equal(all[0].generator, 'nikoli-2');
+});
+
+test('すでにある自動作問の問題には、名前から版を付ける（0007）', () => {
+  const db = new DatabaseSync(':memory:');
+  for (const f of ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql']) db.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
+  db.exec("INSERT INTO books (id, title, description, published, created_at, updated_at) VALUES (1, 'b', '', 0, 0, 0)");
+  const add = db.prepare("INSERT INTO book_problems (book_id, position, code, rows, cols, clue_count, source, created_at, origin) VALUES (1, ?, ?, 5, 5, 9, ?, 0, ?)");
+  add.run(1, 'a', 'ランダム 5×5（1 / 3）', 'generated');
+  add.run(2, 'b', 'ニコリ風 5×5（2 / 3）', 'generated');
+  add.run(3, 'c', 'p1.png', 'scan');
+  db.exec(readFileSync(new URL('../migrations/0007_generator.sql', import.meta.url), 'utf8'));
+  assert.deepEqual(db.prepare('SELECT generator FROM book_problems ORDER BY position').all().map((r) => r.generator), ['random-1', 'nikoli-1', null]);
 });

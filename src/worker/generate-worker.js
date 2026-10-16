@@ -4,9 +4,9 @@ import { encodePuzzle } from '../core/puzzle.js';
 import { difficultyReport, problemStats } from '../core/difficulty-report.js';
 
 self.onmessage = (ev) => {
-  const { id, rows, cols, difficulty, seed, timeLimitMs, withStats, style } = ev.data || {};
+  const { id, rows, cols, difficulty, seed, timeLimitMs, withStats, style, version } = ev.data || {};
   try {
-    const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs, style });
+    const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs, style, version });
     self.postMessage({
       id,
       ok: true,

@@ -4,6 +4,7 @@
  */
 
 import { account, api } from './account.js';
+import { GENERATORS } from '../core/generator.js';
 
 export { account, api };
 
@@ -22,8 +23,18 @@ export const icon = (name) => {
   return s;
 };
 
-export const ORIGIN_LABEL = { scan: 'スキャン', generated: '自動作問', unknown: '出どころ不明' };
 export const LEVEL_ORDER = ['intro', 'easy', 'normal', 'hard', 'expert'];
+
+/** 問題の作り方のキー：スキャン、作問ロジックの版（random-1 など）、版の分からない自動作問、出どころ不明。 */
+export const kindOf = (p) => (p.origin === 'scan' ? 'scan' : p.origin === 'generated' ? (p.generator || 'generated') : 'unknown');
+/** 作り方の名前。並べる順もこの順。 */
+export const KIND_LABEL = {
+  scan: 'スキャン',
+  ...Object.fromEntries(Object.entries(GENERATORS).map(([id, g]) => [id, g.label])),
+  generated: '自動作問（版不明）',
+  unknown: '出どころ不明',
+};
+export const kindLabel = (p) => KIND_LABEL[kindOf(p)];
 
 /**
  * ログインと管理者の確かめ。管理者なら #admin-main を出して onReady を呼ぶ（何度ログインし直しても 1 回だけ）。
@@ -91,6 +102,7 @@ export const METRIC_HELP = [
   ['仮定なし', '最初に仮定（「ここに線を引いたら…」と考えて矛盾を見る）が要るまでに決まる辺の割合。最後まで要らなければ 100%。'],
   ['仮定', '解き終わるまでに仮定が要る回数。'],
   ['最長の読み', 'いちばん長い読み（仮定してから矛盾が出るまで）の手数。'],
+  ['作り方', 'スキャン（画像・PDF から読み取り）か、自動作問なら作問ロジックの版。ランダム v1 は最初の作り方、ニコリ風 v1 は輪を盤いっぱいにくねらせて数字を点対称に削る作り方、ニコリ風 v2 はそれに加えて数字をむらなく置き・3 を残し・入門にも考える手を入れる作り方。'],
   ['ニコリ風', 'ニコリの問題集（とことん01）の特徴を条件にしたもの。数字の配置が点対称・数字 50% 未満・線／マス 0.80 以上・行き渡り 80% 以上・最大の空き地 4% 以下・定石 95% 以上・仮定 3 回まで、をすべて満たせば ○。とことん01 は 99 問中 98 問が ○ です。'],
   ['むずかしさ', '解き味から決める 5 段階。入門・やさしいは定石と基本ルールだけ、ふつうは読みの定石、むずかしいは仮定 1 段、鬼は仮定 2 段が要ります。'],
 ];

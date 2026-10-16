@@ -4,7 +4,7 @@
  * 目安が欠けていれば、調べた結果で埋めて保存する。
  */
 
-import { $, el, api, startAdmin, checker, boardSvg, metricGuide, ORIGIN_LABEL } from './admin-common.js';
+import { $, el, api, startAdmin, checker, boardSvg, metricGuide, kindLabel } from './admin-common.js';
 import { renderReport } from './puzzle-report.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { problemStats } from '../core/difficulty-report.js';
@@ -67,7 +67,7 @@ function renderFacts(p) {
     ['問題集', p.bookTitle],
     ['大きさ', `${p.rows}×${p.cols}（${cells} マス）`],
     ['むずかしさ', DIFFICULTIES[p.difficulty]?.label ?? '—'],
-    ['出どころ', ORIGIN_LABEL[p.origin ?? 'unknown']],
+    ['作り方', kindLabel(p)],
   ];
   if (p.source) items.push([p.origin === 'generated' ? '作ったとき' : '取り込んだもの', p.source]);
   if (p.createdAt) items.push(['登録', new Date(p.createdAt).toLocaleString('ja-JP')]);

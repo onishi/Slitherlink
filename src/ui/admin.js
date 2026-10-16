@@ -6,10 +6,10 @@
  * 写真から作るときと同じ画面を開いて手で直せる。解けたものだけを問題集に足す。
  */
 
-import { $, el, icon, api, startAdmin, checker, metricGuide, ORIGIN_LABEL, LEVEL_ORDER } from './admin-common.js';
+import { $, el, icon, api, startAdmin, checker, metricGuide, kindOf, kindLabel, KIND_LABEL, LEVEL_ORDER } from './admin-common.js';
 import { loadPhoto, guessCorners, readClues, rectify } from './image-reader.js';
 import { PhotoImport } from './photo-import.js';
-import { DIFFICULTIES } from '../core/generator.js';
+import { DIFFICULTIES, GENERATORS, LATEST_GENERATOR } from '../core/generator.js';
 import { problemStats } from '../core/difficulty-report.js';
 import { decodePuzzle } from '../core/puzzle.js';
 import { nikoliCheck } from '../core/nikoli.js';
@@ -89,7 +89,7 @@ function renderProblems() {
     const text = el('span', 'admin-problem-text');
     text.append(
       el('b', null, `${p.position}. ${p.rows}×${p.cols} ${DIFFICULTIES[p.difficulty]?.label ?? ''}`),
-      el('small', null, `${ORIGIN_LABEL[p.origin] ?? '出どころ不明'}・数字 ${p.clueCount}${p.source ? `・${p.source}` : ''}`),
+      el('small', null, `${kindLabel(p)}・数字 ${p.clueCount}${p.source ? `・${p.source}` : ''}`),
       statsLine(p.stats),
     );
     const play = el('a', 'admin-link');
@@ -316,14 +316,65 @@ function renderBookCompare() {
   }
   body.append(el('h3', null, '難易度の内訳'), levels);
   body.append(el('h3', null, '大きさごと'), bookSizeTable());
+  // 作り方（スキャン・作問ロジックの版）どうし
+  body.append(
+    el('h3', null, '作り方どうし'),
+    el('p', 'hint-text', '自動作問は、作問ロジックの版ごとに分けています。版が違うと数字の置き方や解き味が変わります。'),
+    kindTable(false),
+    el('h3', null, '作り方ごとの難易度の内訳'), kindLevelTable(),
+    el('h3', null, '作り方 × 大きさ'), kindTable(true),
+  );
 }
 
 /** 問題集と大きさの組ごとに、目安を平均する（大きさをそろえてくらべるため）。 */
 function bookSizeTable() {
+  return groupTable(['問題集', '大きさ'], (p) => [`${p.bookId}\t${p.size}`, [p.bookTitle, p.size], p.rows * p.cols * 1e6 + p.rows * 1e3]);
+}
+
+/** 作り方（スキャン・作問ロジックの版）ごと。bySize なら大きさでも分ける。 */
+function kindTable(bySize) {
+  const order = Object.keys(KIND_LABEL);
+  return groupTable(bySize ? ['作り方', '大きさ'] : ['作り方'], (p) => {
+    const k = kindOf(p);
+    const rank = order.indexOf(k);
+    return bySize
+      ? [`${k}\t${p.size}`, [KIND_LABEL[k], p.size], p.rows * p.cols * 1e6 + p.rows * 1e3 + rank]
+      : [k, [KIND_LABEL[k]], rank];
+  });
+}
+
+/** 作り方ごとの、むずかしさの内訳。 */
+function kindLevelTable() {
+  const table = el('table', 'admin-compare-table');
+  const head = el('tr');
+  head.append(el('th', null, '作り方'));
+  for (const k of LEVEL_ORDER) head.append(el('th', null, DIFFICULTIES[k].label));
+  table.append(head);
+  for (const kind of Object.keys(KIND_LABEL)) {
+    const rows = allRows.filter((p) => kindOf(p) === kind);
+    if (!rows.length) continue;
+    const tr = el('tr');
+    tr.append(el('td', 'admin-compare-origin', KIND_LABEL[kind]));
+    for (const k of LEVEL_ORDER) {
+      const n = rows.filter((p) => p.difficulty === k).length;
+      const cell = el('td', 'admin-level-cell', n ? `${n}（${Math.round((n / rows.length) * 100)}%）` : '—');
+      if (n) cell.style.setProperty('--share', `${(n / rows.length) * 100}%`);
+      tr.append(cell);
+    }
+    table.append(tr);
+  }
+  return table;
+}
+
+/**
+ * 問題を groupOf(p) → [キー, 見出しの値, 並べる順] で組に分け、組ごとに目安を平均した表。
+ * ニコリ風の割合も添える。
+ */
+function groupTable(heads, groupOf) {
   const groups = new Map();
   for (const p of allRows) {
-    const key = `${p.bookId}\t${p.size}`;
-    if (!groups.has(key)) groups.set(key, { title: p.bookTitle, size: p.size, cells: p.rows * p.cols, rows: [] });
+    const [key, labels, sort] = groupOf(p);
+    if (!groups.has(key)) groups.set(key, { labels, sort, rows: [] });
     groups.get(key).rows.push(p);
   }
   const avg = (rows, key) => {
@@ -332,13 +383,13 @@ function bookSizeTable() {
   };
   const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  for (const label of ['問題集', '大きさ', 'ニコリ風']) head.append(el('th', null, label));
+  for (const label of [...heads, 'ニコリ風']) head.append(el('th', null, label));
   for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
   table.append(head);
-  const list = [...groups.values()].sort((a, b) => a.cells - b.cells || a.size.localeCompare(b.size));
-  for (const g of list) {
+  for (const g of [...groups.values()].sort((a, b) => a.sort - b.sort)) {
     const tr = el('tr');
-    tr.append(el('td', 'admin-compare-origin', g.title), el('td', null, g.size), el('td', null, nikoliShare(g.rows)));
+    g.labels.forEach((v, i) => tr.append(el('td', i === 0 ? 'admin-compare-origin' : null, v)));
+    tr.append(el('td', null, nikoliShare(g.rows)));
     for (const [key, , fmt] of COMPARE_COLS) {
       const v = key === 'count' ? g.rows.length : avg(g.rows, key);
       tr.append(el('td', null, v == null ? '—' : fmt(v)));
@@ -624,7 +675,8 @@ function plannedLevels(choice, count) {
   return Array.from({ length: count }, (_, i) => LEVEL_ORDER[Math.floor((i * LEVEL_ORDER.length) / count)]);
 }
 
-function generateOne(rows, cols, difficulty, style) {
+function generateOne(rows, cols, difficulty, generator) {
+  const { style, version } = GENERATORS[generator].options;
   genWorker ??= new Worker(new URL('../worker/generate-worker.js', import.meta.url), { type: 'module' });
   return new Promise((resolve) => {
     const id = Math.random();
@@ -634,15 +686,15 @@ function generateOne(rows, cols, difficulty, style) {
     genWorker.onerror = () => done({ ok: false, error: '作問中にエラーが起きました' });
     // ニコリ風の大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
     const timeLimitMs = style === 'nikoli' ? Math.max(20000, rows * cols * 80) : 20000;
-    genWorker.postMessage({ id, rows, cols, difficulty, style, withStats: true, timeLimitMs });
+    genWorker.postMessage({ id, rows, cols, difficulty, style, version, withStats: true, timeLimitMs });
   });
 }
 
-async function generateBatch(rows, cols, count, choice, style) {
+async function generateBatch(rows, cols, count, choice, generator) {
   const levels = plannedLevels(choice, count);
-  const kind = style === 'nikoli' ? 'ニコリ風' : 'ランダム';
+  const kind = GENERATORS[generator].label;
   const items = levels.map((level, i) => ({
-    id: ++queueSeq, generated: true, name: `${kind} ${rows}×${cols}（${i + 1} / ${count}）`,
+    id: ++queueSeq, generated: true, generator, name: `${kind} ${rows}×${cols}（${i + 1} / ${count}）`,
     blob: null, state: 'generating', message: `「${DIFFICULTIES[level].label}」を作るのを待っています`, result: null, thumb: null, level,
   }));
   queue.push(...items);
@@ -655,7 +707,7 @@ async function generateBatch(rows, cols, count, choice, style) {
       if (genStop) break;
       item.message = `「${DIFFICULTIES[item.level].label}」を作っています…`;
       renderQueue();
-      const r = await generateOne(rows, cols, item.level, style);
+      const r = await generateOne(rows, cols, item.level, generator);
       if (genStop && !r.ok) break;
       if (!r.ok) {
         item.state = 'error';
@@ -664,7 +716,7 @@ async function generateBatch(rows, cols, count, choice, style) {
       }
       const p = r.puzzle;
       item.state = 'ok';
-      item.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount, stats: p.stats ?? null };
+      item.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount, stats: p.stats ?? null, generator };
       let missed = p.difficulty !== item.level ? `（「${DIFFICULTIES[item.level].label}」は時間内に作れず）` : '';
       if (p.style === 'nikoli' && !p.styleOk) {
         missed += ['intro', 'easy'].includes(p.difficulty) && p.difficulty === item.level
@@ -688,20 +740,25 @@ function bindGenerate() {
   $('gen-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
     const n = (id, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number($(id).value) || lo)));
-    const nikoli = $('gen-nikoli').checked;
-    generateBatch(n('gen-rows', 3, 50), n('gen-cols', 3, 50), n('gen-count', 1, 100), $('gen-difficulty').value, nikoli ? 'nikoli' : undefined);
+    generateBatch(n('gen-rows', 3, 50), n('gen-cols', 3, 50), n('gen-count', 1, 100), $('gen-difficulty').value, $('gen-kind').value);
   });
-  // ニコリ風に鬼は無い（仮定が多すぎる）。入門・やさしいは数字が多めになる
-  $('gen-nikoli').addEventListener('change', () => {
-    const on = $('gen-nikoli').checked;
+  // 作り方（作問ロジックの版）。新しい版を先に
+  const kindSel = $('gen-kind');
+  for (const id of Object.keys(GENERATORS).reverse()) kindSel.add(new Option(GENERATORS[id].label, id));
+  kindSel.value = LATEST_GENERATOR;
+  // ニコリ風に鬼は無い（仮定が多すぎる）。「いろいろ」はニコリにならって ふつう多め
+  const syncLevels = () => {
+    const on = GENERATORS[kindSel.value].options.style === 'nikoli';
     const sel = $('gen-difficulty');
     for (const o of sel.options) {
       const allowed = on ? o.value !== 'mix' && o.value !== 'expert' : o.value !== 'nikoli-mix';
       o.hidden = !allowed;
       o.disabled = !allowed;
     }
-    if (sel.selectedOptions[0]?.disabled) sel.value = on ? 'nikoli-mix' : 'mix';
-  });
+    if (sel.selectedOptions[0]?.disabled || (on && sel.value === 'mix') || (!on && sel.value === 'nikoli-mix')) sel.value = on ? 'nikoli-mix' : 'mix';
+  };
+  kindSel.addEventListener('change', syncLevels);
+  syncLevels();
   $('gen-stop').addEventListener('click', () => {
     genStop = true;
     // いま作っている 1 問も打ち切る
