@@ -1205,6 +1205,31 @@ body.no-anim .app { transition: none !important; }
 .library li > button.with-icon { font-size: .78rem; padding: 6px 10px; }
 .library li > .icon-btn { width: 30px; height: 30px; }
 .library-empty { font-size: .8rem; color: var(--ink-faint); }
+/* 問題集 */
+.book-list { max-height: none; }
+.book-item { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; }
+.book-item > .mi:first-child { color: var(--accent); }
+.book-item .library-text { flex: 1; }
+.book-item .library-text small { white-space: normal; }
+.book-bar-wrap { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.book-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.book-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.book-bar-wrap small { white-space: nowrap; }
+.book-desc { margin: 0 0 6px; font-size: .84rem; color: var(--ink-soft); }
+.book-desc:empty { display: none; }
+.book-progress { margin-bottom: 10px; }
+.book-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.book-problem {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; line-height: 1.25; position: relative;
+}
+.book-problem b { font-size: 1rem; }
+.book-problem small { font-size: .68rem; color: var(--ink-faint); }
+.book-problem.is-solved { background: var(--accent-soft); border-color: var(--accent); }
+.book-problem.is-current { outline: 2px solid var(--accent); outline-offset: 1px; }
+.book-check { display: inline-flex; align-items: center; gap: 1px; font-size: .66rem; color: var(--accent); font-weight: 600; }
+.book-check .mi { font-size: .9rem; }
+.overlay-card .overlay-book { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; }
+.overlay-card .overlay-book .mi { font-size: 1.05rem; color: var(--accent); }
 
 /* メニューの「この問題の難易度」 */
 .puzzle-report { font-size: .84rem; color: var(--ink-soft); line-height: 1.6; }

@@ -145,6 +145,10 @@
       </div>
 
       <div class="menu-list">
+        <button type="button" class="menu-row menu-nav" data-go="books">
+          <span class="mi" aria-hidden="true">menu_book</span><span class="menu-row-text">問題集 <small>順に解いて、解いた印を集める</small></span>
+          <span class="mi chev" aria-hidden="true">chevron_right</span>
+        </button>
         <button type="button" class="menu-row menu-nav" data-go="library">
           <span class="mi" aria-hidden="true">bookmarks</span><span class="menu-row-text">問題リスト <small id="library-count"></small></span>
           <span class="mi chev" aria-hidden="true">chevron_right</span>
@@ -175,6 +179,28 @@
         <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
       </div>
       <div class="puzzle-report" id="puzzle-report" aria-live="polite"></div>
+    </section>
+
+    <!-- 問題集（ログイン中だけ）：公開中の問題集の一覧 -->
+    <section class="menu-view" data-view="books" hidden>
+      <div class="menu-sub-head">
+        <button type="button" class="icon-btn" data-back aria-label="メニューにもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
+        <h2>問題集</h2>
+        <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
+      </div>
+      <ul class="library book-list" id="book-list"></ul>
+    </section>
+
+    <!-- 問題集 1 冊：問題の一覧。解いた問題には印 -->
+    <section class="menu-view" data-view="book" hidden>
+      <div class="menu-sub-head">
+        <button type="button" class="icon-btn" id="btn-book-back" aria-label="問題集の一覧にもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
+        <h2 id="book-title">問題集</h2>
+        <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
+      </div>
+      <p class="book-desc" id="book-desc"></p>
+      <div class="book-progress" id="book-progress"></div>
+      <ol class="book-grid" id="book-grid"></ol>
     </section>
 
     <!-- 問題リスト -->
