@@ -270,9 +270,15 @@ test('問題集を作り、問題をまとめて足し、並べ替え・外し�
   assert.deepEqual(detail.problems.map((p) => [p.position, p.code]), [[1, '7hCCC'], [2, '5eBBB']]);
 
   await call(`/api/admin/books/${id}`, { method: 'PATCH', cookie, body: { title: '初級編（改）', published: true } });
-  const list = (await call('/api/admin/books', { cookie })).data.books;
+  let list = (await call('/api/admin/books', { cookie })).data.books;
   assert.equal(list[0].title, '初級編（改）');
-  assert.equal(list[0].published, true);
+  assert.equal(list[0].visibility, 'public');
+  // 公開のしかたは 3 段階
+  await call(`/api/admin/books/${id}`, { method: 'PATCH', cookie, body: { visibility: 'admin' } });
+  list = (await call('/api/admin/books', { cookie })).data.books;
+  assert.equal(list[0].visibility, 'admin');
+  assert.equal(list[0].title, '初級編（改）');
+  assert.equal((await call(`/api/admin/books/${id}`, { method: 'PATCH', cookie, body: { visibility: 'all' } })).status, 400);
   assert.equal(list[0].count, 2);
 
   // 形のおかしい問題コードは入れない
@@ -412,6 +418,25 @@ test('公開した問題集を、ログインした人が遊べて、解いた�
   const p2 = detail.problems[1].id;
   await call(`/api/admin/books/${open}/problems/${p2}`, { method: 'DELETE', cookie: admin });
   assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM book_solved').get().n, 0);
+});
+
+test('管理者のみの問題集は、管理者だけがメニューで遊べる', async () => {
+  const admin = (await loginAs({ sub: 'admin-1' })).cookie;
+  const id = (await call('/api/admin/books', { method: 'POST', cookie: admin, body: { title: '試し' } })).data.book.id;
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie: admin, body: { problems: [{ code: '5nT1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 10 }] } });
+  await call(`/api/admin/books/${id}`, { method: 'PATCH', cookie: admin, body: { visibility: 'admin' } });
+
+  const mine = (await call('/api/books', { cookie: admin })).data.books.find((b) => b.id === id);
+  assert.equal(mine.visibility, 'admin');
+  assert.equal((await call(`/api/books/${id}`, { cookie: admin })).data.book.visibility, 'admin');
+  // 管理者は解いた印も付く
+  await call('/api/history', { method: 'POST', cookie: admin, body: { code: '5nT1', rows: 5, cols: 5, difficulty: 'normal', seconds: 40, hints: 0 } });
+  assert.equal((await call(`/api/books/${id}`, { cookie: admin })).data.problems[0].solved, true);
+
+  // 管理者でない人には見えない
+  const { cookie } = await loginAs({ sub: 'player-9' });
+  assert.ok(!(await call('/api/books', { cookie })).data.books.some((b) => b.id === id));
+  assert.equal((await call(`/api/books/${id}`, { cookie })).status, 404);
 });
 
 test('問題リストに、解いた日時といちばん速い時間も残せる', async () => {

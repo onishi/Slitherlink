@@ -56,12 +56,15 @@ function renderBooks() {
     const li = el('li');
     const btn = el('button', `admin-book-item${current?.book.id === b.id ? ' is-on' : ''}`);
     btn.type = 'button';
-    btn.append(el('b', null, b.title), el('small', null, `${b.count} 問${b.published ? '・公開中' : ''}`));
+    btn.append(el('b', null, b.title), el('small', null, `${b.count} 問${VISIBILITY_NOTE[b.visibility] ?? ''}`));
     btn.addEventListener('click', () => openBook(b.id));
     li.append(btn);
     list.append(li);
   }
 }
+
+/** 問題集の一覧で、名前の下に添える公開のしかた（非公開は何も付けない）。 */
+const VISIBILITY_NOTE = { public: '・公開中', admin: '・管理者のみ' };
 
 async function openBook(id) {
   current = await api(`/api/admin/books/${id}`);
@@ -70,7 +73,7 @@ async function openBook(id) {
   document.querySelector('.admin').classList.remove('is-wide');
   $('book-title').value = current.book.title;
   $('book-desc').value = current.book.description;
-  $('book-published').checked = current.book.published;
+  $('book-visibility').value = current.book.visibility;
   renderBooks();
   renderProblems();
   fillMissingStats();
@@ -413,7 +416,7 @@ function bindBooks() {
     ev.preventDefault();
     await api(`/api/admin/books/${current.book.id}`, {
       method: 'PATCH',
-      body: { title: $('book-title').value, description: $('book-desc').value, published: $('book-published').checked },
+      body: { title: $('book-title').value, description: $('book-desc').value, visibility: $('book-visibility').value },
     });
     await loadBooks(current.book.id);
   });

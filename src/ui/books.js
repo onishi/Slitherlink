@@ -60,7 +60,10 @@ export class BookShelf {
       const btn = el('button', 'book-item');
       btn.type = 'button';
       const text = el('span', 'library-text');
-      text.append(el('b', null, b.title));
+      const name = el('b', null, b.title);
+      // 管理者のみの問題集は、管理者にだけ見えている印を付ける
+      if (b.visibility === 'admin') name.append(el('span', 'book-admin-tag', '管理者のみ'));
+      text.append(name);
       if (b.description) text.append(el('small', null, b.description));
       text.append(progressBar(b.solved, b.count));
       btn.append(icon(b.solved === b.count ? 'workspace_premium' : 'menu_book'), text, icon('chevron_right'));
