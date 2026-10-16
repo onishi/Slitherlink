@@ -14,7 +14,7 @@ import { solveLogical } from './solver.js';
 import { solveWithProofs } from './proof.js';
 import { difficultyReport, levelOf, LEVELS, problemStats } from './difficulty-report.js';
 import { nikoliCheck } from './nikoli.js';
-import { thinkMoves, feelProfile } from './feel.js';
+import { thinkMoves, feelProfile, workRun } from './feel.js';
 
 /** xorshift32 による決定的な乱数生成器。 */
 export function makeRng(seed) {
@@ -50,6 +50,9 @@ export const DIFFICULTIES = {
  *             難易度を保って数字を戻し（入り口が広く、息つける区間ができる）、山場が後半にある問題を選ぶ
  *   nikoli-4  ニコリ風の 4 版。3 版に加えて、考える手の多さの目安をむずかしさごとにニコリに合わせ（入門・やさしいを軽く）、
  *             数字を戻すときは考えさせられた場所の近くから戻す（少ない数字で手触りを作る）
+ *   nikoli-5  ニコリ風の 5 版。3 版を元に（4 版の工夫は使わない）、0 を固めずに離して置き（固まった 0 は × を付けるだけの
+ *             作業が続く。ニコリの 0 は 8 割がまわり 2 歩以内にほかの 0 が無い）、数字を戻すときは 3・2 から戻し、
+ *             候補を選ぶときに作業の続く区間の長さも見る
  */
 export const GENERATORS = {
   'random-1': { label: 'ランダム v1', options: {} },
@@ -57,6 +60,7 @@ export const GENERATORS = {
   'nikoli-2': { label: 'ニコリ風 v2', options: { style: 'nikoli', version: 2 } },
   'nikoli-3': { label: 'ニコリ風 v3', options: { style: 'nikoli', version: 3 } },
   'nikoli-4': { label: 'ニコリ風 v4', options: { style: 'nikoli', version: 4 } },
+  'nikoli-5': { label: 'ニコリ風 v5', options: { style: 'nikoli', version: 5 } },
 };
 // 最初に選ばれる作り方。4 版は入門・やさしいを軽くできるが、遊び比べでは作業の続く区間が延び、
 // 全体としては 3 版のほうがニコリに近かったので、3 版のままにしておく
@@ -77,6 +81,11 @@ const FEEL_MAX_RATE = { intro: 10, easy: 10, normal: 12, hard: 15, expert: Infin
 const FEEL_RATE_V4 = { intro: [5, 8], easy: [5, 8], normal: [9, 12], hard: [12, 16], expert: [0, Infinity] };
 const FEEL_MIN_OPENINGS = 0.12;
 const FEEL_MIN_MID = 0.55;
+/**
+ * 5 版の、作業の続く区間（src/core/feel.js の workRun）の上限。
+ * ニコリの 24×14 は中央値 19 手・平均 22 手、3 版は中央値 29 手だった。
+ */
+const FEEL_MAX_RUN = 22;
 
 /**
  * 1 本の輪をランダムに作る。
@@ -188,15 +197,19 @@ export function generatePuzzle(options = {}) {
   const v2 = nikoli && version >= 2;
   // 3 版：数字の内訳をニコリに寄せ、手触り（考える手の多さ・入り口・山場）を合わせる
   const v3 = nikoli && version >= 3;
-  // 4 版：むずかしさごとの手触りの目安と、考えさせられた場所の近くから数字を戻す
-  const v4 = nikoli && version >= 4;
+  // 4 版：むずかしさごとの手触りの目安と、考えさせられた場所の近くから数字を戻す（5 版は使わない）
+  const v4 = nikoli && version === 4;
+  // 5 版：0 を離して置き、3・2 から数字を戻し、作業の続く区間も見て候補を選ぶ
+  const v5 = nikoli && version >= 5;
   const rateRange = (level) => (v4 ? FEEL_RATE_V4[level] : [0, FEEL_MAX_RATE[level]]);
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
   // ニコリ風の入門・やさしいは数字が多めになるので、少しのあいだ作り直して数字のいちばん少ないものを選ぶ
   const relaxClues = nikoli && rank < LEVELS.indexOf('normal');
   // 入門・やさしい（数字が多め）や 3 版の手触りは、少しのあいだ作り直して、いちばん良いものを選ぶ
-  const softDeadline = Math.min(deadline, Date.now() + (v3 ? Math.max(3000, rows * cols * 25) : Math.max(2000, rows * cols * 15)));
+  //   5 版は作業の続く区間を測る分、長めに選ぶ
+  const softMs = v5 ? Math.max(5000, rows * cols * 40) : v3 ? Math.max(3000, rows * cols * 25) : Math.max(2000, rows * cols * 15);
+  const softDeadline = Math.min(deadline, Date.now() + softMs);
   let fewest = null;
 
   for (let attempt = 0; attempt < 200; attempt++) {
@@ -238,7 +251,7 @@ export function generatePuzzle(options = {}) {
       // 3 版は数字の内訳を見ながら削るので、何組か試すごとに削る順を作り直す
       const tried = new Set();
       const refreshEvery = Math.max(4, Math.floor(n / 24));
-      const nextOrder = () => (v2 ? evenRemovalOrder(grid, clues, rng, v3 ? CLUE_MIX : null) : shuffled(n, rng)).filter((c) => !tried.has(c));
+      const nextOrder = () => (v2 ? evenRemovalOrder(grid, clues, rng, v3 ? CLUE_MIX : null, v5) : shuffled(n, rng)).filter((c) => !tried.has(c));
       let order = nextOrder();
       let stop = false;
       while (order.length && !stop) {
@@ -304,12 +317,16 @@ export function generatePuzzle(options = {}) {
 
     // ヒントが根拠つきで最後まで示せるか（証明つきの手だけで正解まで届くか）
     // ニコリ風の仕上げ：数字が 7 割以上並ぶ行・列（ニコリの問題には無い）を、難易度を保って削れるだけ削る
-    if (v2) finalClues = thinDenseLines(grid, finalClues, (c) => solveLogical(grid, c, { maxDepth: cutDepth, budget: 200000 }).status === 'solved' && levelAt(c) === got, deadline);
+    const keepsLevel = (c) => solveLogical(grid, c, { maxDepth: cutDepth, budget: 200000 }).status === 'solved' && levelAt(c) === got;
+    if (v2) finalClues = thinDenseLines(grid, finalClues, keepsLevel, deadline);
+    // 5 版の仕上げ：近くにほかの 0 がある 0 を、難易度を保って削れるだけ削る（0 が固まると × を付けるだけの作業が続く）
+    //   むずかしいは難易度を確かめるのが重い（仮定を探す）ので、削る順で 0 を離すだけにする
+    if (v5 && got <= LEVELS.indexOf('normal')) finalClues = thinZeros(grid, finalClues, keepsLevel, deadline);
 
     // 3 版の仕上げ：考える手が多すぎれば（休む間がない・入り口が狭い）、難易度を変えない範囲で数字を戻す
     let feel = null;
     if (v3) {
-      const eased = easeFeel(grid, finalClues, full, removedOrder, solution, rateRange(LEVELS[got])[1], v4,
+      const eased = easeFeel(grid, finalClues, full, removedOrder, solution, rateRange(LEVELS[got])[1], v4 ? 'think' : v5 ? 'value' : null,
         (c) => levelAt(c) === got && (got < LEVELS.indexOf('normal') || countOf(c) < grid.cellCount * 0.5), deadline);
       finalClues = eased.clues;
       feel = eased.feel;
@@ -335,7 +352,13 @@ export function generatePuzzle(options = {}) {
       puzzle.styleOk = failed.length === 0;
     }
     // 3 版は手触り（考える手の多さ・入り口・山場）も見る。合わなければ少しのあいだ作り直して、近いものを選ぶ
-    const feelMiss = v3 ? feelGap(feel, rateRange(LEVELS[got])) : 0;
+    let feelMiss = v3 ? feelGap(feel, rateRange(LEVELS[got])) : 0;
+    // 5 版：ほかの目安が合うものだけ、作業の続く区間も見る（重いので打ち切りつき）
+    if (v5 && got === rank && !missed && feelMiss === 0) {
+      const run = workRun({ rows, cols, clues: finalClues, solution }, FEEL_MAX_RUN * 2);
+      feelMiss += Math.max(0, run - FEEL_MAX_RUN) / 10;
+      puzzle.workRun = run;
+    }
     if (feel) puzzle.feel = feel;
     if (got === rank && !missed) {
       if ((!relaxClues || puzzle.styleOk) && feelMiss === 0) return puzzle;
@@ -368,12 +391,14 @@ function feelGap(feel, range) {
 
 /**
  * 考える手が多すぎるとき、最後に削った組から順に数字を戻す（ok を保てるものだけ）。
+ * order が 'think' なら考えさせられた場所の近くから（4 版）、'value' なら 3・2 の組から（5 版）戻す。
  * 数字が 6 割以上並ぶ行・列には戻さない（むらを作らない）。
  * 手触りを測るのは重い（24×14 で 1 秒ほど）ので、何組かずつまとめて戻しては測る。
  * 1 組あたりで考える手がどれだけ減ったかから、目安に届くのに要る組の数を見積もり、戻しすぎないようにする。
  * @returns {{clues: Int8Array, feel: object}}
  */
-function easeFeel(grid, clues, full, removedOrder, solution, max, nearThink, ok, deadline) {
+function easeFeel(grid, clues, full, removedOrder, solution, max, order, ok, deadline) {
+  const nearThink = order === 'think';
   const out = Int8Array.from(clues);
   const { rows, cols } = grid;
   let feel = feelProfile({ rows, cols, clues: out, solution });
@@ -409,6 +434,11 @@ function easeFeel(grid, clues, full, removedOrder, solution, max, nearThink, ok,
   };
   let i = 0;
   if (nearThink) byThink();
+  // 5 版：3・2 の組から戻す（線を引く手が出る数字なので、× を付けるだけの作業が続かない）。0 は最後
+  if (order === 'value') {
+    const worth = (g) => g.reduce((a, x) => a + [-3, 0, 1, 2][full[x]], 0);
+    back = back.map((g, j) => [g, j]).sort((a, b) => worth(b[0]) - worth(a[0]) || a[1] - b[1]).map(([g]) => g);
+  }
   // はじめの見積もり（控えめに）。4 版は狙った場所の数字なので 1 組の効き目が大きく、1〜2 組ずつ戻す
   const stepCap = nearThink ? 2 : 3;
   let step = nearThink ? 2 : Math.max(1, Math.ceil(back.length / 12));
@@ -419,6 +449,8 @@ function easeFeel(grid, clues, full, removedOrder, solution, max, nearThink, ok,
     while (i < back.length && added < step) {
       const group = back[i++];
       if (group.some(crowded)) continue;
+      // 5 版：近くにほかの 0 がある 0 は戻さない
+      if (order === 'value' && group.some((x) => full[x] === 0 && zerosNear(grid, out, x) > 0)) continue;
       for (const x of group) out[x] = full[x];
       if (ok(out)) added++;
       else for (const x of group) out[x] = -1;
@@ -439,7 +471,7 @@ function easeFeel(grid, clues, full, removedOrder, solution, max, nearThink, ok,
  * 少しだけ乱数を混ぜて、毎回同じ形にならないようにする。
  */
 const KEEP_WEIGHT = [2, 3, 1, -2]; // 数字ごとの「先に削る」重み：0, 1, 2, 3
-function evenRemovalOrder(grid, clues, rng, mix = null) {
+function evenRemovalOrder(grid, clues, rng, mix = null, apartZeros = false) {
   const { rows, cols, cellCount } = grid;
   // 3 版：いまの内訳が目安より多い数字ほど先に削る
   let weight = KEEP_WEIGHT;
@@ -470,6 +502,8 @@ function evenRemovalOrder(grid, clues, rng, mix = null) {
       }
     }
     score[i] = rowN[r] / cols + colN[c] / rows + near / 3 + weight[clues[i]] + rng() * 1.5;
+    // 5 版：近くにほかの 0 がある 0 を先に削る（ニコリの 0 は 8 割が離れて置かれている）
+    if (apartZeros && clues[i] === 0) score[i] += 2 * zerosNear(grid, clues, i);
   }
   // 組（点対称の 2 マス）は合わせた点で並べる
   const order = Array.from({ length: cellCount }, (_, i) => i);
@@ -507,6 +541,55 @@ function thinDenseLines(grid, clues, ok, deadline) {
       if (Date.now() > deadline) return out;
       const group = cell === cellCount - 1 - cell ? [cell] : [cell, cellCount - 1 - cell];
       if (out[cell] < 0 || Math.max(lineCount(cell), lineCount(group[group.length - 1])) < 0.7) continue;
+      if (leavesHole(grid, out, group)) continue;
+      const saved = group.map((x) => out[x]);
+      for (const x of group) out[x] = -1;
+      if (ok(out)) changed = true;
+      else group.forEach((x, j) => { out[x] = saved[j]; });
+    }
+    if (!changed) break;
+  }
+  return out;
+}
+
+/** cell から 2 歩以内（上下左右に数えて）にある、ほかの 0 の数。 */
+function zerosNear(grid, clues, cell) {
+  const { rows, cols } = grid;
+  const r = Math.floor(cell / cols);
+  const c = cell % cols;
+  let k = 0;
+  for (let dr = -2; dr <= 2; dr++) {
+    for (let dc = -2; dc <= 2; dc++) {
+      if ((!dr && !dc) || Math.abs(dr) + Math.abs(dc) > 2) continue;
+      const rr = r + dr;
+      const cc = c + dc;
+      if (rr >= 0 && rr < rows && cc >= 0 && cc < cols && clues[rr * cols + cc] === 0) k++;
+    }
+  }
+  return k;
+}
+
+/**
+ * 近くにほかの 0 がある 0 から、ok(盤) を保てる点対称の組を削る（固まった 0 のいちばん混んだものから）。
+ * @returns {Int8Array} 削ったあとの数字
+ */
+function thinZeros(grid, clues, ok, deadline) {
+  const n = grid.cellCount;
+  const out = Int8Array.from(clues);
+  for (let pass = 0; pass < 3; pass++) {
+    const crowded = [];
+    for (let i = 0; i < n; i++) {
+      if (out[i] !== 0) continue;
+      const k = zerosNear(grid, out, i);
+      if (k) crowded.push([Math.min(i, n - 1 - i), k]);
+    }
+    if (!crowded.length) break;
+    crowded.sort((a, b) => b[1] - a[1]);
+    let changed = false;
+    for (const [cell] of crowded) {
+      if (Date.now() > deadline) return out;
+      const group = cell === n - 1 - cell ? [cell] : [cell, n - 1 - cell];
+      if (out[cell] < 0 || !group.some((x) => out[x] === 0 && zerosNear(grid, out, x) > 0)) continue;
       if (leavesHole(grid, out, group)) continue;
       const saved = group.map((x) => out[x]);
       for (const x of group) out[x] = -1;

@@ -5,7 +5,7 @@ import { solveLogical, countSolutions } from '../src/core/solver.js';
 import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES, GENERATORS, LATEST_GENERATOR } from '../src/core/generator.js';
 import { difficultyReport, levelOf, problemStats } from '../src/core/difficulty-report.js';
 import { nikoliCheck, isPointSymmetric } from '../src/core/nikoli.js';
-import { thinkMoves, feelProfile } from '../src/core/feel.js';
+import { thinkMoves, feelProfile, workRun } from '../src/core/feel.js';
 
 test('randomLoop は必ず単一ループを返す', () => {
   for (let seed = 1; seed <= 12; seed++) {
@@ -157,6 +157,32 @@ test('作問ロジックの版：ニコリ風 v3 が最新で、版を省くと�
   assert.equal(LATEST_GENERATOR, 'nikoli-3');
   assert.deepEqual(GENERATORS['nikoli-3'].options, { style: 'nikoli', version: 3 });
   assert.deepEqual(GENERATORS['nikoli-4'].options, { style: 'nikoli', version: 4 });
+  assert.deepEqual(GENERATORS['nikoli-5'].options, { style: 'nikoli', version: 5 });
+});
+
+test('ニコリ風 v5：0 を固めずに置く（まわり 2 歩以内にほかの 0 がある 0 を残さない）', () => {
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 5, seed: 321, timeLimitMs: 30000 });
+  assert.equal(p.difficulty, 'normal');
+  assert.ok(isPointSymmetric(p.clues, 10, 10));
+  const zero = (r, c) => r >= 0 && r < 10 && c >= 0 && c < 10 && p.clues[r * 10 + c] === 0;
+  let crowded = 0;
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 10; c++) {
+      if (!zero(r, c)) continue;
+      for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
+        if ((dr || dc) && Math.abs(dr) + Math.abs(dc) <= 2 && zero(r + dr, c + dc)) crowded++;
+      }
+    }
+  }
+  assert.equal(crowded, 0);
+  assert.equal(typeof p.workRun, 'number');
+});
+
+test('作業の続く区間：盤面を見ただけで × が続く手数を数える', () => {
+  const p = generatePuzzle({ rows: 6, cols: 6, difficulty: 'normal', seed: 5 });
+  const run = workRun(p);
+  assert.ok(run >= 1 && run <= 60, `作業の続く区間 ${run}`);
+  assert.equal(workRun(p, 2), Math.min(run, 2));
 });
 
 test('ニコリ風 v4：入門は考える手を軽めに（決まる辺 100 本あたり 8 回くらいまで）', () => {
