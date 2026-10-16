@@ -8,7 +8,7 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql']
+const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql']
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
@@ -372,4 +372,44 @@ test('問題集をまたいだ問題の一覧と、問題集どうしのくら�
   const user = await loginAs({ sub: 'user-9' });
   assert.equal((await call('/api/admin/problems', { cookie: user.cookie })).status, 403);
   assert.equal((await call(`/api/admin/problems/${p1.id}`, { cookie: user.cookie })).status, 403);
+});
+
+test('公開した問題集を、ログインした人が遊べて、解いた印が付く', async () => {
+  const admin = (await loginAs({ sub: 'admin-1' })).cookie;
+  const make = async (title, codes) => {
+    const id = (await call('/api/admin/books', { method: 'POST', cookie: admin, body: { title } })).data.book.id;
+    await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie: admin, body: { problems:
+      codes.map((code) => ({ code, rows: 5, cols: 5, difficulty: 'normal', clueCount: 10 })) } });
+    return id;
+  };
+  const open = await make('公開', ['5nP1', '5nP2', '5nP3']);
+  const hidden = await make('非公開', ['5nH1']);
+  await call(`/api/admin/books/${open}`, { method: 'PATCH', cookie: admin, body: { title: '公開', published: true } });
+
+  // ゲストは見られない
+  assert.equal((await call('/api/books')).status, 401);
+  const { cookie } = await loginAs({ sub: 'player-1' });
+  let { books } = (await call('/api/books', { cookie })).data;
+  assert.deepEqual(books.map((b) => [b.title, b.count, b.solved]), [['公開', 3, 0]]);
+  assert.equal((await call(`/api/books/${hidden}`, { cookie })).status, 404);
+
+  // 問題を解くと（履歴に入れると）、同じコードの問題に印が付く。時間はいちばん速いものを残す
+  const solve = (code, seconds) => call('/api/history', { method: 'POST', cookie, body: { code, rows: 5, cols: 5, difficulty: 'normal', seconds, hints: 1 } });
+  await solve('5nP2', 90);
+  await solve('5nP2', 60);
+  await solve('5nP2', 120);
+  await solve('5nH1', 30); // 非公開の問題集の問題には付かない
+  ({ books } = (await call('/api/books', { cookie })).data);
+  assert.equal(books[0].solved, 1);
+  const detail = (await call(`/api/books/${open}`, { cookie })).data;
+  assert.deepEqual(detail.problems.map((p) => [p.position, p.code, p.solved, p.seconds]),
+    [[1, '5nP1', false, null], [2, '5nP2', true, 60], [3, '5nP3', false, null]]);
+  // ほかの人には付かない
+  const other = (await loginAs({ sub: 'player-2' })).cookie;
+  assert.equal((await call('/api/books', { cookie: other })).data.books[0].solved, 0);
+
+  // 問題を外すと印も消える
+  const p2 = detail.problems[1].id;
+  await call(`/api/admin/books/${open}/problems/${p2}`, { method: 'DELETE', cookie: admin });
+  assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM book_solved').get().n, 0);
 });

@@ -78,6 +78,8 @@ async function route(request, env, url) {
     return json({ ok: true });
   }
   if (pathname === '/api/history' && method === 'POST') return addHistory(db, user.id, await body(request));
+  if (pathname === '/api/books' && method === 'GET') return publishedBooks(db, user.id);
+  if (pathname.startsWith('/api/books/') && method === 'GET') return publishedBook(db, user.id, Number(pathname.split('/')[3]));
   if (pathname === '/api/game' && method === 'PUT') {
     const { game, updatedAt } = await body(request);
     const text = JSON.stringify(game ?? null);
@@ -278,9 +280,49 @@ async function addHistory(db, userId, b) {
     ).bind(userId, userId),
     // 解き終えた問題の途中の盤面は要らない
     db.prepare('DELETE FROM games WHERE user_id = ?').bind(userId),
+    // 公開中の問題集の問題なら、解いた印を付ける（時間はいちばん速いもの、日時は初めて解いたとき）
+    db.prepare(
+      `INSERT INTO book_solved (user_id, problem_id, seconds, hints, solved_at)
+       SELECT ?, p.id, ?, ?, ? FROM book_problems p JOIN books b ON b.id = p.book_id WHERE b.published = 1 AND p.code = ?
+       ON CONFLICT (user_id, problem_id) DO UPDATE SET
+         hints = CASE WHEN excluded.seconds < book_solved.seconds THEN excluded.hints ELSE book_solved.hints END,
+         seconds = MIN(book_solved.seconds, excluded.seconds)`,
+    ).bind(userId, seconds, hints, Date.now(), code),
   ]);
   const isBest = before == null || seconds < before.seconds;
   return json({ ok: true, isBest, best: isBest ? seconds : before.seconds });
+}
+
+/** 遊ぶ人に見せる問題集（公開中のもの）と、その人がいくつ解いたか。 */
+async function publishedBooks(db, userId) {
+  const { results } = await db.prepare(
+    `SELECT b.id, b.title, b.description, COUNT(p.id) AS count,
+       COUNT(s.problem_id) AS solved,
+       MIN(p.rows * p.cols) AS minCells, MAX(p.rows * p.cols) AS maxCells
+     FROM books b JOIN book_problems p ON p.book_id = b.id
+     LEFT JOIN book_solved s ON s.problem_id = p.id AND s.user_id = ?
+     WHERE b.published = 1 GROUP BY b.id ORDER BY b.created_at, b.id`,
+  ).bind(userId).all();
+  return json({ books: results });
+}
+
+/** 公開中の問題集 1 冊の問題と、その人が解いたか。 */
+async function publishedBook(db, userId, id) {
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'ありません');
+  const book = await db.prepare('SELECT id, title, description FROM books WHERE id = ? AND published = 1').bind(id).first();
+  if (!book) throw new HttpError(404, 'その問題集はありません');
+  const { results } = await db.prepare(
+    `SELECT p.id, p.position, p.code, p.rows, p.cols, p.difficulty, s.seconds, s.hints, s.solved_at AS solvedAt
+     FROM book_problems p LEFT JOIN book_solved s ON s.problem_id = p.id AND s.user_id = ?
+     WHERE p.book_id = ? ORDER BY p.position`,
+  ).bind(userId, id).all();
+  return json({
+    book,
+    problems: results.map((p) => ({
+      id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty,
+      solved: p.solvedAt != null, seconds: p.seconds, hints: p.hints,
+    })),
+  });
 }
 
 /** 初めてログインしたとき、その端末にあった問題リスト・自己ベスト・途中の盤面をアカウントに入れる。 */
@@ -396,6 +438,7 @@ async function admin(request, db, url) {
   }
   if (parts.length === 2 && method === 'DELETE') {
     await db.batch([
+      db.prepare('DELETE FROM book_solved WHERE problem_id IN (SELECT id FROM book_problems WHERE book_id = ?)').bind(id),
       db.prepare('DELETE FROM book_problems WHERE book_id = ?').bind(id),
       db.prepare('DELETE FROM books WHERE id = ?').bind(id),
     ]);
@@ -437,7 +480,10 @@ async function admin(request, db, url) {
   const pid = Number(parts[3]);
   if (parts.length !== 4 || !Number.isInteger(pid)) throw new HttpError(404, 'ありません');
   if (method === 'DELETE') {
-    await db.prepare('DELETE FROM book_problems WHERE id = ? AND book_id = ?').bind(pid, id).run();
+    await db.batch([
+      db.prepare('DELETE FROM book_solved WHERE problem_id = (SELECT id FROM book_problems WHERE id = ? AND book_id = ?)').bind(pid, id),
+      db.prepare('DELETE FROM book_problems WHERE id = ? AND book_id = ?').bind(pid, id),
+    ]);
     await renumber(db, id);
     return json({ ok: true });
   }

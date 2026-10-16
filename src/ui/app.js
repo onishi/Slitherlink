@@ -13,6 +13,7 @@ import { CameraCapture, needsCameraView } from './camera-capture.js';
 import { PuzzleReport } from './puzzle-report.js';
 import { store } from './storage.js';
 import { account } from './account.js';
+import { BookShelf } from './books.js';
 import { renderHelpFigures } from './help-figures.js';
 
 const $ = (id) => document.getElementById(id);
@@ -256,14 +257,18 @@ function bindUI() {
   for (const b of el.menuModal.querySelectorAll('[data-go]')) {
     b.addEventListener('click', () => {
       const view = b.dataset.go;
-      // 問題リストと解いた履歴はログインした人だけ
-      if ((view === 'library' || view === 'history') && !account.loggedIn) {
-        requireLogin(view === 'library'
-          ? '問題リストを使うには、ログインしてください。'
-          : '解いた履歴を残すには、ログインしてください。', () => { openMenu(); showMenuView(view); });
+      // 問題集・問題リスト・解いた履歴はログインした人だけ
+      if ((view === 'library' || view === 'history' || view === 'books') && !account.loggedIn) {
+        const why = {
+          books: '問題集で遊ぶには、ログインしてください。',
+          library: '問題リストを使うには、ログインしてください。',
+          history: '解いた履歴を残すには、ログインしてください。',
+        }[view];
+        requireLogin(why, () => { openMenu(); if (view === 'books') shelf().showList(); else showMenuView(view); });
         return;
       }
-      showMenuView(view);
+      if (view === 'books') shelf().showList();
+      else showMenuView(view);
     });
   }
   for (const b of el.menuModal.querySelectorAll('[data-back]')) b.addEventListener('click', () => showMenuView('main'));
@@ -349,6 +354,13 @@ function bindUI() {
 
 let puzzleReport = null;
 let menuView = 'main';
+// メニューの「問題集」。どの問題集の何番を遊んでいるかも覚える（初めて使うときに作る）
+let shelfInstance = null;
+const shelf = () => (shelfInstance ??= new BookShelf({
+  showView: showMenuView,
+  play: (code) => tryLoadCode(code, false),
+  closeMenu,
+}));
 
 function openMenu() {
   renderLibrary();
@@ -372,7 +384,7 @@ function showMenuView(name) {
     // とじるボタンは最後にあるので、そこへ送られないようにする
     el.closeMenu.focus({ preventScroll: true });
   } else {
-    el.menuModal.querySelector(`.menu-view[data-view="${name}"] [data-back]`).focus({ preventScroll: true });
+    el.menuModal.querySelector(`.menu-view[data-view="${name}"] .menu-sub-head .icon-btn`).focus({ preventScroll: true });
   }
 }
 
@@ -951,6 +963,8 @@ function startPuzzle(puzzle, saved) {
   hideOverlay();
   el.code.value = puzzle.code || encodePuzzle(puzzle);
   showCodeInUrl(el.code.value);
+  // 問題集の問題でなくなったら、問題集で遊んでいる状態を終える
+  shelfInstance?.onPuzzleChanged(el.code.value);
   refreshAll();
   persist();
 }
@@ -1016,7 +1030,7 @@ function tryLoadCode(code, fromUrl) {
       code: encodePuzzle(decoded),
       clueCount: countClues(decoded.clues),
     });
-    say(fromUrl ? '' : '問題を読み込みました');
+    say(fromUrl ? '' : (shelfInstance?.label() ?? '問題を読み込みました'));
     prefetchCurrent();
     return true;
   } catch (err) {
@@ -1188,6 +1202,38 @@ function showOverlay(isBest) {
   const sub = document.createElement('p');
   sub.textContent = `${game.puzzle.rows} × ${game.puzzle.cols} ・ ${diff}`;
   el.overlayCard.append(h, big, sub);
+  // 問題集で遊んでいるなら、どの問題集の何番かと、次の問題へ進むボタン
+  const bookLabel = shelfInstance?.label();
+  if (bookLabel) {
+    const next = shelfInstance.onSolved();
+    const where = document.createElement('p');
+    where.className = 'overlay-book';
+    where.append(icon('menu_book'), bookLabel);
+    el.overlayCard.appendChild(where);
+    const row = document.createElement('div');
+    row.className = 'row';
+    const go = document.createElement('button');
+    go.className = 'primary';
+    if (next == null) {
+      go.textContent = '問題集を見る';
+      where.append('・ぜんぶ解きました！');
+      go.addEventListener('click', () => { hideOverlay(); openMenu(); shelfInstance.openCurrent(); });
+    } else {
+      go.textContent = '次の問題へ';
+      go.addEventListener('click', () => { hideOverlay(); shelfInstance.playNext(next); });
+    }
+    const list = document.createElement('button');
+    list.textContent = next == null ? '盤面を見る' : '問題集を見る';
+    list.addEventListener('click', () => {
+      hideOverlay();
+      if (next != null) { openMenu(); shelfInstance.openCurrent(); }
+    });
+    row.append(go, list);
+    el.overlayCard.appendChild(row);
+    el.overlay.hidden = false;
+    go.focus();
+    return;
+  }
   const b = document.createElement('p');
   b.className = 'best';
   if (isBest) b.append(icon('emoji_events'), '自己ベスト更新！');
