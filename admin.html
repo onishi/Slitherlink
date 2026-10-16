@@ -74,6 +74,7 @@
         <label class="field"><span>むずかしさ</span>
           <select id="gen-difficulty">
             <option value="mix" selected>いろいろ（やさしい順）</option>
+            <option value="nikoli-mix" hidden>いろいろ（ふつう多め）</option>
             <option value="intro">入門</option>
             <option value="easy">やさしい</option>
             <option value="normal">ふつう</option>
@@ -81,6 +82,7 @@
             <option value="expert">鬼</option>
           </select>
         </label>
+        <label class="admin-check" title="輪を盤いっぱいにくねらせ、数字を点対称に削り、ニコリの問題の特徴（数字 50% 未満・線／マス 0.80 以上・行き渡り 80% 以上・最大の空き地 4% 以下・定石 95% 以上・仮定 3 回まで）を満たすものだけにします。むずかしさは「ふつう」「むずかしい」だけ"><input type="checkbox" id="gen-nikoli"> ニコリ風</label>
         <button type="submit" class="primary" id="gen-start"><span class="mi" aria-hidden="true">auto_awesome</span>作る</button>
         <button type="button" id="gen-stop" hidden><span class="mi" aria-hidden="true">stop</span>止める</button>
       </form>

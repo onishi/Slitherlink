@@ -12,6 +12,7 @@ import { PhotoImport } from './photo-import.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { problemStats } from '../core/difficulty-report.js';
 import { decodePuzzle } from '../core/puzzle.js';
+import { nikoliCheck } from '../core/nikoli.js';
 import { unzip } from './zip.js';
 import { pdfPages } from './pdf-pages.js';
 
@@ -206,6 +207,21 @@ async function openCompare() {
   refillCompare();
 }
 
+/** ニコリ風の条件をすべて満たすか（点対称を見るのに、問題コードから数字の配置を読む）。 */
+function nikoliOk(p) {
+  try {
+    return nikoliCheck({ ...p, clues: decodePuzzle(p.code).clues }).ok === true;
+  } catch {
+    return false;
+  }
+}
+
+/** 何問のうち何問がニコリ風か。 */
+const nikoliShare = (rows) => {
+  const n = rows.filter((p) => p.nikoliOk).length;
+  return `${n} / ${rows.length}（${Math.round((100 * n) / rows.length)}%）`;
+};
+
 async function loadCompare() {
   const [cmp, list] = await Promise.all([api('/api/admin/compare'), api('/api/admin/problems')]);
   compareData = cmp;
@@ -214,6 +230,7 @@ async function loadCompare() {
     size: `${p.rows}×${p.cols}`,
     clueDensity: (100 * p.clueCount) / (p.rows * p.cols),
     loopPerCell: p.loopLength == null ? null : (100 * p.loopLength) / (p.rows * p.cols),
+    nikoliOk: nikoliOk(p),
   }));
   renderBookCompare();
 }
@@ -261,7 +278,7 @@ function renderBookCompare() {
   if (!data.byBook.length) { body.append(el('p', 'admin-empty', 'まだ問題がありません。')); return; }
   const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  for (const label of ['問題集', '大きさ', '出どころ']) head.append(el('th', null, label));
+  for (const label of ['問題集', '大きさ', '出どころ', 'ニコリ風']) head.append(el('th', null, label));
   for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
   table.append(head);
   for (const r of data.byBook) {
@@ -274,6 +291,7 @@ function renderBookCompare() {
     if (r.scans) parts.push(`スキャン ${r.scans}`);
     if (r.generated) parts.push(`自動 ${r.generated}`);
     tr.append(el('td', null, parts.join('・') || '—'));
+    tr.append(el('td', null, nikoliShare(allRows.filter((p) => p.bookId === r.bookId))));
     for (const [key, , fmt] of COMPARE_COLS) tr.append(el('td', null, r[key] == null ? '—' : fmt(r[key])));
     table.append(tr);
   }
@@ -314,13 +332,13 @@ function bookSizeTable() {
   };
   const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  for (const label of ['問題集', '大きさ']) head.append(el('th', null, label));
+  for (const label of ['問題集', '大きさ', 'ニコリ風']) head.append(el('th', null, label));
   for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
   table.append(head);
   const list = [...groups.values()].sort((a, b) => a.cells - b.cells || a.size.localeCompare(b.size));
   for (const g of list) {
     const tr = el('tr');
-    tr.append(el('td', 'admin-compare-origin', g.title), el('td', null, g.size));
+    tr.append(el('td', 'admin-compare-origin', g.title), el('td', null, g.size), el('td', null, nikoliShare(g.rows)));
     for (const [key, , fmt] of COMPARE_COLS) {
       const v = key === 'count' ? g.rows.length : avg(g.rows, key);
       tr.append(el('td', null, v == null ? '—' : fmt(v)));
@@ -596,11 +614,13 @@ let genPending = null; // いま待っている 1 問（止めたときに、待
 
 /** 作る問題ごとの難易度。「いろいろ」なら 5 段階を同じくらいずつ、やさしい順に並べる。 */
 function plannedLevels(choice, count) {
+  // ニコリ風の「いろいろ」は、ニコリの問題集にならって ふつう 2：むずかしい 1
+  if (choice === 'nikoli-mix') return Array.from({ length: count }, (_, i) => (i % 3 === 2 ? 'hard' : 'normal'));
   if (choice !== 'mix') return new Array(count).fill(choice);
   return Array.from({ length: count }, (_, i) => LEVEL_ORDER[Math.floor((i * LEVEL_ORDER.length) / count)]);
 }
 
-function generateOne(rows, cols, difficulty) {
+function generateOne(rows, cols, difficulty, style) {
   genWorker ??= new Worker(new URL('../worker/generate-worker.js', import.meta.url), { type: 'module' });
   return new Promise((resolve) => {
     const id = Math.random();
@@ -608,14 +628,17 @@ function generateOne(rows, cols, difficulty) {
     genPending = done;
     genWorker.onmessage = (ev) => { if (ev.data.id === id) done(ev.data); };
     genWorker.onerror = () => done({ ok: false, error: '作問中にエラーが起きました' });
-    genWorker.postMessage({ id, rows, cols, difficulty, withStats: true, timeLimitMs: 20000 });
+    // ニコリ風の大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
+    const timeLimitMs = style === 'nikoli' ? Math.max(20000, rows * cols * 80) : 20000;
+    genWorker.postMessage({ id, rows, cols, difficulty, style, withStats: true, timeLimitMs });
   });
 }
 
-async function generateBatch(rows, cols, count, choice) {
+async function generateBatch(rows, cols, count, choice, style) {
   const levels = plannedLevels(choice, count);
+  const kind = style === 'nikoli' ? 'ニコリ風' : 'ランダム';
   const items = levels.map((level, i) => ({
-    id: ++queueSeq, generated: true, name: `ランダム ${rows}×${cols}（${i + 1} / ${count}）`,
+    id: ++queueSeq, generated: true, name: `${kind} ${rows}×${cols}（${i + 1} / ${count}）`,
     blob: null, state: 'generating', message: `「${DIFFICULTIES[level].label}」を作るのを待っています`, result: null, thumb: null, level,
   }));
   queue.push(...items);
@@ -628,7 +651,7 @@ async function generateBatch(rows, cols, count, choice) {
       if (genStop) break;
       item.message = `「${DIFFICULTIES[item.level].label}」を作っています…`;
       renderQueue();
-      const r = await generateOne(rows, cols, item.level);
+      const r = await generateOne(rows, cols, item.level, style);
       if (genStop && !r.ok) break;
       if (!r.ok) {
         item.state = 'error';
@@ -638,7 +661,8 @@ async function generateBatch(rows, cols, count, choice) {
       const p = r.puzzle;
       item.state = 'ok';
       item.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount, stats: p.stats ?? null };
-      const missed = p.difficulty !== item.level ? `（「${DIFFICULTIES[item.level].label}」は時間内に作れず）` : '';
+      let missed = p.difficulty !== item.level ? `（「${DIFFICULTIES[item.level].label}」は時間内に作れず）` : '';
+      if (p.style === 'nikoli' && !p.styleOk) missed += '（ニコリ風の条件を満たすものは時間内に作れず）';
       item.message = `${p.rows}×${p.cols}・${DIFFICULTIES[p.difficulty]?.label ?? ''}・数字 ${p.clueCount}${missed}`;
       renderQueue();
     }
@@ -656,7 +680,19 @@ function bindGenerate() {
   $('gen-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
     const n = (id, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number($(id).value) || lo)));
-    generateBatch(n('gen-rows', 3, 50), n('gen-cols', 3, 50), n('gen-count', 1, 100), $('gen-difficulty').value);
+    const nikoli = $('gen-nikoli').checked;
+    generateBatch(n('gen-rows', 3, 50), n('gen-cols', 3, 50), n('gen-count', 1, 100), $('gen-difficulty').value, nikoli ? 'nikoli' : undefined);
+  });
+  // ニコリ風は ふつう・むずかしい だけ（入門・やさしいは数字が 50% を超え、鬼は仮定が多すぎる）
+  $('gen-nikoli').addEventListener('change', () => {
+    const on = $('gen-nikoli').checked;
+    const sel = $('gen-difficulty');
+    for (const o of sel.options) {
+      const allowed = on ? ['nikoli-mix', 'normal', 'hard'].includes(o.value) : o.value !== 'nikoli-mix';
+      o.hidden = !allowed;
+      o.disabled = !allowed;
+    }
+    if (sel.selectedOptions[0]?.disabled) sel.value = on ? 'nikoli-mix' : 'mix';
   });
   $('gen-stop').addEventListener('click', () => {
     genStop = true;
