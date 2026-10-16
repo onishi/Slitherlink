@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getGrid, isSingleLoop, cluesFromEdges, LINE } from '../src/core/grid.js';
 import { solveLogical, countSolutions } from '../src/core/solver.js';
-import { generatePuzzle, randomLoop, makeRng, DIFFICULTIES } from '../src/core/generator.js';
-import { difficultyReport, levelOf } from '../src/core/difficulty-report.js';
+import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES } from '../src/core/generator.js';
+import { difficultyReport, levelOf, problemStats } from '../src/core/difficulty-report.js';
+import { nikoliCheck, isPointSymmetric } from '../src/core/nikoli.js';
 
 test('randomLoop は必ず単一ループを返す', () => {
   for (let seed = 1; seed <= 12; seed++) {
@@ -73,4 +74,42 @@ test('同じ seed からは同じ問題ができる', () => {
   const a = generatePuzzle({ rows: 6, cols: 6, difficulty: 'normal', seed: 31337 });
   const b = generatePuzzle({ rows: 6, cols: 6, difficulty: 'normal', seed: 31337 });
   assert.deepEqual([...a.clues], [...b.clues]);
+});
+
+test('ニコリ風：輪を盤いっぱいにくねらせ、数字を点対称に削り、ニコリ風の条件を満たす', () => {
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', seed: 4242, timeLimitMs: 30000 });
+  assert.equal(p.difficulty, 'normal');
+  assert.equal(p.styleOk, true);
+  assert.ok(isPointSymmetric(p.clues, 10, 10));
+  const st = problemStats(difficultyReport(p), p.solution, p);
+  const check = nikoliCheck({ rows: 10, cols: 10, clues: p.clues, clueCount: p.clueCount, ...st });
+  assert.deepEqual(check.failed, []);
+  assert.equal(check.ok, true);
+  // 論理だけで解けて、解は 1 つ
+  const g = getGrid(10, 10);
+  assert.equal(countSolutions(g, p.clues, 2), 1);
+});
+
+test('ニコリ風の条件：外れたものと、分からないものを分けて返す', () => {
+  const base = { rows: 10, cols: 10, clueCount: 40, loopLength: 90, coverage: 90, largestGap: 1, patternShare: 99, assumeCount: 0 };
+  assert.equal(nikoliCheck(base).ok, null); // 数字の配置が分からないので、点対称かは分からない
+  const clues = new Int8Array(100).fill(-1);
+  clues[0] = 1; clues[99] = 2;
+  assert.equal(nikoliCheck({ ...base, clues }).ok, true);
+  clues[1] = 3; // 対になる 98 番に数字が無い
+  assert.deepEqual(nikoliCheck({ ...base, clues }).failed, ['点対称']);
+  assert.deepEqual(nikoliCheck({ ...base, clues: undefined, clueCount: 60, largestGap: 9 }).failed, ['数字', '最大の空き地']);
+});
+
+test('stretchLoop：輪は 1 本のまま、マス数の 0.85 倍くらいまで長くなる', () => {
+  for (let seed = 1; seed <= 4; seed++) {
+    const rng = makeRng(seed * 131);
+    const loop = randomLoop(12, 12, rng);
+    const before = loop.edges.reduce((a, b) => a + b, 0);
+    const out = stretchLoop(loop, rng);
+    const after = out.edges.reduce((a, b) => a + b, 0);
+    assert.ok(isSingleLoop(out.grid, out.edges));
+    assert.ok(after >= before);
+    assert.ok(after >= 144 * 0.8, `輪の長さ ${after}`);
+  }
 });

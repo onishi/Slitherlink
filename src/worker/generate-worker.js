@@ -4,9 +4,9 @@ import { encodePuzzle } from '../core/puzzle.js';
 import { difficultyReport, problemStats } from '../core/difficulty-report.js';
 
 self.onmessage = (ev) => {
-  const { id, rows, cols, difficulty, seed, timeLimitMs, withStats } = ev.data || {};
+  const { id, rows, cols, difficulty, seed, timeLimitMs, withStats, style } = ev.data || {};
   try {
-    const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs });
+    const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs, style });
     self.postMessage({
       id,
       ok: true,
@@ -18,6 +18,8 @@ self.onmessage = (ev) => {
         solution: Array.from(p.solution),
         clueCount: p.clueCount,
         code: encodePuzzle(p),
+        style: p.style,
+        styleOk: p.styleOk,
         // 管理画面で問題集に入れるときは、難易度のほかの目安も付ける
         stats: withStats ? problemStats(difficultyReport(p), p.solution, p) : undefined,
       },

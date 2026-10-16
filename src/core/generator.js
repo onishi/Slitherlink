@@ -12,7 +12,8 @@
 import { getGrid, boundaryEdges, isSingleLoop, cluesFromEdges, LINE } from './grid.js';
 import { solveLogical } from './solver.js';
 import { solveWithProofs } from './proof.js';
-import { difficultyReport, levelOf, LEVELS } from './difficulty-report.js';
+import { difficultyReport, levelOf, LEVELS, problemStats } from './difficulty-report.js';
+import { nikoliCheck } from './nikoli.js';
 
 /** xorshift32 による決定的な乱数生成器。 */
 export function makeRng(seed) {
@@ -73,6 +74,41 @@ export function randomLoop(rows, cols, rng) {
   return { grid, inside, edges };
 }
 
+/**
+ * 輪を盤いっぱいにくねらせる（ニコリ風）。randomLoop で作った輪から、マスを足し引きして輪が短くならない変更だけを
+ * 採り、輪の長さがマス数の 0.85〜0.97 倍になったら止める（ニコリの問題はだいたい 0.9 前後）。
+ * 内側のマスは盤の 35〜65% に保つ。
+ */
+export function stretchLoop(loop, rng) {
+  const { grid, inside } = loop;
+  const { rows, cols } = grid;
+  const insideAt = (r, c) => (r >= 0 && r < rows && c >= 0 && c < cols && inside[r * cols + c] === 1 ? 1 : 0);
+  let count = 0;
+  for (let i = 0; i < inside.length; i++) count += inside[i];
+  let len = 0;
+  const edges0 = boundaryEdges(grid, inside);
+  for (let e = 0; e < edges0.length; e++) len += edges0[e];
+  const target = rows * cols * (0.85 + rng() * 0.12);
+  const lo = rows * cols * 0.35;
+  const hi = rows * cols * 0.65;
+  for (let i = 0; i < rows * cols * 20 && len < target; i++) {
+    const r = Math.floor(rng() * rows);
+    const c = Math.floor(rng() * cols);
+    const idx = r * cols + c;
+    const k = insideAt(r - 1, c) + insideAt(r + 1, c) + insideAt(r, c - 1) + insideAt(r, c + 1);
+    const adding = inside[idx] === 0;
+    // 足すと境界は 4 - 2k 本、引くと 2k - 4 本だけ変わる（k は内側の隣の数）
+    const delta = adding ? 4 - 2 * k : 2 * k - 4;
+    if (delta < 0) continue;
+    if (adding ? count + 1 > hi : count - 1 < lo) continue;
+    inside[idx] = adding ? 1 : 0;
+    if (!validRegion(grid, inside)) { inside[idx] = adding ? 0 : 1; continue; }
+    count += adding ? 1 : -1;
+    len += delta;
+  }
+  return { grid, inside, edges: boundaryEdges(grid, inside) };
+}
+
 /** 内側集合の境界がちょうど 1 本の輪になっているか。 */
 function validRegion(grid, inside) {
   const edges = boundaryEdges(grid, inside);
@@ -92,6 +128,8 @@ function validRegion(grid, inside) {
  * @param {number} options.rows
  * @param {number} options.cols
  * @param {'intro'|'easy'|'normal'|'hard'|'expert'} [options.difficulty]
+ * @param {'nikoli'} [options.style] 'nikoli' なら、輪を盤いっぱいにくねらせ、数字を点対称の組で削り、
+ *   ニコリ風の条件（src/core/nikoli.js）を満たすものだけを合格にする
  * @param {number} [options.seed]
  * @returns {{rows:number, cols:number, difficulty:string, clues:Int8Array, solution:Int8Array, seed:number, clueCount:number}}
  */
@@ -103,17 +141,26 @@ export function generatePuzzle(options = {}) {
   const rank = LEVELS.indexOf(target);
   const seed = options.seed ?? (Math.floor(Math.random() * 0xffffffff) >>> 0);
   const deadline = options.deadline ?? (Date.now() + (options.timeLimitMs ?? 20000));
+  const nikoli = options.style === 'nikoli';
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
+  let bestScore = Infinity;
 
   for (let attempt = 0; attempt < 200; attempt++) {
     const attemptSeed = (seed + attempt * 0x9e3779b1) >>> 0;
     const rng = makeRng(attemptSeed);
-    const loop = randomLoop(rows, cols, rng);
+    let loop = randomLoop(rows, cols, rng);
     if (!loop) continue;
+    if (nikoli) loop = stretchLoop(loop, rng);
     const { grid, edges } = loop;
 
     const solution = new Int8Array(grid.edgeCount);
     for (let e = 0; e < grid.edgeCount; e++) solution[e] = edges[e] === 1 ? 1 : 2;
+    // ニコリ風は、輪の形（線の長さ・行き渡り・最大の空き地）が条件に合わなければ数字を削る前に作り直す
+    if (nikoli) {
+      const shape = problemStats({ decided: { plain: 0, search: 0 }, total: 1, beforeAssume: 1, assumeCount: 0, longest: 0 }, solution, { rows, cols });
+      const check = nikoliCheck({ rows, cols, clueCount: 0, ...shape, patternShare: null, assumeCount: null });
+      if (check.ok === false) continue;
+    }
 
     const full = cluesFromEdges(grid, edges);
     // 全数字があれば必ず解ける (念のため確認)
@@ -123,18 +170,23 @@ export function generatePuzzle(options = {}) {
 
     // 1. 削る。安い推論で削れるだけ削ってから、必要なら深い推論で追い込む。
     //    深い推論（2 段）で削るのは重いので、狙いの難易度に届いたらそこで止める
+    //    ニコリ風は、点対称の位置にある 2 マスを組にして一緒に削る（数字の配置が点対称になる）
     const clues = Int8Array.from(full);
-    const removedOrder = [];
-    for (let depth = Math.min(conf.depth, 1); depth <= conf.depth; depth++) {
+    const removedOrder = []; // 削った組（マスの配列）の順
+    const n = grid.cellCount;
+    // ニコリ風は盤が大きいことが多いので、まず安い推論（深さ 0）で削れるだけ削ってから深くする
+    for (let depth = nikoli ? 0 : Math.min(conf.depth, 1); depth <= conf.depth; depth++) {
       const deep = depth >= 2;
-      for (const cell of shuffled(grid.cellCount, rng)) {
-        if (clues[cell] < 0) continue;
+      for (const cell of shuffled(n, rng)) {
+        if (nikoli && cell > n - 1 - cell) continue; // 組は小さい方のマスで 1 回だけ
+        const group = nikoli && cell !== n - 1 - cell ? [cell, n - 1 - cell] : [cell];
+        if (clues[group[0]] < 0) continue;
         if (Date.now() > deadline && best) break;
-        const saved = clues[cell];
-        clues[cell] = -1;
+        const saved = group.map((x) => clues[x]);
+        for (const x of group) clues[x] = -1;
         const res = solveLogical(grid, clues, { maxDepth: depth, budget: deep ? 10000 : 200000 });
-        if (res.status !== 'solved') { clues[cell] = saved; continue; }
-        removedOrder.push(cell);
+        if (res.status !== 'solved') { group.forEach((x, i) => { clues[x] = saved[i]; }); continue; }
+        removedOrder.push(group);
         if (deep && levelAt(clues) >= rank) break;
       }
     }
@@ -142,7 +194,7 @@ export function generatePuzzle(options = {}) {
     // 2〜3. 解き味を見て、難しすぎれば削った順の途中まで戻す
     const withRemoved = (k) => {
       const c = Int8Array.from(full);
-      for (let i = 0; i < k; i++) c[removedOrder[i]] = -1;
+      for (let i = 0; i < k; i++) for (const x of removedOrder[i]) c[x] = -1;
       return c;
     };
     let k = removedOrder.length;
@@ -159,7 +211,20 @@ export function generatePuzzle(options = {}) {
       k = lo;
       got = levelAt(withRemoved(k));
     }
-    const finalClues = k === removedOrder.length ? clues : withRemoved(k);
+    let finalClues = k === removedOrder.length ? clues : withRemoved(k);
+    // ニコリ風：戻したあとも、狙いの難易度を超えない組はもう一度削ってみる（数字を少なくする）
+    if (nikoli && k < removedOrder.length) {
+      finalClues = Int8Array.from(finalClues);
+      for (let i = k + 1; i < removedOrder.length; i++) {
+        if (Date.now() > deadline) break;
+        const group = removedOrder[i];
+        const saved = group.map((x) => finalClues[x]);
+        for (const x of group) finalClues[x] = -1;
+        const ok = solveLogical(grid, finalClues, { maxDepth: conf.depth, budget: 200000 }).status === 'solved'
+          && levelAt(finalClues) === got;
+        if (!ok) group.forEach((x, j) => { finalClues[x] = saved[j]; });
+      }
+    }
 
     // ヒントが根拠つきで最後まで示せるか（証明つきの手だけで正解まで届くか）
     const proved = solveWithProofs(grid, finalClues, { maxDepth: conf.depth - 1, solution });
@@ -168,8 +233,18 @@ export function generatePuzzle(options = {}) {
     let clueCount = 0;
     for (let i = 0; i < finalClues.length; i++) if (finalClues[i] >= 0) clueCount++;
     const puzzle = { rows, cols, difficulty: LEVELS[got], clues: finalClues, solution, seed: attemptSeed, clueCount };
-    if (got === rank) return puzzle;
-    if (!best || Math.abs(got - rank) < Math.abs(LEVELS.indexOf(best.difficulty) - rank)) best = puzzle;
+    // ニコリ風は、数字の割合・定石・仮定の回数まで含めて条件を満たすものだけを合格にする
+    let missed = 0;
+    if (nikoli) {
+      const st = problemStats(difficultyReport({ rows, cols, clues: finalClues, solution }), solution, { rows, cols });
+      missed = nikoliCheck({ rows, cols, clues: finalClues, clueCount, ...st }).failed.length;
+      puzzle.style = 'nikoli';
+      puzzle.styleOk = missed === 0;
+    }
+    if (got === rank && !missed) return puzzle;
+    // 時間切れのときは、外れた条件の少ないもの・狙いの難易度に近いものを返す
+    const score = missed * 10 + Math.abs(got - rank);
+    if (score < bestScore) { best = puzzle; bestScore = score; }
     if (Date.now() > deadline) return best;
   }
   if (best) return best;
