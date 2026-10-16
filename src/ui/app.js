@@ -570,7 +570,13 @@ function setupPhotoImport() {
       puzzleReport ??= new PuzzleReport(el.puzzleReport, el.reportSummary);
       puzzleReport.remember(p, p.report);
       startChecked(p);
-      say('写真から作った問題です');
+      // 写真から作って遊び始めた問題は、ログイン中なら問題リストに自動で入れる
+      if (account.loggedIn) {
+        keepInLibrary(p, 'photo');
+        say('写真から作った問題です（問題リストに入れました）');
+      } else {
+        say('写真から作った問題です');
+      }
     },
     onSave: (p) => {
       // 問題リストはログインした人だけ。ログインできたら、そのまま入れる
@@ -625,15 +631,26 @@ function startChecked(p) {
   startPuzzle({ ...p, code: p.code || encodePuzzle(p), clueCount: countClues(p.clues) });
 }
 
+/**
+ * 問題リストに入れる（すでに入っていれば先頭へ）。入っていたときの出どころと、解いた記録は引き継ぐ。
+ * solved を渡すと、解いた日時（初めて解いたとき）といちばん速い時間を残す。
+ */
+function keepInLibrary(p, source, solved) {
+  const code = p.code || encodePuzzle(p);
+  const prev = store.library().find((e) => e.code === code || samePuzzle(e.code, code));
+  const entry = {
+    code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: countClues(p.clues),
+    source: prev?.source ?? source,
+  };
+  const solvedAt = prev?.solvedAt ?? (solved ? Date.now() : undefined);
+  const seconds = [prev?.seconds, solved?.seconds].filter((x) => Number.isFinite(x));
+  if (solvedAt) entry.solvedAt = solvedAt;
+  if (seconds.length) entry.seconds = Math.min(...seconds);
+  store.saveToLibrary(entry);
+}
+
 function saveToLibrary(p, source) {
-  store.saveToLibrary({
-    code: p.code || encodePuzzle(p),
-    rows: p.rows,
-    cols: p.cols,
-    difficulty: p.difficulty,
-    clueCount: countClues(p.clues),
-    source,
-  });
+  keepInLibrary(p, source);
   say('問題リストに入れました');
 }
 
@@ -645,7 +662,7 @@ function renderLibrary() {
   if (!list.length) {
     const li = document.createElement('li');
     li.className = 'library-empty';
-    li.textContent = 'まだありません。写真から作った問題や、気に入った問題を入れておけます。';
+    li.textContent = 'まだありません。写真から作って遊んだ問題や、解いた問題が自動で入ります。気に入った問題も入れておけます。';
     el.libraryList.appendChild(li);
     return;
   }
@@ -659,9 +676,10 @@ function renderLibrary() {
     const main = document.createElement('b');
     main.textContent = `${entry.rows}×${entry.cols} ${DIFFICULTIES[entry.difficulty]?.label ?? ''}`;
     const sub = document.createElement('small');
-    sub.textContent = `数字 ${entry.clueCount}・${date.getMonth() + 1}/${date.getDate()}${entry.source === 'photo' ? '・写真から' : ''}`;
+    const solved = entry.solvedAt ? `・解いた${Number.isFinite(entry.seconds) ? ` ${formatTime(entry.seconds)}` : ''}` : '';
+    sub.textContent = `数字 ${entry.clueCount}・${date.getMonth() + 1}/${date.getDate()}${entry.source === 'photo' ? '・写真から' : ''}${solved}`;
     text.append(main, sub);
-    label.append(icon(entry.source === 'photo' ? 'photo_camera' : 'bookmark'), text);
+    label.append(icon(entry.source === 'photo' ? 'photo_camera' : entry.solvedAt ? 'check_circle' : 'bookmark'), text);
     const play = document.createElement('button');
     play.type = 'button';
     play.className = 'with-icon';
@@ -1185,6 +1203,8 @@ function checkSolved() {
     rows: game.puzzle.rows, cols: game.puzzle.cols, difficulty: game.puzzle.difficulty,
     seconds: game.elapsed, hints: game.hints ?? 0,
   });
+  // 解いた問題は、ログイン中なら問題リストにも自動で入れる（解いた印と時間つき）
+  if (account.loggedIn) keepInLibrary(game.puzzle, 'solved', { seconds: game.elapsed });
   store.clearGame();
   say('');
   // 完成した輪をひと目見せてからお知らせを出す
@@ -1205,7 +1225,7 @@ function showOverlay(isBest) {
   // 問題集で遊んでいるなら、どの問題集の何番かと、次の問題へ進むボタン
   const bookLabel = shelfInstance?.label();
   if (bookLabel) {
-    const next = shelfInstance.onSolved();
+    const next = shelfInstance.onSolved({ seconds: game.elapsed, hints: game.hints ?? 0 });
     const where = document.createElement('p');
     where.className = 'overlay-book';
     where.append(icon('menu_book'), bookLabel);

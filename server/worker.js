@@ -213,6 +213,9 @@ function cleanEntry(e) {
     clueCount: int(e.clueCount, 0, 3600),
     source: shortText(e.source),
     addedAt: Number.isFinite(e.addedAt) ? Math.floor(e.addedAt) : Date.now(),
+    // 解いた問題なら、初めて解いた日時といちばん速い時間
+    ...(Number.isFinite(e.solvedAt) ? { solvedAt: Math.floor(e.solvedAt) } : {}),
+    ...(Number.isFinite(e.seconds) ? { seconds: int(e.seconds, 0, 10 * 24 * 3600) } : {}),
   };
 }
 
@@ -320,7 +323,7 @@ async function publishedBook(db, userId, id) {
     book,
     problems: results.map((p) => ({
       id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty,
-      solved: p.solvedAt != null, seconds: p.seconds, hints: p.hints,
+      solved: p.solvedAt != null, seconds: p.seconds, hints: p.hints, solvedAt: p.solvedAt,
     })),
   });
 }
