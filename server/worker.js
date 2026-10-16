@@ -491,7 +491,7 @@ async function compareOrigins(db) {
       AVG(p.assume_count) AS assumeCount, AVG(p.longest_steps) AS longestSteps, AVG(p.coverage) AS coverage,
       SUM(p.origin = 'scan') AS scans, SUM(p.origin = 'generated') AS generated,
       MIN(p.rows * p.cols) AS minCells, MAX(p.rows * p.cols) AS maxCells
-      FROM books b JOIN book_problems p ON p.book_id = b.id GROUP BY b.id ORDER BY b.created_at`),
+      FROM books b JOIN book_problems p ON p.book_id = b.id GROUP BY b.id ORDER BY b.created_at, b.id`),
     db.prepare('SELECT book_id AS bookId, difficulty, COUNT(*) AS count FROM book_problems GROUP BY 1, 2'),
   ]);
   return json({
@@ -504,7 +504,7 @@ async function compareOrigins(db) {
 async function allProblems(db) {
   const { results } = await db.prepare(
     `SELECT p.*, b.title AS book_title FROM book_problems p JOIN books b ON b.id = p.book_id
-     ORDER BY b.created_at, p.position`,
+     ORDER BY b.created_at, b.id, p.position`,
   ).all();
   return json({
     problems: results.map((p) => ({

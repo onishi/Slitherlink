@@ -38,18 +38,18 @@
       <button type="button" class="admin-compare-btn" id="open-compare"><span class="mi" aria-hidden="true">compare_arrows</span>問題集をまたいでくらべる</button>
     </aside>
 
-    <!-- 出どころ（スキャン／自動作問）ごとに、目安の平均をくらべる -->
+    <!-- 問題集ごとに目安の平均をくらべる。全部の問題集の問題を 1 つの表でも見られる -->
     <section class="admin-book admin-compare" id="compare" hidden>
       <h2>問題集をまたいでくらべる</h2>
       <div class="admin-tabs" role="tablist">
-        <button type="button" role="tab" data-tab="problems" aria-selected="true">問題一覧</button>
-        <button type="button" role="tab" data-tab="books" aria-selected="false">問題集どうし</button>
-        <button type="button" role="tab" data-tab="origins" aria-selected="false">スキャンと自動作問</button>
+        <button type="button" role="tab" data-tab="books" aria-selected="true">問題集どうし</button>
+        <button type="button" role="tab" data-tab="problems" aria-selected="false">問題一覧</button>
       </div>
+      <p class="admin-filter-count" id="refill-status" hidden></p>
       <p class="hint-text">数字と線の本数は、マス数に対する割合です。盤の大きさで目安が変わるので、くらべるときは大きさをそろえると確かです。</p>
 
       <!-- 問題一覧：全部の問題集の問題を 1 つの表に。絞り込みと並べ替え -->
-      <div class="admin-tab-panel" data-panel="problems">
+      <div class="admin-tab-panel" data-panel="problems" hidden>
         <div class="admin-filters">
           <label class="field"><span>問題集</span><select id="f-book"><option value="">すべて</option></select></label>
           <label class="field"><span>出どころ</span><select id="f-origin"><option value="">すべて</option><option value="scan">スキャン</option><option value="generated">自動作問</option></select></label>
@@ -60,8 +60,7 @@
         <div class="admin-table-wrap"><table class="admin-compare-table admin-problem-table" id="problem-table"></table></div>
       </div>
 
-      <div class="admin-tab-panel" data-panel="books" hidden><div id="books-body"></div></div>
-      <div class="admin-tab-panel" data-panel="origins" hidden><div id="compare-body"></div></div>
+      <div class="admin-tab-panel" data-panel="books"><div id="books-body"></div></div>
     </section>
 
     <!-- 選んだ問題集 -->
