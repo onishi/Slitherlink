@@ -80,6 +80,8 @@ async function route(request, env, url) {
   if (pathname === '/api/history' && method === 'POST') return addHistory(db, user.id, await body(request));
   if (pathname === '/api/books' && method === 'GET') return publishedBooks(db, user.id, isAdmin(user, env));
   if (pathname.startsWith('/api/books/') && method === 'GET') return publishedBook(db, user.id, Number(pathname.split('/')[3]), isAdmin(user, env));
+  // 問題集の 1 問の、自分の解いた印（クリアの記録）を消す：DELETE /api/books/:id/problems/:pid/solved
+  if (pathname.startsWith('/api/books/') && method === 'DELETE') return forgetSolved(db, user.id, pathname, isAdmin(user, env));
   if (pathname === '/api/game' && method === 'PUT') {
     const { game, updatedAt } = await body(request);
     const text = JSON.stringify(game ?? null);
@@ -238,8 +240,8 @@ async function loadAll(db, userId) {
   const [lib, hist, recs, game] = await db.batch([
     db.prepare('SELECT code, entry, added_at FROM library WHERE user_id = ? ORDER BY added_at DESC').bind(userId),
     db.prepare(
-      `SELECT code, rows, cols, difficulty, seconds, hints, solved_at FROM history
-       WHERE user_id = ? ORDER BY solved_at DESC LIMIT ${HISTORY_PAGE}`,
+      `SELECT code, rows, cols, difficulty, seconds, hints, patterns, solved_at FROM history
+       WHERE user_id = ? ORDER BY solved_at DESC, id DESC LIMIT ${HISTORY_PAGE}`,
     ).bind(userId),
     db.prepare('SELECT key, seconds FROM records WHERE user_id = ?').bind(userId),
     db.prepare('SELECT game, updated_at FROM games WHERE user_id = ?').bind(userId),
@@ -249,7 +251,7 @@ async function loadAll(db, userId) {
     library: lib.results.map((r) => ({ ...JSON.parse(r.entry), code: r.code, addedAt: r.added_at })),
     history: hist.results.map((r) => ({
       code: r.code, rows: r.rows, cols: r.cols, difficulty: r.difficulty,
-      seconds: r.seconds, hints: r.hints, solvedAt: r.solved_at,
+      seconds: r.seconds, hints: r.hints, patterns: r.patterns, solvedAt: r.solved_at,
     })),
     records: Object.fromEntries(recs.results.map((r) => [r.key, r.seconds])),
     game: g ? { ...JSON.parse(g.game), updatedAt: g.updated_at } : null,
@@ -270,12 +272,13 @@ async function addHistory(db, userId, b) {
   const difficulty = shortText(b.difficulty);
   const seconds = int(b.seconds, 0, 10 * 24 * 3600);
   const hints = int(b.hints, 0, 100000);
+  const patterns = int(b.patterns, 0, 100000); // 定石を使った回数
   const key = `${rows}x${cols}:${difficulty}`;
   const before = await db.prepare('SELECT seconds FROM records WHERE user_id = ? AND key = ?').bind(userId, key).first();
   await db.batch([
     db.prepare(
-      'INSERT INTO history (user_id, code, rows, cols, difficulty, seconds, hints, solved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    ).bind(userId, code, rows, cols, difficulty, seconds, hints, Date.now()),
+      'INSERT INTO history (user_id, code, rows, cols, difficulty, seconds, hints, patterns, solved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(userId, code, rows, cols, difficulty, seconds, hints, patterns, Date.now()),
     recordStatement(db, userId, key, seconds),
     db.prepare(
       `DELETE FROM history WHERE user_id = ? AND id NOT IN
@@ -285,12 +288,13 @@ async function addHistory(db, userId, b) {
     db.prepare('DELETE FROM games WHERE user_id = ?').bind(userId),
     // 遊べる問題集（公開・管理者のみ）の問題なら、解いた印を付ける（時間はいちばん速いもの、日時は初めて解いたとき）
     db.prepare(
-      `INSERT INTO book_solved (user_id, problem_id, seconds, hints, solved_at)
-       SELECT ?, p.id, ?, ?, ? FROM book_problems p JOIN books b ON b.id = p.book_id WHERE b.published IN (1, 2) AND p.code = ?
+      `INSERT INTO book_solved (user_id, problem_id, seconds, hints, patterns, solved_at)
+       SELECT ?, p.id, ?, ?, ?, ? FROM book_problems p JOIN books b ON b.id = p.book_id WHERE b.published IN (1, 2) AND p.code = ?
        ON CONFLICT (user_id, problem_id) DO UPDATE SET
          hints = CASE WHEN excluded.seconds < book_solved.seconds THEN excluded.hints ELSE book_solved.hints END,
+         patterns = CASE WHEN excluded.seconds < book_solved.seconds THEN excluded.patterns ELSE book_solved.patterns END,
          seconds = MIN(book_solved.seconds, excluded.seconds)`,
-    ).bind(userId, seconds, hints, Date.now(), code),
+    ).bind(userId, seconds, hints, patterns, Date.now(), code),
   ]);
   const isBest = before == null || seconds < before.seconds;
   return json({ ok: true, isBest, best: isBest ? seconds : before.seconds });
@@ -319,6 +323,18 @@ async function publishedBooks(db, userId, adminUser = false) {
   return json({ books: results.map(({ published, ...b }) => ({ ...b, visibility: visibilityOf(published) })) });
 }
 
+/** 問題集の 1 問の、その人の解いた印を消す（遊べる問題集の問題だけ）。 */
+async function forgetSolved(db, userId, pathname, adminUser) {
+  const m = /^\/api\/books\/(\d+)\/problems\/(\d+)\/solved$/.exec(pathname);
+  if (!m) throw new HttpError(404, 'ありません');
+  const problem = await db.prepare(
+    `SELECT p.id FROM book_problems p JOIN books b ON b.id = p.book_id WHERE p.id = ? AND b.id = ? AND ${playableWhere(adminUser)}`,
+  ).bind(Number(m[2]), Number(m[1])).first();
+  if (!problem) throw new HttpError(404, 'その問題はありません');
+  await db.prepare('DELETE FROM book_solved WHERE user_id = ? AND problem_id = ?').bind(userId, problem.id).run();
+  return json({ ok: true });
+}
+
 /** 遊べる問題集 1 冊の問題と、その人が解いたか。 */
 async function publishedBook(db, userId, id, adminUser = false) {
   if (!Number.isInteger(id) || id <= 0) throw new HttpError(404, 'ありません');
@@ -327,7 +343,7 @@ async function publishedBook(db, userId, id, adminUser = false) {
   const { published, ...rest } = row;
   const book = { ...rest, visibility: visibilityOf(published) };
   const { results } = await db.prepare(
-    `SELECT p.id, p.position, p.code, p.rows, p.cols, p.difficulty, s.seconds, s.hints, s.solved_at AS solvedAt
+    `SELECT p.id, p.position, p.code, p.rows, p.cols, p.difficulty, s.seconds, s.hints, s.patterns, s.solved_at AS solvedAt
      FROM book_problems p LEFT JOIN book_solved s ON s.problem_id = p.id AND s.user_id = ?
      WHERE p.book_id = ? ORDER BY p.position`,
   ).bind(userId, id).all();
@@ -335,7 +351,7 @@ async function publishedBook(db, userId, id, adminUser = false) {
     book,
     problems: results.map((p) => ({
       id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty,
-      solved: p.solvedAt != null, seconds: p.seconds, hints: p.hints, solvedAt: p.solvedAt,
+      solved: p.solvedAt != null, seconds: p.seconds, hints: p.hints, patterns: p.patterns, solvedAt: p.solvedAt,
     })),
   });
 }

@@ -600,7 +600,7 @@ function renderHistory() {
     main.textContent = `${h.rows}×${h.cols} ${DIFFICULTIES[h.difficulty]?.label ?? ''}・${formatTime(h.seconds)}`;
     const sub = document.createElement('small');
     const time = `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-    sub.textContent = `${time}${h.hints ? `・ヒント ${h.hints} 回` : '・ヒントなし'}`;
+    sub.textContent = [time, ...helpNotes(h)].join('・');
     text.append(main, sub);
     label.append(icon('task_alt'), text);
     const play = document.createElement('button');
@@ -945,6 +945,7 @@ function applyPattern(pattern) {
 
   board.clearHints();
   startTimer();
+  game.patterns = (game.patterns ?? 0) + 1; // 解いた履歴に、定石を使った回数として残す
   for (const { edge, value } of fills) applyChange(edge, value);
   commitStroke();
   refreshAll();
@@ -1068,6 +1069,7 @@ function startPuzzle(puzzle, saved) {
   game.pending = [];
   game.elapsed = saved?.elapsed ?? 0;
   game.hints = saved?.hints ?? 0;
+  game.patterns = saved?.patterns ?? 0;
   game.solved = false;
   game.running = false;
   game.lastTick = Date.now();
@@ -1122,7 +1124,7 @@ function restoreSaved() {
       solution,
       code: encodePuzzle(decoded), // 以前の形式で保存されていても、短い形式にそろえる
       clueCount: countClues(decoded.clues),
-    }, { state, elapsed: saved.elapsed || 0, hints: saved.hints || 0 });
+    }, { state, elapsed: saved.elapsed || 0, hints: saved.hints || 0, patterns: saved.patterns || 0 });
     prefetchCurrent();
     return true;
   } catch {
@@ -1301,7 +1303,7 @@ function checkSolved() {
   store.addHistory({
     code: game.puzzle.code || encodePuzzle(game.puzzle),
     rows: game.puzzle.rows, cols: game.puzzle.cols, difficulty: game.puzzle.difficulty,
-    seconds: game.elapsed, hints: game.hints ?? 0,
+    seconds: game.elapsed, hints: game.hints ?? 0, patterns: game.patterns ?? 0,
   });
   // 解いた問題は、ログイン中なら問題リストにも自動で入れる（解いた印と時間つき）
   if (account.loggedIn) keepInLibrary(game.puzzle, 'solved', { seconds: game.elapsed });
@@ -1325,7 +1327,7 @@ function showOverlay(isBest) {
   // 問題集で遊んでいるなら、問題集の名前と何番か、次の問題へ進むか・メニュー（問題集の問題の一覧）へ戻るか
   const where = shelfInstance?.where();
   if (where) {
-    const next = shelfInstance.onSolved({ seconds: game.elapsed, hints: game.hints ?? 0 });
+    const next = shelfInstance.onSolved({ seconds: game.elapsed, hints: game.hints ?? 0, patterns: game.patterns ?? 0 });
     const book = document.createElement('div');
     book.className = 'overlay-book';
     const name = document.createElement('b');
@@ -1707,6 +1709,14 @@ function formatTime(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** 解いた記録に添える、ヒントと定石を使った回数（どちらも使っていなければ「ヒント・定石なし」）。 */
+function helpNotes({ hints, patterns }) {
+  const notes = [];
+  if (hints) notes.push(`ヒント ${hints} 回`);
+  if (patterns) notes.push(`定石 ${patterns} 回`);
+  return notes.length ? notes : ['ヒント・定石なし'];
+}
+
 function persist() {
   if (!game.puzzle || game.solved) return;
   let edges = '';
@@ -1716,6 +1726,7 @@ function persist() {
     edges,
     elapsed: game.elapsed,
     hints: game.hints ?? 0,
+    patterns: game.patterns ?? 0,
     solution: Array.from(game.puzzle.solution),
   });
 }

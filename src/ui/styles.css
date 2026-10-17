@@ -1267,6 +1267,9 @@ body.no-anim .app { transition: none !important; }
 .book-problem {
   width: 100%; display: grid; grid-template-columns: 2.4em 1fr auto; align-items: center; gap: 10px;
   padding: 8px 12px; text-align: left; line-height: 1.25;
+  -webkit-touch-callout: none; /* 長押しで記録を消すので、文字の選択やメニューを出さない */
+  user-select: none;
+  -webkit-user-select: none;
 }
 .book-problem-no { font-size: 1rem; text-align: right; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .book-problem-what { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
