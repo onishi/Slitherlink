@@ -70,7 +70,6 @@ const el = {
   hintPos: $('hint-pos'),
   patternsBtn: $('btn-patterns'),
   quickPatterns: $('btn-quick-patterns'),
-  zoomCtl: $('zoom-ctl'),
   photoCamera: $('photo-camera'),
   photoPick: $('photo-pick'),
   libraryList: $('library-list'),
@@ -917,16 +916,16 @@ function revealPatternCard(item) {
 }
 
 /** 拡大・縮小のボタンを、いまの倍率に合わせる。拡大できない小さな盤では出さない。 */
+/**
+ * 拡大・縮小のボタン。出たり消えたりすると落ち着かないので、いつも出しておき、
+ * 使えないときは押せなくする（拡大できない小さな盤・もう拡大しきった・拡大していない）。
+ * 「やめる」だけは集中モードのあいだだけ出す。
+ */
 function updateZoomControls(scale, max) {
-  // 集中モードでは「やめる」があるので、拡大できない盤でも出す（拡大・縮小のボタンだけ隠す）
-  const focus = isFocus();
-  el.zoomCtl.hidden = max <= 1 && !focus;
-  el.zoomIn.hidden = max <= 1;
-  el.zoomOut.hidden = max <= 1;
-  el.focusExit.hidden = !focus;
   el.zoomIn.disabled = scale >= max;
   el.zoomOut.disabled = scale <= 1;
-  el.zoomFit.hidden = scale <= 1;
+  el.zoomFit.disabled = scale <= 1;
+  el.focusExit.hidden = !isFocus();
 }
 
 /** 定石を盤面じゅうに当てはめて、決まる印をまとめて引く。 */
