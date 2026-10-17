@@ -35,10 +35,10 @@
       <svg id="board" xmlns="http://www.w3.org/2000/svg" role="application"
            aria-label="Grid Loop の盤面" tabindex="0"></svg>
       <!-- 大きな盤のための拡大・縮小（ピンチ、Ctrl + ホイールでも） -->
-      <div class="zoom-ctl" id="zoom-ctl" hidden>
+      <div class="zoom-ctl" id="zoom-ctl">
         <button type="button" class="icon-btn" id="zoom-out" aria-label="縮小"><span class="mi" aria-hidden="true">zoom_out</span></button>
         <button type="button" class="icon-btn" id="zoom-in" aria-label="拡大"><span class="mi" aria-hidden="true">zoom_in</span></button>
-        <button type="button" class="icon-btn" id="zoom-fit" aria-label="全体を表示" hidden><span class="mi" aria-hidden="true">fit_screen</span></button>
+        <button type="button" class="icon-btn" id="zoom-fit" aria-label="全体を表示" disabled><span class="mi" aria-hidden="true">fit_screen</span></button>
         <button type="button" class="icon-btn" id="focus-exit" aria-label="集中モードをやめる" title="集中モードをやめる（Esc）" hidden><span class="mi" aria-hidden="true">fullscreen_exit</span></button>
       </div>
       <div class="board-overlay" id="overlay" hidden>
