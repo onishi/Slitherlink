@@ -30,6 +30,7 @@ export class BookShelf {
    * @param {(name: string) => void} hooks.showView  メニューの中の画面を切り替える
    * @param {(code: string) => boolean} hooks.play   問題コードを読み込んで遊び始める（読み込めたら true）
    * @param {() => void} hooks.closeMenu
+   * @param {() => void} [hooks.onChange] 問題集で遊んでいる状態が変わったとき（画面の表示と URL を合わせる）
    */
   constructor(hooks) {
     this.hooks = hooks;
@@ -166,9 +167,24 @@ export class BookShelf {
       // 待っているあいだに別の問題へ移っていたら、何もしない
       if (index < 0 || this.current || !samePuzzle(store.bookPlay()?.code ?? '', code)) return;
       this.current = { book: set.book, problems: set.problems, index };
+      this.hooks.onChange?.();
     } catch {
       // ログインしていない・問題集が非公開になったなど：ふつうの問題として遊ぶ
     }
+  }
+
+  /**
+   * 問題集の URL（?book=ID&n=番号）から開く：問題集をサーバーから読み、その番号の問題で遊ぶ状態にする。
+   * 遊ぶ問題は返すだけで、読み込みは呼ぶ側がする（途中まで解いた盤面があれば続きから開けるように）。
+   * @returns {Promise<{code:string}>} その番号の問題。読めなければ（ログインしていない・無い）例外
+   */
+  async enter(bookId, position) {
+    const set = await api(`/api/books/${bookId}`);
+    const index = set.problems.findIndex((p) => p.position === position);
+    if (index < 0) throw new Error(`この問題集に ${position} 番の問題はありません`);
+    this.current = { book: set.book, problems: set.problems, index };
+    this.remember();
+    return set.problems[index];
   }
 
   /**
@@ -203,7 +219,7 @@ export class BookShelf {
   where() {
     if (!this.current) return null;
     const { book, problems, index } = this.current;
-    return { title: book.title, position: problems[index].position, count: problems.length };
+    return { bookId: book.id, title: book.title, position: problems[index].position, count: problems.length };
   }
 
   /** 解いたとき：印（時間・ヒントの回数）を付けて、次に遊ぶ問題（まだ解いていない、後ろの問題。無ければ前から）を返す。 */
