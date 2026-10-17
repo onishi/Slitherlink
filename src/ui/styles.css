@@ -1390,6 +1390,9 @@ body.no-anim .app { transition: none !important; }
 
 /* 下の行は、ひとつながりの一覧にする */
 .menu-list { margin-top: 18px; display: flex; flex-direction: column; }
+/* 見出しのすぐ下の一覧は、見出しに寄せる */
+.menu-view h3 + .menu-list { margin-top: 0; }
+.menu-view .photo-row + .menu-list { margin-top: 12px; }
 .menu-list .menu-row { margin: 0; border-radius: 0; border-top-width: 0; }
 .menu-list .menu-row:first-child { border-top-width: 1px; border-radius: 9px 9px 0 0; }
 .menu-list .menu-row:last-child { border-radius: 0 0 9px 9px; }
