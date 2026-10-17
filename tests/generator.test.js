@@ -159,6 +159,7 @@ test('作問ロジックの版：ニコリ風 v3 が最新で、版を省くと�
   assert.deepEqual(GENERATORS['nikoli-4'].options, { style: 'nikoli', version: 4 });
   assert.deepEqual(GENERATORS['nikoli-5'].options, { style: 'nikoli', version: 5 });
   assert.deepEqual(GENERATORS['nikoli-6'].options, { style: 'nikoli', version: 6 });
+  assert.deepEqual(GENERATORS['nikoli-7'].options, { style: 'nikoli', version: 7 });
 });
 
 test('ニコリ風 v5：0 を固めずに置く（まわり 2 歩以内にほかの 0 がある 0 を残さない）', () => {
@@ -184,6 +185,31 @@ test('ニコリ風 v6：ふつうは考える手を 100 本あたり 11 回ま�
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   assert.ok(feelProfile(p).thinkRate <= 11 + 1e-9, `考える手 ${feelProfile(p).thinkRate}`);
+});
+
+test('輪を曲げる（7 版）：長さはそのまま、曲がる点が増える', () => {
+  const turnRate = (loop) => {
+    const { grid, edges } = loop;
+    let turns = 0;
+    let pts = 0;
+    for (let v = 0; v < grid.vertexCount; v++) {
+      const es = grid.vertexEdges[v].filter((e) => edges[e] === 1);
+      if (es.length !== 2) continue;
+      pts++;
+      if (grid.edgeInfo[es[0]].dir !== grid.edgeInfo[es[1]].dir) turns++;
+    }
+    return turns / pts;
+  };
+  let plain = 0;
+  let bent = 0;
+  for (let s = 1; s <= 6; s++) {
+    const a = stretchLoop(randomLoop(12, 12, makeRng(s)), makeRng(s + 100));
+    const b = stretchLoop(randomLoop(12, 12, makeRng(s)), makeRng(s + 100), { bend: true });
+    assert.ok(isSingleLoop(b.grid, b.edges));
+    plain += turnRate(a);
+    bent += turnRate(b);
+  }
+  assert.ok(bent > plain, `曲がり ${bent / 6} ≤ ${plain / 6}`);
 });
 
 test('作業の続く区間：盤面を見ただけで × が続く手数を数える', () => {

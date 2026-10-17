@@ -55,6 +55,9 @@ export const DIFFICULTIES = {
  *             候補を選ぶときに作業の続く区間の長さも見る
  *   nikoli-6  ニコリ風の 6 版。5 版に加えて、数字を戻すときは考えさせられた場所の近くの 3・2 から戻し（4 版と 5 版の
  *             戻し方を合わせる。少ない数字で考える手を減らせる）、ふつうの考える手の上限を 12 から 11 に下げる
+ *   nikoli-7  ニコリ風の 7 版。5 版を元に（6 版の工夫は使わない）、輪を曲がりの多い形にし（輪を伸ばすとき、曲がる点を
+ *             減らす変更はしない。ニコリの輪は曲がりが多く、少ない数字で決まる）、削る順で隣り合う 2 と 2 を先に削り、
+ *             0 と 3 の隣り合いと、ぽつんとした数字は残す
  */
 export const GENERATORS = {
   'random-1': { label: 'ランダム v1', options: {} },
@@ -64,6 +67,7 @@ export const GENERATORS = {
   'nikoli-4': { label: 'ニコリ風 v4', options: { style: 'nikoli', version: 4 } },
   'nikoli-5': { label: 'ニコリ風 v5', options: { style: 'nikoli', version: 5 } },
   'nikoli-6': { label: 'ニコリ風 v6', options: { style: 'nikoli', version: 6 } },
+  'nikoli-7': { label: 'ニコリ風 v7', options: { style: 'nikoli', version: 7 } },
 };
 // 最初に選ばれる作り方。4 版は入門・やさしいを軽くできるが、遊び比べでは作業の続く区間が延び、
 // 全体としては 3 版のほうがニコリに近かったので、3 版のままにしておく
@@ -133,10 +137,18 @@ export function randomLoop(rows, cols, rng) {
  * 採り、輪の長さがマス数の 0.85〜0.97 倍になったら止める（ニコリの問題はだいたい 0.9 前後）。
  * 内側のマスは盤の 35〜65% に保つ。
  */
-export function stretchLoop(loop, rng) {
+export function stretchLoop(loop, rng, { bend = false } = {}) {
   const { grid, inside } = loop;
   const { rows, cols } = grid;
   const insideAt = (r, c) => (r >= 0 && r < rows && c >= 0 && c < cols && inside[r * cols + c] === 1 ? 1 : 0);
+  // マス (r, c) の 4 隅の点のうち、輪が曲がる点の数。点のまわり 4 マスのうち内側が奇数個なら、そこで曲がる
+  const turnsAround = (r, c) => {
+    let t = 0;
+    for (const [vr, vc] of [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]) {
+      t += (insideAt(vr - 1, vc - 1) + insideAt(vr - 1, vc) + insideAt(vr, vc - 1) + insideAt(vr, vc)) & 1;
+    }
+    return t;
+  };
   let count = 0;
   for (let i = 0; i < inside.length; i++) count += inside[i];
   let len = 0;
@@ -155,10 +167,27 @@ export function stretchLoop(loop, rng) {
     const delta = adding ? 4 - 2 * k : 2 * k - 4;
     if (delta < 0) continue;
     if (adding ? count + 1 > hi : count - 1 < lo) continue;
+    const before = bend ? turnsAround(r, c) : 0;
     inside[idx] = adding ? 1 : 0;
+    // bend：曲がる点を減らす変更はしない（ニコリの輪は曲がりが多く、少ない数字で決まる）
+    if (bend && turnsAround(r, c) < before) { inside[idx] = adding ? 0 : 1; continue; }
     if (!validRegion(grid, inside)) { inside[idx] = adding ? 0 : 1; continue; }
     count += adding ? 1 : -1;
     len += delta;
+  }
+  // bend：長さを変えずに曲がる点だけが増える変更を、もう少し続ける
+  for (let i = 0; bend && i < rows * cols * 6; i++) {
+    const r = Math.floor(rng() * rows);
+    const c = Math.floor(rng() * cols);
+    const idx = r * cols + c;
+    const k = insideAt(r - 1, c) + insideAt(r + 1, c) + insideAt(r, c - 1) + insideAt(r, c + 1);
+    if (k !== 2) continue; // 隣の内側がちょうど 2 つのときだけ、足しても引いても長さが変わらない
+    const adding = inside[idx] === 0;
+    if (adding ? count + 1 > hi : count - 1 < lo) continue;
+    const before = turnsAround(r, c);
+    inside[idx] = adding ? 1 : 0;
+    if (turnsAround(r, c) <= before || !validRegion(grid, inside)) { inside[idx] = adding ? 0 : 1; continue; }
+    count += adding ? 1 : -1;
   }
   return { grid, inside, edges: boundaryEdges(grid, inside) };
 }
@@ -207,7 +236,9 @@ export function generatePuzzle(options = {}) {
   // 5 版：0 を離して置き、3・2 から数字を戻し、作業の続く区間も見て候補を選ぶ
   const v5 = nikoli && version >= 5;
   // 6 版：考えさせられた場所の近くの 3・2 から数字を戻し（少ない数字で軽くする）、ふつうの考える手の上限を少し下げる
-  const v6 = nikoli && version >= 6;
+  const v6 = nikoli && version === 6; // 7 版は 6 版の工夫を使わない（遊び比べで 5 版より良くなかった）
+  // 7 版：5 版を元に、輪を曲がりの多い形にし、数字を少なく済む並べ方に寄せる
+  const v7 = nikoli && version >= 7;
   const rateRange = (level) => (v4 ? FEEL_RATE_V4[level] : [0, (v6 ? FEEL_MAX_RATE_V6 : FEEL_MAX_RATE)[level]]);
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
@@ -224,7 +255,7 @@ export function generatePuzzle(options = {}) {
     const rng = makeRng(attemptSeed);
     let loop = randomLoop(rows, cols, rng);
     if (!loop) continue;
-    if (nikoli) loop = stretchLoop(loop, rng);
+    if (nikoli) loop = stretchLoop(loop, rng, { bend: v7 });
     const { grid, edges } = loop;
 
     const solution = new Int8Array(grid.edgeCount);
@@ -258,7 +289,7 @@ export function generatePuzzle(options = {}) {
       // 3 版は数字の内訳を見ながら削るので、何組か試すごとに削る順を作り直す
       const tried = new Set();
       const refreshEvery = Math.max(4, Math.floor(n / 24));
-      const nextOrder = () => (v2 ? evenRemovalOrder(grid, clues, rng, v3 ? CLUE_MIX : null, v5) : shuffled(n, rng)).filter((c) => !tried.has(c));
+      const nextOrder = () => (v2 ? evenRemovalOrder(grid, clues, rng, v3 ? CLUE_MIX : null, v5, v7) : shuffled(n, rng)).filter((c) => !tried.has(c));
       let order = nextOrder();
       let stop = false;
       while (order.length && !stop) {
@@ -482,7 +513,7 @@ function easeFeel(grid, clues, full, removedOrder, solution, max, order, ok, dea
  * 少しだけ乱数を混ぜて、毎回同じ形にならないようにする。
  */
 const KEEP_WEIGHT = [2, 3, 1, -2]; // 数字ごとの「先に削る」重み：0, 1, 2, 3
-function evenRemovalOrder(grid, clues, rng, mix = null, apartZeros = false) {
+function evenRemovalOrder(grid, clues, rng, mix = null, apartZeros = false, shape = false) {
   const { rows, cols, cellCount } = grid;
   // 3 版：いまの内訳が目安より多い数字ほど先に削る
   let weight = KEEP_WEIGHT;
@@ -515,6 +546,16 @@ function evenRemovalOrder(grid, clues, rng, mix = null, apartZeros = false) {
     score[i] = rowN[r] / cols + colN[c] / rows + near / 3 + weight[clues[i]] + rng() * 1.5;
     // 5 版：近くにほかの 0 がある 0 を先に削る（ニコリの 0 は 8 割が離れて置かれている）
     if (apartZeros && clues[i] === 0) score[i] += 2 * zerosNear(grid, clues, i);
+    // 7 版：ニコリの数字の並べ方に寄せる。隣り合う 2 と 2（決め手になりにくい）は先に削り、
+    // 0 と 3 の隣り合い（強い定石）と、まわりに数字の無いぽつんとした数字は残す
+    if (shape) {
+      const at = (rr, cc) => (rr >= 0 && rr < rows && cc >= 0 && cc < cols ? clues[rr * cols + cc] : -1);
+      const side = [at(r - 1, c), at(r + 1, c), at(r, c - 1), at(r, c + 1)];
+      const v = clues[i];
+      if (v === 2) score[i] += 1.5 * side.filter((x) => x === 2).length;
+      if ((v === 0 && side.includes(3)) || (v === 3 && side.includes(0))) score[i] -= 2;
+      if (near === 1) score[i] -= 1; // near はまわり 3×3 の数字の数（自分を入れて）。1 なら自分だけ
+    }
   }
   // 組（点対称の 2 マス）は合わせた点で並べる
   const order = Array.from({ length: cellCount }, (_, i) => i);

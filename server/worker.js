@@ -630,7 +630,7 @@ async function oneProblem(db, id) {
 /** 問題の出どころ。決まった値のほかは入れない。 */
 const ORIGINS = ['scan', 'generated'];
 /** 作問ロジックの版（src/core/generator.js の GENERATORS）。知らない値は入れない。 */
-const GENERATOR_IDS = ['random-1', 'nikoli-1', 'nikoli-2', 'nikoli-3', 'nikoli-4', 'nikoli-5', 'nikoli-6'];
+const GENERATOR_IDS = ['random-1', 'nikoli-1', 'nikoli-2', 'nikoli-3', 'nikoli-4', 'nikoli-5', 'nikoli-6', 'nikoli-7'];
 const cleanGenerator = (v) => (GENERATOR_IDS.includes(v) ? v : null);
 const cleanOrigin = (v) => (ORIGINS.includes(v) ? v : null);
 
