@@ -233,7 +233,7 @@ export function findMatches(grid, clues, state, pattern) {
   if (pattern.match === 'bridge') return findBridgeMatches(grid, state);
   if (pattern.match === 'shortcut') return findShortcutMatches(grid, clues, state);
   if (pattern.match === 'local-1' || pattern.match === 'local-2') {
-    return findLocalMatches(grid, clues, state, pattern.match === 'local-2');
+    return findLocalMatches(grid, clues, state, pattern.match === 'local-2', pattern.clue);
   }
   if (pattern.match === 'corner-blocked-1' || pattern.match === 'corner-blocked-3') {
     return findCornerBlockedMatches(grid, clues, state, pattern.match === 'corner-blocked-3' ? 3 : 1);
@@ -372,13 +372,13 @@ function findCornerBlockedMatches(grid, clues, state, clue) {
 }
 
 /**
- * 「数字のまわりをまとめて考える」「となりの数字といっしょに考える」を盤面全体に当てはめる。
+ * 「1・2・3 の角から線が出る」（only でその数字だけ）と「となりの数字といっしょに考える」を盤面全体に当てはめる。
  * 数字のマス（pair なら、となりか斜めに並ぶ 2 つ）の辺と、その角の点に集まる辺だけを取り出し、
  * 「数字の本数」と「角の点の線は 0 本か 2 本」を満たす塗り方を全部調べる。どの塗り方でも同じに
  * なる辺は決まる。角の偶奇（外から線が来ない角はマス側の 2 辺が両方線か両方 ×、1 本来る角は
  * ちょうど 1 本）を、数字の本数と組み合わせて使うことにあたる。
  */
-function findLocalMatches(grid, clues, state, pair) {
+function findLocalMatches(grid, clues, state, pair, only) {
   const fills = new Map();
   let places = 0;
   const take = (cells) => {
@@ -388,6 +388,7 @@ function findLocalMatches(grid, clues, state, pair) {
   };
   for (let c = 0; c < grid.cellCount; c++) {
     if (clues[c] < 0) continue;
+    if (only !== undefined && clues[c] !== only) continue;
     if (!pair) { take([c]); continue; }
     const r = Math.floor(c / grid.cols);
     const k = c % grid.cols;
