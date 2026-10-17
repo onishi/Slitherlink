@@ -1238,7 +1238,8 @@ body.no-anim .app { transition: none !important; }
 .modal-card .photo-actions .primary { width: auto; margin-top: 0; flex: 1; justify-content: center; }
 .photo-actions .mi { font-size: 1.1rem; }
 
-.library { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 13em; overflow-y: auto; }
+/* 問題リスト・解いた履歴・問題集の一覧は、それぞれメニューの奥の画面なので、画面ごと送る（一覧だけの小さな枠にしない） */
+.library { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .library li { display: flex; align-items: center; gap: 6px; }
 .library-label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: .84rem; }
 .library-label .mi { font-size: 1.05rem; color: var(--ink-faint); }
@@ -1249,7 +1250,6 @@ body.no-anim .app { transition: none !important; }
 .library li > .icon-btn { width: 30px; height: 30px; }
 .library-empty { font-size: .8rem; color: var(--ink-faint); }
 /* 問題集 */
-.book-list { max-height: none; }
 .book-item { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; }
 .book-item > .mi:first-child { color: var(--accent); }
 .book-item .library-text { flex: 1; }
