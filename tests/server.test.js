@@ -8,7 +8,7 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql', '0007_generator.sql', '0008_patterns.sql']
+const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql', '0007_generator.sql', '0008_patterns.sql', '0009_problem_meta.sql']
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
@@ -246,7 +246,7 @@ test('問題集を作り、問題をまとめて足し、並べ替え・外し�
   const add = await call(`/api/admin/books/${id}/problems`, {
     method: 'POST', cookie, body: { problems: [
       { code: '5nAAA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, source: 'a.png' },
-      { code: '5eBBB', rows: 5, cols: 5, difficulty: 'easy', clueCount: 11, source: 'b.pdf p.2' },
+      { code: '5eBBB', rows: 5, cols: 5, difficulty: 'easy', clueCount: 11, source: 'b.pdf p.2', meta: '第 2 問\n作者 : 山田' },
       { code: '5nAAA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9 },
     ] },
   });
@@ -258,6 +258,8 @@ test('問題集を作り、問題をまとめて足し、並べ替え・外し�
   let detail = (await call(`/api/admin/books/${id}`, { cookie })).data;
   assert.deepEqual(detail.problems.map((p) => [p.position, p.code]), [[1, '5nAAA'], [2, '5eBBB'], [3, '7hCCC']]);
   assert.equal(detail.problems[1].source, 'b.pdf p.2');
+  assert.equal(detail.problems[1].meta, '第 2 問\n作者 : 山田');
+  assert.equal(detail.problems[0].meta, null);
 
   // 3 番目を上へ
   await call(`/api/admin/books/${id}/problems/${detail.problems[2].id}`, { method: 'PATCH', cookie, body: { move: 'up' } });
@@ -492,14 +494,14 @@ test('自動作問の問題に、作問ロジックの版を持つ', async () =>
   const { cookie } = await loginAs({ sub: 'admin-1' });
   const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: '版' } })).data.book.id;
   await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
-    { code: '5nV1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'nikoli-2' },
+    { code: '5nV1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'teacher-2' },
     { code: '5nV2', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'whatever' },
     { code: '5nV3', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'scan', generator: 'random-1' },
   ] } });
   const { problems } = (await call(`/api/admin/books/${id}`, { cookie })).data;
-  assert.deepEqual(problems.map((p) => p.generator), ['nikoli-2', null, null]);
+  assert.deepEqual(problems.map((p) => p.generator), ['teacher-2', null, null]);
   const all = (await call('/api/admin/problems', { cookie })).data.problems.filter((p) => p.bookId === id);
-  assert.equal(all[0].generator, 'nikoli-2');
+  assert.equal(all[0].generator, 'teacher-2');
 });
 
 test('すでにある自動作問の問題には、名前から版を付ける（0007）', () => {
@@ -508,8 +510,22 @@ test('すでにある自動作問の問題には、名前から版を付ける�
   db.exec("INSERT INTO books (id, title, description, published, created_at, updated_at) VALUES (1, 'b', '', 0, 0, 0)");
   const add = db.prepare("INSERT INTO book_problems (book_id, position, code, rows, cols, clue_count, source, created_at, origin) VALUES (1, ?, ?, 5, 5, 9, ?, 0, ?)");
   add.run(1, 'a', 'ランダム 5×5（1 / 3）', 'generated');
-  add.run(2, 'b', 'ニコリ風 5×5（2 / 3）', 'generated');
+  add.run(2, 'b', '教師データ 5×5（2 / 3）', 'generated');
   add.run(3, 'c', 'p1.png', 'scan');
   db.exec(readFileSync(new URL('../migrations/0007_generator.sql', import.meta.url), 'utf8'));
-  assert.deepEqual(db.prepare('SELECT generator FROM book_problems ORDER BY position').all().map((r) => r.generator), ['random-1', 'nikoli-1', null]);
+  assert.deepEqual(db.prepare('SELECT generator FROM book_problems ORDER BY position').all().map((r) => r.generator), ['random-1', 'teacher-1', null]);
+});
+
+test('id の名前を変える前に保存した教師データの版も、版の番号から読み直して返す', async () => {
+  const { cookie } = await loginAs({ sub: 'admin-1' });
+  const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: '旧い id' } })).data.book.id;
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
+    { code: '5nOLD', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'teacher-8' },
+    { code: '5nRND', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'random-1' },
+  ] } });
+  env.DB.raw.prepare("UPDATE book_problems SET generator = 'old-5' WHERE code = '5nOLD'").run();
+  const { problems } = (await call(`/api/admin/books/${id}`, { cookie })).data;
+  assert.deepEqual(problems.map((p) => p.generator), ['teacher-5', 'random-1']);
+  const one = (await call(`/api/admin/problems/${problems[0].id}`, { cookie })).data.problem;
+  assert.equal(one.generator, 'teacher-5');
 });

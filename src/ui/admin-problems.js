@@ -7,9 +7,9 @@
 import { $, el, icon, api, startAdmin, metricGuide, METRIC_HELP, kindOf, kindLabel, KIND_LABEL, LEVEL_ORDER } from './admin-common.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { decodePuzzle } from '../core/puzzle.js';
-import { nikoliCheck } from '../core/nikoli.js';
+import { teacherCheck } from '../core/teacher.js';
 
-const FILTERS = [['f-book', 'book'], ['f-kind', 'kind'], ['f-size', 'size'], ['f-level', 'level'], ['f-nikoli', 'nikoli']];
+const FILTERS = [['f-book', 'book'], ['f-kind', 'kind'], ['f-size', 'size'], ['f-level', 'level'], ['f-teacher', 'teacher']];
 
 let allRows = [];
 let sortKey = 'bookTitle';
@@ -23,7 +23,7 @@ const COLS = [
   ['cells', '大きさ', (r) => r.size],
   ['level', 'むずかしさ', (r) => DIFFICULTIES[r.difficulty]?.label ?? '—', 'text'],
   ['kind', '作り方', (r) => kindLabel(r), 'text'],
-  ['nikoli', 'ニコリ風', (r) => (r.nikoli.ok === true ? '○' : r.nikoli.ok === false ? `× ${r.nikoli.failed.join('・')}` : '？'), 'text'],
+  ['teacher', '教師データ', (r) => (r.teacher.ok === true ? '○' : r.teacher.ok === false ? `× ${r.teacher.failed.join('・')}` : '？'), 'text'],
   ['clueDensity', '数字の割合', (r) => `${r.clueDensity.toFixed(0)}%`],
   ['loopPerCell', '線／マス', (r) => (r.loopPerCell == null ? '—' : (r.loopPerCell / 100).toFixed(2))],
   ['coverage', '行き渡り', (r) => pctOrDash(r.coverage)],
@@ -50,7 +50,7 @@ const sortValue = (r, key) => {
   if (key === 'cells') return r.rows * r.cols * 1000 + r.rows;
   if (key === 'level') return LEVEL_ORDER.indexOf(r.difficulty);
   if (key === 'kind') return Object.keys(KIND_LABEL).indexOf(kindOf(r));
-  if (key === 'nikoli') return r.nikoli.ok === true ? 0 : r.nikoli.ok === false ? 1 + r.nikoli.failed.length : 0.5;
+  if (key === 'teacher') return r.teacher.ok === true ? 0 : r.teacher.ok === false ? 1 + r.teacher.failed.length : 0.5;
   if (key === 'bookTitle') return `${r.bookTitle}\u0000${String(r.position).padStart(5, '0')}`;
   return r[key];
 };
@@ -63,18 +63,18 @@ async function load() {
     size: `${p.rows}×${p.cols}`,
     clueDensity: (100 * p.clueCount) / (p.rows * p.cols),
     loopPerCell: p.loopLength == null ? null : (100 * p.loopLength) / (p.rows * p.cols),
-    nikoli: nikoliOf(p),
+    teacher: teacherOf(p),
   }));
   fillFilters();
   readUrl();
   render();
 }
 
-/** ニコリ風の条件に当てはまるか（点対称を見るのに、問題コードから数字の配置を読む）。 */
-function nikoliOf(p) {
+/** 教師データの条件に当てはまるか（点対称を見るのに、問題コードから数字の配置を読む）。 */
+function teacherOf(p) {
   let clues;
   try { clues = decodePuzzle(p.code).clues; } catch { clues = undefined; }
-  return nikoliCheck({ ...p, clues });
+  return teacherCheck({ ...p, clues });
 }
 
 function fillFilters() {
@@ -114,10 +114,10 @@ function writeUrl() {
 }
 
 function filteredRows() {
-  const [book, kind, size, level, nikoli] = FILTERS.map(([id]) => $(id).value);
+  const [book, kind, size, level, teacher] = FILTERS.map(([id]) => $(id).value);
   return allRows.filter((r) => (!book || String(r.bookId) === book)
     && (!kind || kindOf(r) === kind) && (!size || r.size === size) && (!level || r.difficulty === level)
-    && (!nikoli || (nikoli === 'yes' ? r.nikoli.ok === true : r.nikoli.ok === false)));
+    && (!teacher || (teacher === 'yes' ? r.teacher.ok === true : r.teacher.ok === false)));
 }
 
 /** 列の見出しに添える説明（見出しの名前と目安の名前が違うものはそろえる）。 */
@@ -194,7 +194,7 @@ function render() {
     for (const [key] of COLS) {
       let text = '';
       if (key === 'bookTitle') text = `平均（${rows.length} 問）`;
-      else if (key === 'nikoli') text = `○ ${rows.filter((r) => r.nikoli.ok === true).length} 問`;
+      else if (key === 'teacher') text = `○ ${rows.filter((r) => r.teacher.ok === true).length} 問`;
       else if (AVG_FMT[key]) text = avg(key) == null ? '—' : AVG_FMT[key](avg(key));
       tr.append(el('td', key === 'bookTitle' ? 'is-text' : null, text));
     }

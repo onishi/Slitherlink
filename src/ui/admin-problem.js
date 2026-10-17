@@ -9,7 +9,7 @@ import { renderReport } from './puzzle-report.js';
 import { DIFFICULTIES } from '../core/generator.js';
 import { problemStats } from '../core/difficulty-report.js';
 import { decodePuzzle } from '../core/puzzle.js';
-import { nikoliCheck } from '../core/nikoli.js';
+import { teacherCheck } from '../core/teacher.js';
 
 const id = Number(new URLSearchParams(location.search).get('id'));
 let puzzle = null;
@@ -70,26 +70,27 @@ function renderFacts(p) {
     ['作り方', kindLabel(p)],
   ];
   if (p.source) items.push([p.origin === 'generated' ? '作ったとき' : '取り込んだもの', p.source]);
+  if (p.meta) items.push(['盤のまわりの文字', p.meta]);
   if (p.createdAt) items.push(['登録', new Date(p.createdAt).toLocaleString('ja-JP')]);
   items.push(['問題コード', p.code]);
   facts($('facts'), items);
 }
 
-/** ニコリ風の条件を 1 つずつ、満たす・外れる・分からない で出す。 */
-function renderNikoli(p) {
-  const check = nikoliCheck({ ...p, clues: puzzle.clues });
-  $('nikoli-verdict').textContent = check.ok === true ? '○ すべて満たす' : check.ok === false ? `× ${check.failed.length} つ外れ` : '？ まだ分からない目安あり';
-  const list = $('nikoli');
+/** 教師データの条件を 1 つずつ、満たす・外れる・分からない で出す。 */
+function renderTeacher(p) {
+  const check = teacherCheck({ ...p, clues: puzzle.clues });
+  $('teacher-verdict').textContent = check.ok === true ? '○ すべて満たす' : check.ok === false ? `× ${check.failed.length} つ外れ` : '？ まだ分からない目安あり';
+  const list = $('teacher');
   list.textContent = '';
   for (const r of check.results) {
     const li = el('li', r.pass === true ? 'is-ok' : r.pass === false ? 'is-ng' : 'is-unknown');
-    li.append(el('span', 'admin-nikoli-mark', r.pass === true ? '○' : r.pass === false ? '×' : '？'), r.about);
+    li.append(el('span', 'admin-teacher-mark', r.pass === true ? '○' : r.pass === false ? '×' : '？'), r.about);
     list.append(li);
   }
 }
 
 function renderMetrics(p) {
-  renderNikoli(p);
+  renderTeacher(p);
   const cells = p.rows * p.cols;
   const dash = (v, f) => (v == null ? '—' : f(v));
   facts($('metrics'), [

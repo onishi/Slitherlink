@@ -2,7 +2,7 @@
  * 解き味のうち「考える手」の数。人が解くように、盤面を見ただけで決まる手はまとめて打ち、
  * それが尽きたところで少し先を読む（仮定して矛盾を見る）手を 1 つ打つ、を繰り返し、
  * 先を読む手が何回要ったかを数える。
- * ニコリの 10×10 入門は 2〜19 回あり、このアプリの作問の入門は 0 回だった（作業だけで終わる）。
+ * 教師データの 10×10 入門は 2〜19 回あり、このアプリの作問の入門は 0 回だった（作業だけで終わる）。
  */
 import { getGrid, UNKNOWN } from './grid.js';
 import { collectProofs } from './proof.js';
@@ -37,7 +37,7 @@ export function thinkMoves(puzzle, stopAt = Infinity) {
  *   thinkMid   考える手が出てくる位置の平均（0 が序盤、1 が終盤）。大きいほど山場が後ろ
  *   quietGap   考える手のない区間のうち、いちばん長いもの（全体に対する割合）。息つける区間
  *   thinkEdges 考える手で決めた辺（どこで考えさせられたか）
- * ニコリ（とことん01）の 24×14 ふつうは、openings 0.2・thinkRate 10・thinkMid 0.58 くらい。
+ * 教師データ（とことん01）の 24×14 ふつうは、openings 0.2・thinkRate 10・thinkMid 0.58 くらい。
  */
 export function feelProfile(puzzle) {
   const grid = getGrid(puzzle.rows, puzzle.cols);
@@ -81,7 +81,7 @@ const WORK_RULES = new Set(['clue_full', 'vertex_dead', 'vertex_two']);
 /**
  * 作業の続く区間のいちばん長いもの（手数）。人のように 1 手ずつ解く：いま決まる手のうち、
  * 直前の手にいちばん近いもの（同じ距離なら根拠の少ないもの）を打ち、作業だけの手が何手続いたかを数える。
- * ニコリ（とことん01）の 24×14 は中央値 19 手、ニコリ風 3 版は 29 手だった。
+ * 教師データ（とことん01）の 24×14 は中央値 19 手、教師データ 3 版は 29 手だった。
  * 1 手ずつ証明を集めるので重い（24×14 で 1 秒ほど）。作問では最後の候補選びにだけ使う。
  * @param {{rows:number, cols:number, clues:ArrayLike<number>, solution:ArrayLike<number>}} puzzle
  * @param {number} [stopAt] これだけ続いたら打ち切る（合格かどうかだけ知りたいとき）

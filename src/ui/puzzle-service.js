@@ -77,7 +77,7 @@ export class PuzzleService {
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
     // 「鬼」は 2 段の読みが要るまで削るので時間がかかる。大きな盤では長めに待つ
     const timeLimitMs = difficulty === 'expert' ? 15000 + rows * cols * 150 : 12000;
-    // 作り方（ニコリ風 7 版。鬼と小さな盤のむずかしいはランダム）
+    // 作り方（教師データ 7 版。鬼と小さな盤のむずかしいはランダム）
     const { style, version } = gameGeneratorOptions(rows, cols, difficulty);
     if (!worker) {
       // ワーカーが使えない環境ではその場で作る

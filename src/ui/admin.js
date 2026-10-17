@@ -4,6 +4,7 @@
  * 取り込みは 1 枚（PDF なら 1 ページ）に 1 問。写真から作るときと同じ仕組みで、盤の四隅とマス数を見つけて
  * 数字を読み、論理だけで解けるかを裏のワーカーで確かめる。うまくいかなかったものは「直す」で、
  * 写真から作るときと同じ画面を開いて手で直せる。解けたものだけを問題集に足す。
+ * 盤のまわりに書いてある文字（問題番号や題など）も読んで、問題のメタデータとして一緒に残す。
  */
 
 import { $, el, icon, api, startAdmin, checker, metricGuide, kindOf, kindLabel, KIND_LABEL, LEVEL_ORDER } from './admin-common.js';
@@ -12,9 +13,10 @@ import { PhotoImport } from './photo-import.js';
 import { DIFFICULTIES, GENERATORS, LATEST_GENERATOR } from '../core/generator.js';
 import { problemStats } from '../core/difficulty-report.js';
 import { decodePuzzle } from '../core/puzzle.js';
-import { nikoliCheck } from '../core/nikoli.js';
+import { teacherCheck } from '../core/teacher.js';
 import { unzip } from './zip.js';
 import { pdfPages } from './pdf-pages.js';
+import { readPageText } from './page-text.js';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|heic)$/i;
 
@@ -93,6 +95,7 @@ function renderProblems() {
     text.append(
       el('b', null, `${p.position}. ${p.rows}×${p.cols} ${DIFFICULTIES[p.difficulty]?.label ?? ''}`),
       el('small', null, `${kindLabel(p)}・数字 ${p.clueCount}${p.source ? `・${p.source}` : ''}`),
+      ...(p.meta ? [el('small', 'admin-meta', p.meta)] : []),
       statsLine(p.stats),
     );
     const play = el('a', 'admin-link');
@@ -210,18 +213,18 @@ async function openCompare() {
   refillCompare();
 }
 
-/** ニコリ風の条件をすべて満たすか（点対称を見るのに、問題コードから数字の配置を読む）。 */
-function nikoliOk(p) {
+/** 教師データの条件をすべて満たすか（点対称を見るのに、問題コードから数字の配置を読む）。 */
+function teacherOk(p) {
   try {
-    return nikoliCheck({ ...p, clues: decodePuzzle(p.code).clues }).ok === true;
+    return teacherCheck({ ...p, clues: decodePuzzle(p.code).clues }).ok === true;
   } catch {
     return false;
   }
 }
 
-/** 何問のうち何問がニコリ風か。 */
-const nikoliShare = (rows) => {
-  const n = rows.filter((p) => p.nikoliOk).length;
+/** 何問のうち何問が教師データか。 */
+const teacherShare = (rows) => {
+  const n = rows.filter((p) => p.teacherOk).length;
   return `${n} / ${rows.length}（${Math.round((100 * n) / rows.length)}%）`;
 };
 
@@ -233,7 +236,7 @@ async function loadCompare() {
     size: `${p.rows}×${p.cols}`,
     clueDensity: (100 * p.clueCount) / (p.rows * p.cols),
     loopPerCell: p.loopLength == null ? null : (100 * p.loopLength) / (p.rows * p.cols),
-    nikoliOk: nikoliOk(p),
+    teacherOk: teacherOk(p),
   }));
   renderBookCompare();
 }
@@ -281,7 +284,7 @@ function renderBookCompare() {
   if (!data.byBook.length) { body.append(el('p', 'admin-empty', 'まだ問題がありません。')); return; }
   const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  for (const label of ['問題集', '大きさ', '出どころ', 'ニコリ風']) head.append(el('th', null, label));
+  for (const label of ['問題集', '大きさ', '出どころ', '教師データ']) head.append(el('th', null, label));
   for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
   table.append(head);
   for (const r of data.byBook) {
@@ -294,7 +297,7 @@ function renderBookCompare() {
     if (r.scans) parts.push(`スキャン ${r.scans}`);
     if (r.generated) parts.push(`自動 ${r.generated}`);
     tr.append(el('td', null, parts.join('・') || '—'));
-    tr.append(el('td', null, nikoliShare(allRows.filter((p) => p.bookId === r.bookId))));
+    tr.append(el('td', null, teacherShare(allRows.filter((p) => p.bookId === r.bookId))));
     for (const [key, , fmt] of COMPARE_COLS) tr.append(el('td', null, r[key] == null ? '—' : fmt(r[key])));
     table.append(tr);
   }
@@ -371,7 +374,7 @@ function kindLevelTable() {
 
 /**
  * 問題を groupOf(p) → [キー, 見出しの値, 並べる順] で組に分け、組ごとに目安を平均した表。
- * ニコリ風の割合も添える。
+ * 教師データの割合も添える。
  */
 function groupTable(heads, groupOf) {
   const groups = new Map();
@@ -386,13 +389,13 @@ function groupTable(heads, groupOf) {
   };
   const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  for (const label of [...heads, 'ニコリ風']) head.append(el('th', null, label));
+  for (const label of [...heads, '教師データ']) head.append(el('th', null, label));
   for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
   table.append(head);
   for (const g of [...groups.values()].sort((a, b) => a.sort - b.sort)) {
     const tr = el('tr');
     g.labels.forEach((v, i) => tr.append(el('td', i === 0 ? 'admin-compare-origin' : null, v)));
-    tr.append(el('td', null, nikoliShare(g.rows)));
+    tr.append(el('td', null, teacherShare(g.rows)));
     for (const [key, , fmt] of COMPARE_COLS) {
       const v = key === 'count' ? g.rows.length : avg(g.rows, key);
       tr.append(el('td', null, v == null ? '—' : fmt(v)));
@@ -441,8 +444,8 @@ async function addFiles(fileList) {
     try {
       if (/\.pdf$/i.test(name) || file.type === 'application/pdf') {
         setStatus(`${name} を開いています…`);
-        for await (const { page, total, blob } of pdfPages(await file.arrayBuffer(), (n, t) => setStatus(`${name} を画像にしています（${n} / ${t} ページ）…`))) {
-          enqueue(blob, total > 1 ? `${name} p.${page}` : name);
+        for await (const { page, total, blob, text } of pdfPages(await file.arrayBuffer(), (n, t) => setStatus(`${name} を画像にしています（${n} / ${t} ページ）…`))) {
+          enqueue(blob, total > 1 ? `${name} p.${page}` : name, text);
         }
       } else if (/\.zip$/i.test(name) || /zip/.test(file.type)) {
         setStatus(`${name} を開いています…`);
@@ -469,8 +472,8 @@ function mimeOf(name) {
   return { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', avif: 'image/avif' }[ext] ?? 'application/octet-stream';
 }
 
-function enqueue(blob, name) {
-  queue.push({ id: ++queueSeq, name, blob, state: 'waiting', message: '待っています', result: null, thumb: null });
+function enqueue(blob, name, pdfText = null) {
+  queue.push({ id: ++queueSeq, name, blob, pdfText, state: 'waiting', message: '待っています', result: null, thumb: null, meta: '' });
   renderQueue();
 }
 
@@ -513,11 +516,24 @@ async function readItem(item) {
     }
     const { clues } = readClues(photo, guess.corners, guess.rows, guess.cols);
     item.thumb = rectify(photo, guess.corners, guess.rows, guess.cols, 12).toDataURL('image/jpeg', 0.8);
+    item.message = '盤のまわりの文字を読んでいます…';
+    renderQueue();
+    item.meta = await readMeta(item, { ...guess, width: photo.width, height: photo.height });
     const r = await checker(guess.rows, guess.cols, clues);
     applyCheck(item, guess.rows, guess.cols, r);
   } catch (err) {
     item.state = 'error';
     item.message = err.message || '読み込めませんでした';
+  }
+}
+
+/** 盤のまわりの文字を読む。読めなくても取り込みは止めない。 */
+async function readMeta(item, board) {
+  try {
+    return await readPageText(item.blob, board, item.pdfText);
+  } catch (err) {
+    console.warn('盤のまわりの文字を読めませんでした', err);
+    return '';
   }
 }
 
@@ -565,6 +581,7 @@ function renderQueue() {
     }
     const text = el('span', 'admin-queue-text');
     text.append(el('b', null, item.name), el('small', null, item.message));
+    if (item.meta) text.append(el('small', 'admin-meta', item.meta));
     li.append(thumb, text);
     if (item.state === 'ok') li.append(el('span', 'admin-ok', '解けます'));
     if (item.blob && (item.state === 'ok' || item.state === 'warn')) {
@@ -648,7 +665,7 @@ async function addSolved() {
   try {
     const res = await api(`/api/admin/books/${current.book.id}/problems`, {
       method: 'POST',
-      body: { problems: ready.map((q) => ({ ...q.result, source: q.name, origin: q.generated ? 'generated' : 'scan' })) },
+      body: { problems: ready.map((q) => ({ ...q.result, source: q.name, origin: q.generated ? 'generated' : 'scan', meta: q.meta || undefined })) },
     });
     queue = queue.filter((q) => q.state !== 'ok');
     renderQueue();
@@ -668,8 +685,8 @@ let genPending = null; // いま待っている 1 問（止めたときに、待
 
 /** 作る問題ごとの難易度。「いろいろ」なら 5 段階を同じくらいずつ、やさしい順に並べる。 */
 function plannedLevels(choice, count) {
-  // ニコリ風の「いろいろ」は、ニコリの問題集にならって ふつうを多めに（入門 1：やさしい 1：ふつう 3：むずかしい 1）
-  if (choice === 'nikoli-mix') {
+  // 教師データの「いろいろ」は、教師データの問題集にならって ふつうを多めに（入門 1：やさしい 1：ふつう 3：むずかしい 1）
+  if (choice === 'teacher-mix') {
     const weights = [['intro', 1], ['easy', 1], ['normal', 3], ['hard', 1]];
     const bag = weights.flatMap(([k, w]) => new Array(w).fill(k)); // やさしい順
     return Array.from({ length: count }, (_, i) => bag[Math.floor((i * bag.length) / count)]);
@@ -687,9 +704,9 @@ function generateOne(rows, cols, difficulty, generator) {
     genPending = done;
     genWorker.onmessage = (ev) => { if (ev.data.id === id) done(ev.data); };
     genWorker.onerror = () => done({ ok: false, error: '作問中にエラーが起きました' });
-    // ニコリ風の大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
+    // 教師データの大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
     //   むずかしいはさらに時間がかかる（24×14 で 40〜55 秒かかることがある）ので、長めに待つ
-    const timeLimitMs = style === 'nikoli' ? Math.max(20000, rows * cols * (difficulty === 'hard' ? 180 : 80)) : 20000;
+    const timeLimitMs = style === 'teacher' ? Math.max(20000, rows * cols * (difficulty === 'hard' ? 180 : 80)) : 20000;
     genWorker.postMessage({ id, rows, cols, difficulty, style, version, withStats: true, timeLimitMs });
   });
 }
@@ -722,10 +739,10 @@ async function generateBatch(rows, cols, count, choice, generator) {
       item.state = 'ok';
       item.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount, stats: p.stats ?? null, generator };
       let missed = p.difficulty !== item.level ? `（「${DIFFICULTIES[item.level].label}」は時間内に作れず）` : '';
-      if (p.style === 'nikoli' && !p.styleOk) {
+      if (p.style === 'teacher' && !p.styleOk) {
         missed += ['intro', 'easy'].includes(p.difficulty) && p.difficulty === item.level
           ? '（定石で解けるよう数字は多め）'
-          : '（ニコリ風の条件を満たすものは時間内に作れず）';
+          : '（教師データの条件を満たすものは時間内に作れず）';
       }
       item.message = `${p.rows}×${p.cols}・${DIFFICULTIES[p.difficulty]?.label ?? ''}・数字 ${p.clueCount}${missed}`;
       renderQueue();
@@ -750,16 +767,16 @@ function bindGenerate() {
   const kindSel = $('gen-kind');
   for (const id of Object.keys(GENERATORS).reverse()) kindSel.add(new Option(GENERATORS[id].label, id));
   kindSel.value = LATEST_GENERATOR;
-  // ニコリ風に鬼は無い（仮定が多すぎる）。「いろいろ」はニコリにならって ふつう多め
+  // 教師データに鬼は無い（仮定が多すぎる）。「いろいろ」は教師データにならって ふつう多め
   const syncLevels = () => {
-    const on = GENERATORS[kindSel.value].options.style === 'nikoli';
+    const on = GENERATORS[kindSel.value].options.style === 'teacher';
     const sel = $('gen-difficulty');
     for (const o of sel.options) {
-      const allowed = on ? o.value !== 'mix' && o.value !== 'expert' : o.value !== 'nikoli-mix';
+      const allowed = on ? o.value !== 'mix' && o.value !== 'expert' : o.value !== 'teacher-mix';
       o.hidden = !allowed;
       o.disabled = !allowed;
     }
-    if (sel.selectedOptions[0]?.disabled || (on && sel.value === 'mix') || (!on && sel.value === 'nikoli-mix')) sel.value = on ? 'nikoli-mix' : 'mix';
+    if (sel.selectedOptions[0]?.disabled || (on && sel.value === 'mix') || (!on && sel.value === 'teacher-mix')) sel.value = on ? 'teacher-mix' : 'mix';
   };
   kindSel.addEventListener('change', syncLevels);
   syncLevels();

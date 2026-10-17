@@ -399,6 +399,8 @@ function isAdmin(user, env) {
 }
 
 const MAX_BOOK_PROBLEMS = 1000;
+/** 取り込んだ問題の、盤のまわりの文字（meta）の長さの上限。 */
+const MAX_META = 1000;
 const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 function bookRow(r) {
@@ -448,7 +450,7 @@ async function admin(request, db, url) {
       problems: results.map((p) => ({
         id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols,
         difficulty: p.difficulty, clueCount: p.clue_count, source: p.source, createdAt: p.created_at,
-        origin: p.origin, generator: p.generator,
+        origin: p.origin, generator: storedGenerator(p.generator), meta: p.meta,
         // 目安がそろっていないもの（行き渡り率・最大の空き地を足す前に入れた問題など）は、管理画面で計算し直して埋める
         stats: p.pattern_share == null || p.coverage == null || p.largest_gap == null ? null : {
           loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
@@ -502,11 +504,11 @@ async function admin(request, db, url) {
       pos += 1;
       statements.push(db.prepare(
         `INSERT INTO book_problems (book_id, position, code, rows, cols, difficulty, clue_count, source, created_at,
-           loop_length, pattern_share, free_share, assume_count, longest_steps, coverage, largest_gap, origin, generator)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
+           loop_length, pattern_share, free_share, assume_count, longest_steps, coverage, largest_gap, origin, generator, meta)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
       ).bind(id, pos, e.code, e.rows, e.cols, e.difficulty, e.clueCount, text(raw.source, 200) || null, now,
         st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps, st.coverage, st.largestGap, cleanOrigin(raw.origin),
-        cleanOrigin(raw.origin) === 'generated' ? cleanGenerator(raw.generator) : null));
+        cleanOrigin(raw.origin) === 'generated' ? cleanGenerator(raw.generator) : null, text(raw.meta, MAX_META) || null));
     }
     statements.push(db.prepare('UPDATE books SET updated_at = ? WHERE id = ?').bind(now, id));
     await db.batch(statements);
@@ -593,7 +595,7 @@ async function compareOrigins(db) {
 const listedProblem = (p) => ({
   id: p.id, bookId: p.book_id, bookTitle: p.book_title, position: p.position, code: p.code,
   rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clue_count, origin: p.origin, source: p.source,
-  generator: p.generator,
+  generator: storedGenerator(p.generator), meta: p.meta,
   loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
   assumeCount: p.assume_count, longestSteps: p.longest_steps, coverage: p.coverage, largestGap: p.largest_gap,
   createdAt: p.created_at,
@@ -630,8 +632,12 @@ async function oneProblem(db, id) {
 /** 問題の出どころ。決まった値のほかは入れない。 */
 const ORIGINS = ['scan', 'generated'];
 /** 作問ロジックの版（src/core/generator.js の GENERATORS）。知らない値は入れない。 */
-const GENERATOR_IDS = ['random-1', 'nikoli-1', 'nikoli-2', 'nikoli-3', 'nikoli-4', 'nikoli-5', 'nikoli-6', 'nikoli-7', 'nikoli-8'];
+const GENERATOR_IDS = ['random-1', 'teacher-1', 'teacher-2', 'teacher-3', 'teacher-4', 'teacher-5', 'teacher-6', 'teacher-7', 'teacher-8'];
 const cleanGenerator = (v) => (GENERATOR_IDS.includes(v) ? v : null);
+/** 保存された版の id。教師データの版は、id の名前を変える前に作った問題もあるので、版の番号から読み直す。 */
+const storedGenerator = (v) => (typeof v === 'string' && !v.startsWith('random-')
+  ? cleanGenerator(`teacher-${v.slice(v.indexOf('-') + 1)}`)
+  : v ?? null);
 const cleanOrigin = (v) => (ORIGINS.includes(v) ? v : null);
 
 /** 難易度のほかの目安。おかしな値は入れない（無いものは NULL）。 */
