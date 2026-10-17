@@ -15,7 +15,11 @@
 <body>
 <div class="app">
   <header class="topbar">
-    <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span>Grid Loop</h1>
+    <h1 class="logo"><span class="logo-mark" aria-hidden="true"></span><span class="logo-text">Grid Loop</span></h1>
+    <!-- 問題集で遊んでいるときだけ：問題集の名前と何番か（押すと問題集の問題の一覧） -->
+    <button type="button" class="book-chip" id="book-chip" hidden>
+      <span class="mi" aria-hidden="true">menu_book</span><span class="book-chip-title" id="book-chip-title"></span><span class="book-chip-no" id="book-chip-no"></span>
+    </button>
     <div class="topbar-actions">
       <button type="button" class="icon-btn" id="btn-rules" aria-label="遊び方" title="遊び方"><span class="mi" aria-hidden="true">help</span></button>
       <button type="button" class="icon-btn" id="btn-top-patterns" aria-label="定石一覧" title="定石一覧"

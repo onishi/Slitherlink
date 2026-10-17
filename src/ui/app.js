@@ -40,6 +40,9 @@ const el = {
   clear: $('btn-clear'),
   message: $('message'),
   overlay: $('overlay'),
+  bookChip: $('book-chip'),
+  bookChipTitle: $('book-chip-title'),
+  bookChipNo: $('book-chip-no'),
   overlayCard: $('overlay-card'),
   autocross: $('opt-autocross'),
   errors: $('opt-errors'),
@@ -166,7 +169,15 @@ function init() {
   setupAccount();
   if (wantDrawerOpen) openDrawer({ instant: true });
 
-  const fromUrl = new URLSearchParams(location.search).get('p');
+  const query = new URLSearchParams(location.search);
+  // 問題集の問題の URL（?book=ID&n=番号）なら、問題集を読んでから開く
+  const bookId = Number(query.get('book'));
+  const position = Number(query.get('n'));
+  if (Number.isInteger(bookId) && bookId > 0 && Number.isInteger(position) && position > 0) {
+    openBookFromUrl(bookId, position);
+    return;
+  }
+  const fromUrl = query.get('p');
   // URL の問題が、途中まで解いて保存してある問題と同じなら、続きから
   const saved = store.game();
   if (fromUrl && saved?.code && samePuzzle(fromUrl, saved.code) && restoreSaved()) return resumeBook();
@@ -180,7 +191,56 @@ function resumeBook() {
   if (store.bookPlay()) shelf().resume(game.puzzle.code);
 }
 
+/**
+ * 問題集の問題の URL（?book=ID&n=番号）で開いたとき。問題集をサーバーから読み、その問題で遊ぶ。
+ * 途中まで解いて保存してある問題と同じなら続きから。読めなければ（ログインしていないなど）、
+ * いつもどおり続きか新しい問題を開き、ログインしていなければログインをすすめる（ログインできたら開き直す）。
+ */
+async function openBookFromUrl(bookId, position) {
+  say('問題集を読み込んでいます…');
+  try {
+    const problem = await shelf().enter(bookId, position);
+    const saved = store.game();
+    if (!(saved?.code && samePuzzle(saved.code, problem.code) && restoreSaved())) tryLoadCode(problem.code, false);
+    else say(shelfInstance.label() ?? '');
+  } catch (err) {
+    if (!game.puzzle && !restoreSaved()) newPuzzle();
+    if (err.status === 401) requireLogin('問題集の問題を遊ぶには、ログインしてください', () => openBookFromUrl(bookId, position));
+    else say(err.message || '問題集を読み込めませんでした', true);
+  }
+}
+
+/**
+ * 問題集で遊んでいるかを画面と URL に出す。問題集の問題なら、上の帯に問題集の名前と何番か、
+ * URL は問題集の何番かを指すもの（?book=ID&n=番号。開き直しても、送っても同じ問題が開く）。
+ * そうでなければ、帯は消して、URL は問題コード（?p=）。
+ */
+function showWhere() {
+  const where = shelfInstance?.where();
+  el.bookChip.hidden = !where;
+  document.querySelector('.app').classList.toggle('in-book', !!where);
+  if (where) {
+    el.bookChipTitle.textContent = where.title;
+    el.bookChipNo.textContent = `${where.position} / ${where.count}`;
+    el.bookChip.setAttribute('aria-label', `${where.title}　${where.position} / ${where.count}（問題集の問題の一覧を開く）`);
+  }
+  try {
+    const url = new URL(location.href);
+    for (const k of ['p', 'book', 'n']) url.searchParams.delete(k);
+    if (where) {
+      url.searchParams.set('book', String(where.bookId));
+      url.searchParams.set('n', String(where.position));
+    } else if (game.puzzle) {
+      url.searchParams.set('p', el.code.value);
+    }
+    if (url.href !== location.href) history.replaceState(history.state, '', url);
+  } catch {
+    // file:// などで書き換えられなくても、遊ぶのには困らない
+  }
+}
+
 function bindUI() {
+  el.bookChip.addEventListener('click', () => { openMenu(); shelfInstance?.openCurrent(); });
   el.newBtn.addEventListener('click', () => { closeMenu(); newPuzzle(); });
   for (const select of [el.size, el.difficulty]) {
     select.addEventListener('change', () => { savePrefs(); prefetchCurrent(); });
@@ -369,6 +429,7 @@ const shelf = () => (shelfInstance ??= new BookShelf({
   showView: showMenuView,
   play: (code) => tryLoadCode(code, false),
   closeMenu,
+  onChange: showWhere,
 }));
 
 function openMenu() {
@@ -1001,9 +1062,9 @@ function startPuzzle(puzzle, saved) {
   board.setSolved(false);
   hideOverlay();
   el.code.value = puzzle.code || encodePuzzle(puzzle);
-  showCodeInUrl(el.code.value);
   // 問題集の問題でなくなったら、問題集で遊んでいる状態を終える
   shelfInstance?.onPuzzleChanged(el.code.value);
+  showWhere();
   refreshAll();
   persist();
 }
@@ -1610,17 +1671,6 @@ function persist() {
  * いまの問題を URL（?p=問題コード）に出す。新しい問題になるたびに書き換えるので、
  * そのまま URL を送れば同じ問題を開ける。履歴は増やさない（戻るボタンで前の問題に戻ることはしない）。
  */
-function showCodeInUrl(code) {
-  try {
-    const url = new URL(location.href);
-    if (url.searchParams.get('p') === code) return;
-    url.searchParams.set('p', code);
-    history.replaceState(history.state, '', url);
-  } catch {
-    // file:// などで書き換えられなくても、遊ぶのには困らない
-  }
-}
-
 async function copyCode() {
   const url = new URL(location.href);
   url.searchParams.set('p', el.code.value);
