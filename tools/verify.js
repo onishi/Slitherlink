@@ -2,7 +2,9 @@
  * 大量に作問して「必ず論理だけで解ける・解が一意・解き味が難易度どおり」を実地で確かめる。
  * 論理で解けるかは、ソルバとは別に「検算に通る証明つきの手だけで正解まで届くか」でも確かめる
  * （正解は使わず、両方の値を仮定して試す）。
- *   node tools/verify.js [繰り返し数]
+ *   node tools/verify.js [繰り返し数] [--random]
+ * 乱数の種は、大きさ・難易度・何回目かから決める（毎回同じ問題を確かめる。CI がたまたまの作り損ないで落ちないように）。
+ * --random を付けると、毎回ちがう種で確かめる（作問器を変えたときに、手元で広く試す）。
  */
 import { getGrid, isSingleLoop, cluesFromEdges, LINE } from '../src/core/grid.js';
 import { solveLogical, countSolutions } from '../src/core/solver.js';
@@ -10,7 +12,15 @@ import { generatePuzzle, DIFFICULTIES } from '../src/core/generator.js';
 import { solveWithProofs } from '../src/core/proof.js';
 import { difficultyReport, levelOf } from '../src/core/difficulty-report.js';
 
-const reps = Number(process.argv[2] || 3);
+const args = process.argv.slice(2);
+const random = args.includes('--random');
+const reps = Number(args.find((a) => !a.startsWith('--')) || 3);
+/** 大きさ・難易度・何回目かから決まる種。 */
+const seedOf = (rows, cols, difficulty, i) => {
+  let h = 2166136261;
+  for (const ch of `${rows}x${cols}:${difficulty}:${i}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return h;
+};
 const sizes = [[5, 5], [6, 8], [7, 7], [10, 10]];
 let total = 0;
 let bad = 0;
@@ -19,7 +29,9 @@ for (const [rows, cols] of sizes) {
   for (const difficulty of Object.keys(DIFFICULTIES)) {
     for (let i = 0; i < reps; i++) {
       const started = Date.now();
-      const p = generatePuzzle({ rows, cols, difficulty });
+      const seed = random ? Math.floor(Math.random() * 0xffffffff) >>> 0 : seedOf(rows, cols, difficulty, i);
+      // 時間切れで結果が変わらないよう、制限時間はたっぷり取る（同じ種なら、遅い機械でも同じ問題になる）
+      const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs: 120000 });
       const g = getGrid(rows, cols);
       const issues = [];
       total++;
@@ -53,7 +65,7 @@ for (const [rows, cols] of sizes) {
       const tag = `${rows}x${cols} ${DIFFICULTIES[difficulty].label}`;
       if (issues.length) {
         bad++;
-        console.log(`NG  ${tag}: ${issues.join(' / ')}`);
+        console.log(`NG  ${tag}（種 ${seed}）: ${issues.join(' / ')}`);
       } else {
         console.log(`ok  ${tag}  数字 ${p.clueCount}/${rows * cols}  ${Date.now() - started}ms`);
       }
