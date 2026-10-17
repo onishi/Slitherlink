@@ -58,6 +58,8 @@ export const DIFFICULTIES = {
  *   nikoli-7  ニコリ風の 7 版。5 版を元に（6 版の工夫は使わない）、輪を曲がりの多い形にし（輪を伸ばすとき、曲がる点を
  *             減らす変更はしない。ニコリの輪は曲がりが多く、少ない数字で決まる）、削る順で隣り合う 2 と 2 を先に削り、
  *             0 と 3 の隣り合いと、ぽつんとした数字は残す
+ *   nikoli-8  ニコリ風の 8 版。7 版のふつうを軽く（考える手の上限を 12 から 11 に。遊び比べで 7 版のふつうは
+ *             ニコリより考える手が多かった。数字は 1.5 ポイントほど増える）
  */
 export const GENERATORS = {
   'random-1': { label: 'ランダム v1', options: {} },
@@ -68,10 +70,11 @@ export const GENERATORS = {
   'nikoli-5': { label: 'ニコリ風 v5', options: { style: 'nikoli', version: 5 } },
   'nikoli-6': { label: 'ニコリ風 v6', options: { style: 'nikoli', version: 6 } },
   'nikoli-7': { label: 'ニコリ風 v7', options: { style: 'nikoli', version: 7 } },
+  'nikoli-8': { label: 'ニコリ風 v8', options: { style: 'nikoli', version: 8 } },
 };
 // 最初に選ばれる作り方（管理画面の「ランダムに作る」と、ゲームの「作る」）。7 版は遊び比べで、数字・入り口・作業の続く区間・
-// 山場の位置のどれも 5 版よりニコリに近かった
-export const LATEST_GENERATOR = 'nikoli-7';
+// 山場の位置のどれも 5 版よりニコリに近かった。8 版はそのふつうを軽くして、考える手の多さもニコリ並みにした
+export const LATEST_GENERATOR = 'nikoli-8';
 
 /**
  * ゲームの「作る」で使う作り方の options。入門・やさしい・ふつうは最初に選ばれる作り方（ニコリ風）で作る。
@@ -237,7 +240,7 @@ export function generatePuzzle(options = {}) {
   const deadline = options.deadline ?? (Date.now() + (options.timeLimitMs ?? 20000));
   const nikoli = options.style === 'nikoli';
   // ニコリ風 2 版の工夫（数字をむらなく・3 を残す・入門にも考える手）。1 版はそれ無しで作る
-  const version = options.version ?? 7; // 省くと、最初に選ばれる作り方（LATEST_GENERATOR）と同じ版
+  const version = options.version ?? 8; // 省くと、最初に選ばれる作り方（LATEST_GENERATOR）と同じ版
   const v2 = nikoli && version >= 2;
   // 3 版：数字の内訳をニコリに寄せ、手触り（考える手の多さ・入り口・山場）を合わせる
   const v3 = nikoli && version >= 3;
@@ -249,7 +252,9 @@ export function generatePuzzle(options = {}) {
   const v6 = nikoli && version === 6; // 7 版は 6 版の工夫を使わない（遊び比べで 5 版より良くなかった）
   // 7 版：5 版を元に、輪を曲がりの多い形にし、数字を少なく済む並べ方に寄せる
   const v7 = nikoli && version >= 7;
-  const rateRange = (level) => (v4 ? FEEL_RATE_V4[level] : [0, (v6 ? FEEL_MAX_RATE_V6 : FEEL_MAX_RATE)[level]]);
+  // 8 版：7 版のふつうを軽く（考える手の上限を 12 から 11 に。遊び比べで 7 版のふつうは 12.0、ニコリは 10.7）
+  const v8 = nikoli && version >= 8;
+  const rateRange = (level) => (v4 ? FEEL_RATE_V4[level] : [0, (v6 || v8 ? FEEL_MAX_RATE_V6 : FEEL_MAX_RATE)[level]]);
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
   // ニコリ風の入門・やさしいは数字が多めになるので、少しのあいだ作り直して数字のいちばん少ないものを選ぶ

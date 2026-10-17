@@ -688,7 +688,8 @@ function generateOne(rows, cols, difficulty, generator) {
     genWorker.onmessage = (ev) => { if (ev.data.id === id) done(ev.data); };
     genWorker.onerror = () => done({ ok: false, error: '作問中にエラーが起きました' });
     // ニコリ風の大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
-    const timeLimitMs = style === 'nikoli' ? Math.max(20000, rows * cols * 80) : 20000;
+    //   むずかしいはさらに時間がかかる（24×14 で 40〜55 秒かかることがある）ので、長めに待つ
+    const timeLimitMs = style === 'nikoli' ? Math.max(20000, rows * cols * (difficulty === 'hard' ? 180 : 80)) : 20000;
     genWorker.postMessage({ id, rows, cols, difficulty, style, version, withStats: true, timeLimitMs });
   });
 }
