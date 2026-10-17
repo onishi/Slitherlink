@@ -23,7 +23,7 @@ const COLS = [
   ['cells', '大きさ', (r) => r.size],
   ['level', 'むずかしさ', (r) => DIFFICULTIES[r.difficulty]?.label ?? '—', 'text'],
   ['kind', '作り方', (r) => kindLabel(r), 'text'],
-  ['nikoli', 'ニコリ風', (r) => (r.nikoli.ok === true ? '○' : r.nikoli.ok === false ? `× ${r.nikoli.failed.join('・')}` : '？'), 'text'],
+  ['nikoli', '教師データ', (r) => (r.nikoli.ok === true ? '○' : r.nikoli.ok === false ? `× ${r.nikoli.failed.join('・')}` : '？'), 'text'],
   ['clueDensity', '数字の割合', (r) => `${r.clueDensity.toFixed(0)}%`],
   ['loopPerCell', '線／マス', (r) => (r.loopPerCell == null ? '—' : (r.loopPerCell / 100).toFixed(2))],
   ['coverage', '行き渡り', (r) => pctOrDash(r.coverage)],
@@ -70,7 +70,7 @@ async function load() {
   render();
 }
 
-/** ニコリ風の条件に当てはまるか（点対称を見るのに、問題コードから数字の配置を読む）。 */
+/** 教師データの条件に当てはまるか（点対称を見るのに、問題コードから数字の配置を読む）。 */
 function nikoliOf(p) {
   let clues;
   try { clues = decodePuzzle(p.code).clues; } catch { clues = undefined; }

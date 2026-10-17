@@ -213,7 +213,7 @@ async function openCompare() {
   refillCompare();
 }
 
-/** ニコリ風の条件をすべて満たすか（点対称を見るのに、問題コードから数字の配置を読む）。 */
+/** 教師データの条件をすべて満たすか（点対称を見るのに、問題コードから数字の配置を読む）。 */
 function nikoliOk(p) {
   try {
     return nikoliCheck({ ...p, clues: decodePuzzle(p.code).clues }).ok === true;
@@ -222,7 +222,7 @@ function nikoliOk(p) {
   }
 }
 
-/** 何問のうち何問がニコリ風か。 */
+/** 何問のうち何問が教師データか。 */
 const nikoliShare = (rows) => {
   const n = rows.filter((p) => p.nikoliOk).length;
   return `${n} / ${rows.length}（${Math.round((100 * n) / rows.length)}%）`;
@@ -284,7 +284,7 @@ function renderBookCompare() {
   if (!data.byBook.length) { body.append(el('p', 'admin-empty', 'まだ問題がありません。')); return; }
   const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  for (const label of ['問題集', '大きさ', '出どころ', 'ニコリ風']) head.append(el('th', null, label));
+  for (const label of ['問題集', '大きさ', '出どころ', '教師データ']) head.append(el('th', null, label));
   for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
   table.append(head);
   for (const r of data.byBook) {
@@ -374,7 +374,7 @@ function kindLevelTable() {
 
 /**
  * 問題を groupOf(p) → [キー, 見出しの値, 並べる順] で組に分け、組ごとに目安を平均した表。
- * ニコリ風の割合も添える。
+ * 教師データの割合も添える。
  */
 function groupTable(heads, groupOf) {
   const groups = new Map();
@@ -389,7 +389,7 @@ function groupTable(heads, groupOf) {
   };
   const table = el('table', 'admin-compare-table');
   const head = el('tr');
-  for (const label of [...heads, 'ニコリ風']) head.append(el('th', null, label));
+  for (const label of [...heads, '教師データ']) head.append(el('th', null, label));
   for (const [, label] of COMPARE_COLS) head.append(el('th', null, label));
   table.append(head);
   for (const g of [...groups.values()].sort((a, b) => a.sort - b.sort)) {
@@ -685,7 +685,7 @@ let genPending = null; // いま待っている 1 問（止めたときに、待
 
 /** 作る問題ごとの難易度。「いろいろ」なら 5 段階を同じくらいずつ、やさしい順に並べる。 */
 function plannedLevels(choice, count) {
-  // ニコリ風の「いろいろ」は、ニコリの問題集にならって ふつうを多めに（入門 1：やさしい 1：ふつう 3：むずかしい 1）
+  // 教師データの「いろいろ」は、教師データの問題集にならって ふつうを多めに（入門 1：やさしい 1：ふつう 3：むずかしい 1）
   if (choice === 'nikoli-mix') {
     const weights = [['intro', 1], ['easy', 1], ['normal', 3], ['hard', 1]];
     const bag = weights.flatMap(([k, w]) => new Array(w).fill(k)); // やさしい順
@@ -704,7 +704,7 @@ function generateOne(rows, cols, difficulty, generator) {
     genPending = done;
     genWorker.onmessage = (ev) => { if (ev.data.id === id) done(ev.data); };
     genWorker.onerror = () => done({ ok: false, error: '作問中にエラーが起きました' });
-    // ニコリ風の大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
+    // 教師データの大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
     //   むずかしいはさらに時間がかかる（24×14 で 40〜55 秒かかることがある）ので、長めに待つ
     const timeLimitMs = style === 'nikoli' ? Math.max(20000, rows * cols * (difficulty === 'hard' ? 180 : 80)) : 20000;
     genWorker.postMessage({ id, rows, cols, difficulty, style, version, withStats: true, timeLimitMs });
@@ -742,7 +742,7 @@ async function generateBatch(rows, cols, count, choice, generator) {
       if (p.style === 'nikoli' && !p.styleOk) {
         missed += ['intro', 'easy'].includes(p.difficulty) && p.difficulty === item.level
           ? '（定石で解けるよう数字は多め）'
-          : '（ニコリ風の条件を満たすものは時間内に作れず）';
+          : '（教師データの条件を満たすものは時間内に作れず）';
       }
       item.message = `${p.rows}×${p.cols}・${DIFFICULTIES[p.difficulty]?.label ?? ''}・数字 ${p.clueCount}${missed}`;
       renderQueue();
@@ -767,7 +767,7 @@ function bindGenerate() {
   const kindSel = $('gen-kind');
   for (const id of Object.keys(GENERATORS).reverse()) kindSel.add(new Option(GENERATORS[id].label, id));
   kindSel.value = LATEST_GENERATOR;
-  // ニコリ風に鬼は無い（仮定が多すぎる）。「いろいろ」はニコリにならって ふつう多め
+  // 教師データに鬼は無い（仮定が多すぎる）。「いろいろ」は教師データにならって ふつう多め
   const syncLevels = () => {
     const on = GENERATORS[kindSel.value].options.style === 'nikoli';
     const sel = $('gen-difficulty');

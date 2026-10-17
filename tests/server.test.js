@@ -510,7 +510,7 @@ test('すでにある自動作問の問題には、名前から版を付ける�
   db.exec("INSERT INTO books (id, title, description, published, created_at, updated_at) VALUES (1, 'b', '', 0, 0, 0)");
   const add = db.prepare("INSERT INTO book_problems (book_id, position, code, rows, cols, clue_count, source, created_at, origin) VALUES (1, ?, ?, 5, 5, 9, ?, 0, ?)");
   add.run(1, 'a', 'ランダム 5×5（1 / 3）', 'generated');
-  add.run(2, 'b', 'ニコリ風 5×5（2 / 3）', 'generated');
+  add.run(2, 'b', '教師データ 5×5（2 / 3）', 'generated');
   add.run(3, 'c', 'p1.png', 'scan');
   db.exec(readFileSync(new URL('../migrations/0007_generator.sql', import.meta.url), 'utf8'));
   assert.deepEqual(db.prepare('SELECT generator FROM book_problems ORDER BY position').all().map((r) => r.generator), ['random-1', 'nikoli-1', null]);

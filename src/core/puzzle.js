@@ -55,7 +55,7 @@ function encodeLegacy(puzzle, d) {
   return `${puzzle.rows}x${puzzle.cols}:${d}:${body}`;
 }
 
-/** 扱える盤の大きさ（縦横どちらも）。ニコリの大きな盤（20×36）も入るように。 */
+/** 扱える盤の大きさ（縦横どちらも）。教師データの大きな盤（20×36）も入るように。 */
 export const MAX_SIZE = 50;
 
 function checkSize(rows, cols) {

@@ -77,7 +77,7 @@ test('同じ seed からは同じ問題ができる', () => {
   assert.deepEqual([...a.clues], [...b.clues]);
 });
 
-test('ニコリ風：輪を盤いっぱいにくねらせ、数字を点対称に削り、ニコリ風の条件を満たす', () => {
+test('教師データ：輪を盤いっぱいにくねらせ、数字を点対称に削り、教師データの条件を満たす', () => {
   const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', seed: 4242, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.equal(p.styleOk, true);
@@ -91,7 +91,7 @@ test('ニコリ風：輪を盤いっぱいにくねらせ、数字を点対称�
   assert.equal(countSolutions(g, p.clues, 2), 1);
 });
 
-test('ニコリ風の条件：外れたものと、分からないものを分けて返す', () => {
+test('教師データの条件：外れたものと、分からないものを分けて返す', () => {
   const base = { rows: 10, cols: 10, clueCount: 40, loopLength: 90, coverage: 90, largestGap: 1, patternShare: 99, assumeCount: 0 };
   assert.equal(nikoliCheck(base).ok, null); // 数字の配置が分からないので、点対称かは分からない
   const clues = new Int8Array(100).fill(-1);
@@ -115,7 +115,7 @@ test('stretchLoop：輪は 1 本のまま、マス数の 0.85 倍くらいまで
   }
 });
 
-test('ニコリ風の入門：少し先を読む手があり、空の行・列や数字のない 3×3 が無い', () => {
+test('教師データの入門：少し先を読む手があり、空の行・列や数字のない 3×3 が無い', () => {
   const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'nikoli', seed: 7000, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'intro');
   assert.ok(thinkMoves(p) >= 3, '考える手が少ない');
@@ -141,7 +141,7 @@ test('考える手：盤面を見ただけで解ける問題は 0、少し先を
   assert.ok(thinkMoves(normal) >= 1);
 });
 
-test('ニコリ風 v3：手触り（考える手の多さ・入り口・山場）と数字の内訳をニコリに寄せる', () => {
+test('教師データ v3：手触り（考える手の多さ・入り口・山場）と数字の内訳を教師データに寄せる', () => {
   const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 3, seed: 321, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
@@ -153,7 +153,7 @@ test('ニコリ風 v3：手触り（考える手の多さ・入り口・山場�
   assert.ok(h[3] > 0 && h[1] > 0);
 });
 
-test('作問ロジックの版：ニコリ風 v8 が最新で、版を省くと最新で作る', () => {
+test('作問ロジックの版：教師データ v8 が最新で、版を省くと最新で作る', () => {
   assert.equal(LATEST_GENERATOR, 'nikoli-8');
   assert.deepEqual(GENERATORS['nikoli-3'].options, { style: 'nikoli', version: 3 });
   assert.deepEqual(GENERATORS['nikoli-4'].options, { style: 'nikoli', version: 4 });
@@ -163,7 +163,7 @@ test('作問ロジックの版：ニコリ風 v8 が最新で、版を省くと�
   assert.deepEqual(GENERATORS['nikoli-8'].options, { style: 'nikoli', version: 8 });
 });
 
-test('ニコリ風 v5：0 を固めずに置く（まわり 2 歩以内にほかの 0 がある 0 を残さない）', () => {
+test('教師データ v5：0 を固めずに置く（まわり 2 歩以内にほかの 0 がある 0 を残さない）', () => {
   const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 5, seed: 321, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
@@ -181,14 +181,14 @@ test('ニコリ風 v5：0 を固めずに置く（まわり 2 歩以内にほか
   assert.equal(typeof p.workRun, 'number');
 });
 
-test('ニコリ風 v6：ふつうは考える手を 100 本あたり 11 回までにする', () => {
+test('教師データ v6：ふつうは考える手を 100 本あたり 11 回までにする', () => {
   const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 6, seed: 321, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   assert.ok(feelProfile(p).thinkRate <= 11 + 1e-9, `考える手 ${feelProfile(p).thinkRate}`);
 });
 
-test('ゲームの「作る」は入門〜ふつうがニコリ風 8 版。むずかしい・鬼はランダム', () => {
+test('ゲームの「作る」は入門〜ふつうが教師データ 8 版。むずかしい・鬼はランダム', () => {
   assert.deepEqual(gameGeneratorOptions(7, 7, 'normal'), { style: 'nikoli', version: 8 });
   assert.deepEqual(gameGeneratorOptions(5, 5, 'intro'), { style: 'nikoli', version: 8 });
   assert.deepEqual(gameGeneratorOptions(15, 15, 'hard'), {});
@@ -227,7 +227,7 @@ test('作業の続く区間：盤面を見ただけで × が続く手数を数�
   assert.equal(workRun(p, 2), Math.min(run, 2));
 });
 
-test('ニコリ風 v4：入門は考える手を軽めに（決まる辺 100 本あたり 8 回くらいまで）', () => {
+test('教師データ v4：入門は考える手を軽めに（決まる辺 100 本あたり 8 回くらいまで）', () => {
   const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'nikoli', version: 4, seed: 77, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'intro');
   assert.ok(isPointSymmetric(p.clues, 10, 10));

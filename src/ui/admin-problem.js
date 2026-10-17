@@ -76,7 +76,7 @@ function renderFacts(p) {
   facts($('facts'), items);
 }
 
-/** ニコリ風の条件を 1 つずつ、満たす・外れる・分からない で出す。 */
+/** 教師データの条件を 1 つずつ、満たす・外れる・分からない で出す。 */
 function renderNikoli(p) {
   const check = nikoliCheck({ ...p, clues: puzzle.clues });
   $('nikoli-verdict').textContent = check.ok === true ? '○ すべて満たす' : check.ok === false ? `× ${check.failed.length} つ外れ` : '？ まだ分からない目安あり';
