@@ -141,7 +141,7 @@ test('実際の問題では、となり合う 3-3 の境目が線として埋ま
 
 test('ルールを直接当てはめる定石が、正解と違う辺を埋めない', () => {
   const rules = PATTERNS.filter((p) => p.match && p.match !== 'loop');
-  assert.equal(rules.length, 11, 'ルール適用型の定石が 11 になっていない');
+  assert.equal(rules.length, 13, 'ルール適用型の定石が 13 になっていない');
   let filled = 0;
 
   for (const [rows, cols, difficulty] of [[5, 5, 'easy'], [7, 7, 'normal'], [10, 10, 'normal']]) {
