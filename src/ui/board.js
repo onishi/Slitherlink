@@ -39,7 +39,10 @@ export class Board {
     this.showCursor = false;
     this.showErrors = true;
     this.fadeDone = true;   // まわりの辺が全部決まり、線の数が数字と同じなら薄くする
-    this.fadeLines = true;  // 線の数が数字と同じになったら薄くする（× を付け終わっていなくても）
+    this.fadeLines = true;
+    // なぞって線を引く・長押しで × を使うか（設定の「なぞる・長押しで描く」）。
+    // 使わないときはタップだけで印を付け、指がずれても最初に触れた 1 辺だけ変わる。拡大中は 1 本指で盤面を動かす
+    this.gestures = true;  // 線の数が数字と同じになったら薄くする（× を付け終わっていなくても）
     this.inputMode = 'line'; // 'line' か 'cross'。タップで最初に付く印が変わる
     this.flipMode = false;   // ⌘ を押しているあいだは true（クリックの印を入れ替える）
     this.cursor = -1;
@@ -315,10 +318,12 @@ export class Board {
         secondary: ev.button === 2 || ev.ctrlKey,
         flip: ev.metaKey,
         // 拡大中に、辺から離れたところ（マスの真ん中）から動かしたら、なぞるのではなく盤面を動かす
-        panFrom: this.zoom.scale > 1 && this._inCellMiddle(ev.clientX, ev.clientY) ? { x: this.zoom.cx, y: this.zoom.cy } : null,
+        //   なぞる操作を使わないときは、拡大中はどこからでも盤面を動かす
+        panFrom: this.zoom.scale > 1 && (!this.gestures || this._inCellMiddle(ev.clientX, ev.clientY))
+          ? { x: this.zoom.cx, y: this.zoom.cy } : null,
       };
       // 長押し：動かさずに押し続けたら × を付け外しする（指・ペンだけ。マウスは右クリックで ×）
-      if (!g.secondary && ev.pointerType !== 'mouse') g.timer = setTimeout(() => this._longPress(g), LONG_PRESS_MS);
+      if (this.gestures && !g.secondary && ev.pointerType !== 'mouse') g.timer = setTimeout(() => this._longPress(g), LONG_PRESS_MS);
       this._gesture = g;
     });
 
@@ -336,7 +341,8 @@ export class Board {
       }
       if (g.id !== ev.pointerId) return;
       if (g.type === 'tap' && Math.hypot(ev.clientX - g.x, ev.clientY - g.y) > TAP_SLOP) {
-        if (g.panFrom) { clearTimeout(g.timer); g.type = 'pan'; } else this._startDraw(g);
+        if (g.panFrom) { clearTimeout(g.timer); g.type = 'pan'; } else if (this.gestures) this._startDraw(g);
+        else g.type = 'slide'; // なぞる操作を使わないときは、離したときに最初に触れた 1 辺だけ変える
       }
       if (g.type === 'pan') {
         const rect = this._drawnRect();
@@ -354,7 +360,7 @@ export class Board {
       if (g && g.id === ev.pointerId) {
         clearTimeout(g.timer);
         // ほとんど動かさなかった（なぞっても 1 辺も通らなかった）ときはタップとして扱う
-        const tapLike = g.type === 'tap' || (g.type === 'draw' && !g.painted.size && !g.moved);
+        const tapLike = g.type === 'tap' || g.type === 'slide' || (g.type === 'draw' && !g.painted.size && !g.moved);
         if (tapLike && ev.type === 'pointerup') this._tap(g);
         else if (g.type === 'draw' && g.painted.size) this.handlers.onStrokeEnd();
       }

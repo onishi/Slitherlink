@@ -48,6 +48,7 @@ const el = {
   errors: $('opt-errors'),
   fade: $('opt-fade'),
   fadeLines: $('opt-fade-lines'),
+  gestures: $('opt-gestures'),
   code: $('puzzle-code'),
   copy: $('btn-copy'),
   load: $('btn-load'),
@@ -140,6 +141,7 @@ function init() {
   el.errors.checked = prefs.errors === true;
   el.fade.checked = prefs.fade !== false;
   el.fadeLines.checked = prefs.fadeLines !== false;
+  el.gestures.checked = prefs.gestures !== false;
   if (prefs.theme) document.documentElement.dataset.theme = prefs.theme;
 
   board = new Board(el.board, {
@@ -163,6 +165,7 @@ function init() {
   });
   board.showErrors = el.errors.checked;
   applyFadeOptions();
+  board.gestures = el.gestures.checked;
   setInputMode(prefs.inputMode === 'cross' ? 'cross' : 'line');
 
   bindUI();
@@ -270,6 +273,10 @@ function bindUI() {
     board.showErrors = el.errors.checked;
     board.rendered.fill(-1);
     board.refresh();
+    savePrefs();
+  });
+  el.gestures.addEventListener('change', () => {
+    board.gestures = el.gestures.checked;
     savePrefs();
   });
   for (const box of [el.fade, el.fadeLines]) {
@@ -999,6 +1006,7 @@ function savePrefs() {
     errors: el.errors.checked,
     fade: el.fade.checked,
     fadeLines: el.fadeLines.checked,
+    gestures: el.gestures.checked,
     inputMode: board ? board.inputMode : 'line',
     drawer: isDrawerOpen(),
     patternsOnlyUsable,
