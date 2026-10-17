@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getGrid, isSingleLoop, cluesFromEdges, LINE } from '../src/core/grid.js';
 import { solveLogical, countSolutions } from '../src/core/solver.js';
-import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES, GENERATORS, LATEST_GENERATOR } from '../src/core/generator.js';
+import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES, GENERATORS, LATEST_GENERATOR, gameGeneratorOptions } from '../src/core/generator.js';
 import { difficultyReport, levelOf, problemStats } from '../src/core/difficulty-report.js';
 import { nikoliCheck, isPointSymmetric } from '../src/core/nikoli.js';
 import { thinkMoves, feelProfile, workRun } from '../src/core/feel.js';
@@ -153,8 +153,8 @@ test('ニコリ風 v3：手触り（考える手の多さ・入り口・山場�
   assert.ok(h[3] > 0 && h[1] > 0);
 });
 
-test('作問ロジックの版：ニコリ風 v3 が最新で、版を省くと最新で作る', () => {
-  assert.equal(LATEST_GENERATOR, 'nikoli-3');
+test('作問ロジックの版：ニコリ風 v7 が最新で、版を省くと最新で作る', () => {
+  assert.equal(LATEST_GENERATOR, 'nikoli-7');
   assert.deepEqual(GENERATORS['nikoli-3'].options, { style: 'nikoli', version: 3 });
   assert.deepEqual(GENERATORS['nikoli-4'].options, { style: 'nikoli', version: 4 });
   assert.deepEqual(GENERATORS['nikoli-5'].options, { style: 'nikoli', version: 5 });
@@ -185,6 +185,13 @@ test('ニコリ風 v6：ふつうは考える手を 100 本あたり 11 回ま�
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   assert.ok(feelProfile(p).thinkRate <= 11 + 1e-9, `考える手 ${feelProfile(p).thinkRate}`);
+});
+
+test('ゲームの「作る」は入門〜ふつうがニコリ風 7 版。むずかしい・鬼はランダム', () => {
+  assert.deepEqual(gameGeneratorOptions(7, 7, 'normal'), { style: 'nikoli', version: 7 });
+  assert.deepEqual(gameGeneratorOptions(5, 5, 'intro'), { style: 'nikoli', version: 7 });
+  assert.deepEqual(gameGeneratorOptions(15, 15, 'hard'), {});
+  assert.deepEqual(gameGeneratorOptions(10, 10, 'expert'), {});
 });
 
 test('輪を曲げる（7 版）：長さはそのまま、曲がる点が増える', () => {

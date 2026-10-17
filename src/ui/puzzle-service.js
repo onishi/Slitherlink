@@ -3,7 +3,7 @@
  * ワーカー 2 本 (要求用 / 先読み用) を使い、次の問題を裏で用意しておく。
  */
 
-import { generatePuzzle } from '../core/generator.js';
+import { generatePuzzle, gameGeneratorOptions } from '../core/generator.js';
 import { encodePuzzle } from '../core/puzzle.js';
 
 const WORKER_URL = new URL('../worker/generate-worker.js', import.meta.url);
@@ -77,12 +77,14 @@ export class PuzzleService {
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
     // 「鬼」は 2 段の読みが要るまで削るので時間がかかる。大きな盤では長めに待つ
     const timeLimitMs = difficulty === 'expert' ? 15000 + rows * cols * 150 : 12000;
+    // 作り方（ニコリ風 7 版。鬼と小さな盤のむずかしいはランダム）
+    const { style, version } = gameGeneratorOptions(rows, cols, difficulty);
     if (!worker) {
       // ワーカーが使えない環境ではその場で作る
       return new Promise((resolve, reject) => {
         setTimeout(() => {
           try {
-            const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs });
+            const p = generatePuzzle({ rows, cols, difficulty, seed, timeLimitMs, style, version });
             resolve(materialize({
               rows: p.rows, cols: p.cols, difficulty: p.difficulty,
               clues: Array.from(p.clues), solution: Array.from(p.solution),
@@ -95,7 +97,7 @@ export class PuzzleService {
     const id = ++this.seq;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      worker.postMessage({ id, rows, cols, difficulty, seed, timeLimitMs });
+      worker.postMessage({ id, rows, cols, difficulty, seed, timeLimitMs, style, version });
     });
   }
 }
