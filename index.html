@@ -113,12 +113,27 @@
       <!-- ゲストならログインのボタン、ログイン中なら名前とログアウト -->
       <div class="account-row" id="account-row"></div>
 
-      <button type="button" class="menu-row menu-nav report-row" data-go="report">
-        <span class="mi" aria-hidden="true">insights</span>
-        <span class="menu-row-text">この問題の難易度 <b id="report-summary"></b></span>
-        <span class="mi chev" aria-hidden="true">chevron_right</span>
-      </button>
+      <!-- いまの問題に関すること -->
+      <h3>この問題</h3>
+      <div class="menu-list">
+        <button type="button" class="menu-row menu-nav report-row" data-go="report">
+          <span class="mi" aria-hidden="true">insights</span>
+          <span class="menu-row-text">難易度 <b id="report-summary"></b></span>
+          <span class="mi chev" aria-hidden="true">chevron_right</span>
+        </button>
+        <button type="button" class="menu-row menu-nav" data-go="code">
+          <span class="mi" aria-hidden="true">qr_code_2</span><span class="menu-row-text">問題コード</span>
+          <span class="mi chev" aria-hidden="true">chevron_right</span>
+        </button>
+        <button type="button" class="menu-row" id="btn-save-current">
+          <span class="mi" aria-hidden="true">bookmark_add</span><span class="menu-row-text">問題リストに入れる</span>
+        </button>
+        <button type="button" class="menu-row danger" id="btn-clear">
+          <span class="mi" aria-hidden="true">delete</span><span class="menu-row-text">ぜんぶ消す</span>
+        </button>
+      </div>
 
+      <!-- 新しい問題を始める -->
       <h3>新しい問題</h3>
       <div class="new-row">
         <label class="field">
@@ -142,36 +157,35 @@
           </select>
         </label>
       </div>
-      <button type="button" class="primary wide" id="btn-new"><span class="mi" aria-hidden="true">add</span>この設定で新しい問題を作る</button>
+      <button type="button" class="primary wide" id="btn-new"><span class="mi" aria-hidden="true">add</span>作る</button>
       <div class="photo-row">
-        <label class="photo-btn"><span class="mi" aria-hidden="true">photo_camera</span><span>写真を撮って作る</span>
+        <label class="photo-btn"><span class="mi" aria-hidden="true">photo_camera</span><span>撮影して作る</span>
           <input type="file" accept="image/*" capture="environment" id="photo-camera" hidden></label>
         <label class="photo-btn"><span class="mi" aria-hidden="true">photo_library</span><span>写真から作る</span>
           <input type="file" accept="image/*" id="photo-pick" hidden></label>
       </div>
-
       <div class="menu-list">
         <button type="button" class="menu-row menu-nav" data-go="books">
-          <span class="mi" aria-hidden="true">menu_book</span><span class="menu-row-text">問題集 <small>順に解いて、解いた印を集める</small></span>
+          <span class="mi" aria-hidden="true">menu_book</span><span class="menu-row-text">問題集</span>
           <span class="mi chev" aria-hidden="true">chevron_right</span>
         </button>
         <button type="button" class="menu-row menu-nav" data-go="library">
           <span class="mi" aria-hidden="true">bookmarks</span><span class="menu-row-text">問題リスト <small id="library-count"></small></span>
           <span class="mi chev" aria-hidden="true">chevron_right</span>
         </button>
+      </div>
+
+      <!-- そのほか -->
+      <h3>そのほか</h3>
+      <div class="menu-list">
         <button type="button" class="menu-row menu-nav" data-go="history">
-          <span class="mi" aria-hidden="true">history</span><span class="menu-row-text">解いた履歴 <small>時間・ヒントの回数</small></span>
-          <span class="mi chev" aria-hidden="true">chevron_right</span>
-        </button>
-        <button type="button" class="menu-row menu-nav" data-go="code">
-          <span class="mi" aria-hidden="true">qr_code_2</span><span class="menu-row-text">問題コード <small>共有・読み込み</small></span>
+          <span class="mi" aria-hidden="true">history</span><span class="menu-row-text">解いた履歴</span>
           <span class="mi chev" aria-hidden="true">chevron_right</span>
         </button>
         <button type="button" class="menu-row menu-nav" data-go="settings">
-          <span class="mi" aria-hidden="true">tune</span><span class="menu-row-text">設定 <small>入力・表示・テーマ</small></span>
+          <span class="mi" aria-hidden="true">tune</span><span class="menu-row-text">設定</span>
           <span class="mi chev" aria-hidden="true">chevron_right</span>
         </button>
-        <button type="button" class="menu-row danger" id="btn-clear"><span class="mi" aria-hidden="true">delete</span><span class="menu-row-text">書き込みをぜんぶ消す <small>「もどす」で戻せます</small></span></button>
       </div>
 
       <button type="button" class="close-btn" id="btn-close-menu">とじる</button>
@@ -181,7 +195,7 @@
     <section class="menu-view" data-view="report" hidden>
       <div class="menu-sub-head">
         <button type="button" class="icon-btn" data-back aria-label="メニューにもどる"><span class="mi" aria-hidden="true">arrow_back</span></button>
-        <h2>この問題の難易度</h2>
+        <h2>難易度</h2>
         <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
       </div>
       <div class="puzzle-report" id="puzzle-report" aria-live="polite"></div>
@@ -216,7 +230,6 @@
         <h2>問題リスト</h2>
         <button type="button" class="icon-btn menu-x" data-close aria-label="メニューをとじる"><span class="mi" aria-hidden="true">close</span></button>
       </div>
-      <button type="button" class="menu-row" id="btn-save-current"><span class="mi" aria-hidden="true">bookmark_add</span>いまの問題をリストに入れる</button>
       <ul class="library" id="library-list"></ul>
     </section>
 
@@ -242,7 +255,7 @@
         <button type="button" class="with-icon" id="btn-copy"><span class="mi" aria-hidden="true">content_copy</span><span>コピー</span></button>
         <button type="button" class="with-icon" id="btn-load"><span class="mi" aria-hidden="true">file_open</span><span>読み込む</span></button>
       </div>
-      <p class="hint-text">同じコードからいつでも同じ問題を開けます。人に送れば同じ問題で遊べます。ほかの人のコードを貼りつけて「読み込む」と、その問題を開きます。</p>
+      <p class="hint-text">コードを送ると、同じ問題で遊べます。</p>
     </section>
 
     <!-- 設定 -->

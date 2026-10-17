@@ -568,7 +568,7 @@ function renderAccount() {
   } else {
     const text = document.createElement('p');
     text.className = 'account-guest';
-    text.textContent = 'ゲストで遊んでいます。ログインすると、問題リストと解いた履歴が使え、途中の盤面もどの端末からでも続けられます。';
+    text.textContent = 'ログインすると、問題集・問題リスト・解いた履歴が使え、どの端末でも続きから遊べます。';
     const btn = document.createElement('div');
     btn.className = 'account-google';
     row.append(text, btn);
@@ -698,6 +698,8 @@ function setupPhotoImport() {
   });
   el.saveCurrent.addEventListener('click', () => {
     if (!game.puzzle) return;
+    // メニューを閉じて、盤面の下に「問題リストに入れました」と出す
+    closeMenu();
     saveToLibrary(game.puzzle, 'saved');
     renderLibrary();
   });
