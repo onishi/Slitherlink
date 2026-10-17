@@ -208,13 +208,6 @@ export class BookShelf {
     }
   }
 
-  /** いま遊んでいる問題集の問題の説明（「とことん01　3 / 99」）。問題集で遊んでいなければ null。 */
-  label() {
-    if (!this.current) return null;
-    const { book, problems, index } = this.current;
-    return `${book.title}　${problems[index].position} / ${problems.length}`;
-  }
-
   /** いま遊んでいる問題集の名前と、何番か（{ title, position, count }）。問題集で遊んでいなければ null。 */
   where() {
     if (!this.current) return null;

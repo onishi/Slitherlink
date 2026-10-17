@@ -204,7 +204,7 @@ async function openBookFromUrl(bookId, position) {
     const problem = await shelf().enter(bookId, position);
     const saved = store.game();
     if (!(saved?.code && samePuzzle(saved.code, problem.code) && restoreSaved())) tryLoadCode(problem.code, false);
-    else say(shelfInstance.label() ?? '');
+    else say('');
   } catch (err) {
     if (!game.puzzle && !restoreSaved()) newPuzzle();
     if (err.status === 401) requireLogin('問題集の問題を遊ぶには、ログインしてください', () => openBookFromUrl(bookId, position));
@@ -1146,7 +1146,8 @@ function tryLoadCode(code, fromUrl) {
       code: encodePuzzle(decoded),
       clueCount: countClues(decoded.clues),
     });
-    say(fromUrl ? '' : (shelfInstance?.label() ?? '問題を読み込みました'));
+    // 問題集の問題なら、問題集の名前と番号は上の帯に出ているので、下には何も出さない
+    say(fromUrl || shelfInstance?.where() ? '' : '問題を読み込みました');
     prefetchCurrent();
     return true;
   } catch (err) {
