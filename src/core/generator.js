@@ -69,9 +69,19 @@ export const GENERATORS = {
   'nikoli-6': { label: 'ニコリ風 v6', options: { style: 'nikoli', version: 6 } },
   'nikoli-7': { label: 'ニコリ風 v7', options: { style: 'nikoli', version: 7 } },
 };
-// 最初に選ばれる作り方。4 版は入門・やさしいを軽くできるが、遊び比べでは作業の続く区間が延び、
-// 全体としては 3 版のほうがニコリに近かったので、3 版のままにしておく
-export const LATEST_GENERATOR = 'nikoli-3';
+// 最初に選ばれる作り方（管理画面の「ランダムに作る」と、ゲームの「作る」）。7 版は遊び比べで、数字・入り口・作業の続く区間・
+// 山場の位置のどれも 5 版よりニコリに近かった
+export const LATEST_GENERATOR = 'nikoli-7';
+
+/**
+ * ゲームの「作る」で使う作り方の options。入門・やさしい・ふつうは最初に選ばれる作り方（ニコリ風）で作る。
+ * むずかしい・鬼はランダム v1：ニコリ風に鬼は無く、むずかしいは小さな盤ではニコリ風の条件で作れないことが多く、
+ * 大きな盤でもブラウザでは時間内に作れないことがある。
+ */
+export function gameGeneratorOptions(rows, cols, difficulty) {
+  if (difficulty === 'expert' || difficulty === 'hard') return GENERATORS['random-1'].options;
+  return GENERATORS[LATEST_GENERATOR].options;
+}
 
 /** ニコリ（とことん01）の数字の内訳：0, 1, 2, 3 の割合。3 版はこれに寄せて削る。 */
 const CLUE_MIX = [0.13, 0.26, 0.29, 0.32];
@@ -227,7 +237,7 @@ export function generatePuzzle(options = {}) {
   const deadline = options.deadline ?? (Date.now() + (options.timeLimitMs ?? 20000));
   const nikoli = options.style === 'nikoli';
   // ニコリ風 2 版の工夫（数字をむらなく・3 を残す・入門にも考える手）。1 版はそれ無しで作る
-  const version = options.version ?? 3; // 省くと、最初に選ばれる作り方（LATEST_GENERATOR）と同じ版
+  const version = options.version ?? 7; // 省くと、最初に選ばれる作り方（LATEST_GENERATOR）と同じ版
   const v2 = nikoli && version >= 2;
   // 3 版：数字の内訳をニコリに寄せ、手触り（考える手の多さ・入り口・山場）を合わせる
   const v3 = nikoli && version >= 3;
