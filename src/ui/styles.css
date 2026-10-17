@@ -314,6 +314,28 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 }
 .zoom-ctl .icon-btn:disabled { opacity: .35; }
 #board.zoomed { cursor: grab; }
+
+/* ---------- 集中モード：盤面だけを画面いっぱいに（拡大・縮小と、やめるボタンだけ残す） ---------- */
+body.focus-mode { overflow: hidden; }
+body.focus-mode .app,
+body.focus-mode .app:not(.doc) {
+  position: fixed;
+  inset: 0;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: var(--bg);
+}
+body.focus-mode .app > :not(.board-area) { display: none !important; }
+body.focus-mode .app > .board-area { flex: 1; min-height: 0; width: 100%; height: auto; position: static; align-items: stretch; }
+body.focus-mode .board-wrap { height: 100%; padding: 6px; border-radius: 10px; align-items: center; }
+body.focus-mode #board,
+body.focus-mode .app:not(.doc) #board { width: 100%; height: 100%; max-width: none !important; max-height: none; }
+body.focus-mode .drawer-scrim, body.focus-mode #patterns-drawer { display: none !important; }
 /* ⌘ を押しているあいだは、クリックで付く印の形にする */
 #board.pointer-line { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M4 14h20' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M4 14h20' stroke='%231d3b34' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, crosshair; }
 #board.pointer-cross { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Cpath d='M7 7l14 14M21 7L7 21' stroke='%23fff' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M7 7l14 14M21 7L7 21' stroke='%236d6659' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, crosshair; }

@@ -86,6 +86,8 @@ const el = {
   zoomIn: $('zoom-in'),
   zoomOut: $('zoom-out'),
   zoomFit: $('zoom-fit'),
+  focusBtn: $('btn-focus'),
+  focusExit: $('focus-exit'),
   patPanel: $('pat-panel'),
   patTrack: $('pat-track'),
   patPos: $('pat-pos'),
@@ -299,6 +301,12 @@ function bindUI() {
   el.zoomIn.addEventListener('click', () => board.zoomBy(1.5));
   el.zoomOut.addEventListener('click', () => board.zoomBy(1 / 1.5));
   el.zoomFit.addEventListener('click', () => board.resetZoom());
+  el.focusBtn.addEventListener('click', enterFocus);
+  el.focusExit.addEventListener('click', exitFocus);
+  // ブラウザの全画面を（Esc などで）やめたら、集中モードもやめる
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && isFocus()) exitFocus();
+  });
   // 盤面のほうを触りたいだけのときもあるので、開いたままでも遊べるようにしておく
   el.rulesPatternsBtn.addEventListener('click', () => {
     hidePanel(el.rulesModal, true);
@@ -380,7 +388,8 @@ function bindUI() {
         if (menuView !== 'main') showMenuView('main'); else closeMenu();
         return;
       }
-      hideOverlay();
+      if (!el.overlay.hidden) { hideOverlay(); return; }
+      if (isFocus()) { exitFocus(); return; }
     }
     const mod = ev.ctrlKey || ev.metaKey;
     if (mod && (ev.key === 'z' || ev.key === 'Z')) {
@@ -389,6 +398,8 @@ function bindUI() {
     } else if (mod && (ev.key === 'y' || ev.key === 'Y')) {
       ev.preventDefault();
       redo();
+    } else if (isFocus() && !mod && /^[hHpP]$/.test(ev.key)) {
+      // 集中モードではヒントと定石の欄を出さない
     } else if (!mod && !isTyping(ev.target) && (ev.key === 'h' || ev.key === 'H')) {
       ev.preventDefault();
       toggleHint();
@@ -907,7 +918,12 @@ function revealPatternCard(item) {
 
 /** 拡大・縮小のボタンを、いまの倍率に合わせる。拡大できない小さな盤では出さない。 */
 function updateZoomControls(scale, max) {
-  el.zoomCtl.hidden = max <= 1;
+  // 集中モードでは「やめる」があるので、拡大できない盤でも出す（拡大・縮小のボタンだけ隠す）
+  const focus = isFocus();
+  el.zoomCtl.hidden = max <= 1 && !focus;
+  el.zoomIn.hidden = max <= 1;
+  el.zoomOut.hidden = max <= 1;
+  el.focusExit.hidden = !focus;
   el.zoomIn.disabled = scale >= max;
   el.zoomOut.disabled = scale <= 1;
   el.zoomFit.hidden = scale <= 1;
@@ -1500,6 +1516,40 @@ function fitScreen() {
   fitHint();
 }
 
+/* ---------- 集中モード：盤面だけを画面いっぱいに（拡大・縮小と、やめるボタンだけ） ---------- */
+
+const isFocus = () => document.body.classList.contains('focus-mode');
+
+function enterFocus() {
+  if (isFocus()) return;
+  // 盤面の上に重なるもの（ヒント・定石・定石の一覧）は閉じる
+  hideHint();
+  board.clearHints();
+  hidePatterns();
+  if (isDrawerOpen()) closeDrawer();
+  document.body.classList.add('focus-mode');
+  // 使えるならブラウザの全画面にもする（iPhone の Safari などは使えないので、画面の中だけで広げる）
+  document.documentElement.requestFullscreen?.({ navigationUI: 'hide' })?.catch?.(() => {});
+  afterLayoutChange();
+  el.board.focus({ preventScroll: true });
+}
+
+function exitFocus() {
+  if (!isFocus()) return;
+  document.body.classList.remove('focus-mode');
+  if (document.fullscreenElement) document.exitFullscreen?.()?.catch?.(() => {});
+  afterLayoutChange();
+}
+
+/** 画面の作りが変わったら、盤の大きさと拡大のボタンを合わせ直す。 */
+function afterLayoutChange() {
+  requestAnimationFrame(() => {
+    fitScreen();
+    board.resetZoom();
+    updateZoomControls(board.zoom.scale, board.maxScale());
+  });
+}
+
 /**
  * 縦 1 列の画面で下の欄まで入りきらないときは、はみ出す分だけ盤面を小さくして、ページを送らずに済むようにする。
  * 盤面は縦横の比を保ったまま幅を絞って縮める（高さだけ絞ると、触った位置と線がずれる）。
@@ -1507,6 +1557,7 @@ function fitScreen() {
 function fitBoard() {
   const svg = el.board;
   svg.style.maxWidth = '';
+  if (isFocus()) return; // 集中モードは盤面だけなので、画面いっぱいに広げる（CSS）
   if (getComputedStyle(svg.closest('.app')).display !== 'flex') return; // 横に並ぶ画面は別の決め方
   const hint = el.hintPanel;
   if (!hint.hidden) {
