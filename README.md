@@ -461,7 +461,7 @@ Cloudflare D1（データベース名 `gridloop`、スキーマは `migrations/`
 
 ```sh
 npm test           # 単体テスト（約 1 秒）
-npm run verify     # 実際に作問して論理的可解性と解の一意性を検査
+npm run verify     # 実際に作問して論理的可解性と解の一意性を検査（種は固定。--random で毎回ちがう種）
 ```
 
 ## 「必ず論理的に解ける」の担保
