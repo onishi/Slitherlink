@@ -1554,6 +1554,7 @@ body.no-anim .app { transition: none !important; }
 .admin-queue-text, .admin-problem-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .admin-queue-text b, .admin-problem-text b { font-size: .86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .admin-queue-text small, .admin-problem-text small { font-size: .76rem; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-queue-text small.admin-meta, .admin-problem-text small.admin-meta { color: var(--ink-soft); }
 .admin-queue-item.is-warn small { color: var(--ink-soft); white-space: normal; }
 .admin-ok { font-size: .74rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 999px; }
 .admin-link { display: inline-flex; align-items: center; gap: 2px; font-size: .8rem; color: var(--accent); text-decoration: none; }
@@ -1624,7 +1625,7 @@ a.admin-compare-btn:hover { background: var(--accent-soft); }
 .admin-detail-info h3 ~ h3 { margin-top: 16px; }
 .admin-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: .86rem; }
 .admin-facts dt { color: var(--ink-soft); }
-.admin-facts dd { margin: 0; overflow-wrap: anywhere; }
+.admin-facts dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
 .admin-facts dd small { display: block; color: var(--ink-faint); font-size: .74rem; }
 .admin-detail-report { margin-top: 18px; }
 .admin-guide { margin: 6px 0 10px; font-size: .84rem; }

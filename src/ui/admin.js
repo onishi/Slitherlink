@@ -4,6 +4,7 @@
  * 取り込みは 1 枚（PDF なら 1 ページ）に 1 問。写真から作るときと同じ仕組みで、盤の四隅とマス数を見つけて
  * 数字を読み、論理だけで解けるかを裏のワーカーで確かめる。うまくいかなかったものは「直す」で、
  * 写真から作るときと同じ画面を開いて手で直せる。解けたものだけを問題集に足す。
+ * 盤のまわりに書いてある文字（問題番号や題など）も読んで、問題のメタデータとして一緒に残す。
  */
 
 import { $, el, icon, api, startAdmin, checker, metricGuide, kindOf, kindLabel, KIND_LABEL, LEVEL_ORDER } from './admin-common.js';
@@ -15,6 +16,7 @@ import { decodePuzzle } from '../core/puzzle.js';
 import { nikoliCheck } from '../core/nikoli.js';
 import { unzip } from './zip.js';
 import { pdfPages } from './pdf-pages.js';
+import { readPageText } from './page-text.js';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|avif|heic)$/i;
 
@@ -93,6 +95,7 @@ function renderProblems() {
     text.append(
       el('b', null, `${p.position}. ${p.rows}×${p.cols} ${DIFFICULTIES[p.difficulty]?.label ?? ''}`),
       el('small', null, `${kindLabel(p)}・数字 ${p.clueCount}${p.source ? `・${p.source}` : ''}`),
+      ...(p.meta ? [el('small', 'admin-meta', p.meta)] : []),
       statsLine(p.stats),
     );
     const play = el('a', 'admin-link');
@@ -441,8 +444,8 @@ async function addFiles(fileList) {
     try {
       if (/\.pdf$/i.test(name) || file.type === 'application/pdf') {
         setStatus(`${name} を開いています…`);
-        for await (const { page, total, blob } of pdfPages(await file.arrayBuffer(), (n, t) => setStatus(`${name} を画像にしています（${n} / ${t} ページ）…`))) {
-          enqueue(blob, total > 1 ? `${name} p.${page}` : name);
+        for await (const { page, total, blob, text } of pdfPages(await file.arrayBuffer(), (n, t) => setStatus(`${name} を画像にしています（${n} / ${t} ページ）…`))) {
+          enqueue(blob, total > 1 ? `${name} p.${page}` : name, text);
         }
       } else if (/\.zip$/i.test(name) || /zip/.test(file.type)) {
         setStatus(`${name} を開いています…`);
@@ -469,8 +472,8 @@ function mimeOf(name) {
   return { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', avif: 'image/avif' }[ext] ?? 'application/octet-stream';
 }
 
-function enqueue(blob, name) {
-  queue.push({ id: ++queueSeq, name, blob, state: 'waiting', message: '待っています', result: null, thumb: null });
+function enqueue(blob, name, pdfText = null) {
+  queue.push({ id: ++queueSeq, name, blob, pdfText, state: 'waiting', message: '待っています', result: null, thumb: null, meta: '' });
   renderQueue();
 }
 
@@ -513,11 +516,24 @@ async function readItem(item) {
     }
     const { clues } = readClues(photo, guess.corners, guess.rows, guess.cols);
     item.thumb = rectify(photo, guess.corners, guess.rows, guess.cols, 12).toDataURL('image/jpeg', 0.8);
+    item.message = '盤のまわりの文字を読んでいます…';
+    renderQueue();
+    item.meta = await readMeta(item, { ...guess, width: photo.width, height: photo.height });
     const r = await checker(guess.rows, guess.cols, clues);
     applyCheck(item, guess.rows, guess.cols, r);
   } catch (err) {
     item.state = 'error';
     item.message = err.message || '読み込めませんでした';
+  }
+}
+
+/** 盤のまわりの文字を読む。読めなくても取り込みは止めない。 */
+async function readMeta(item, board) {
+  try {
+    return await readPageText(item.blob, board, item.pdfText);
+  } catch (err) {
+    console.warn('盤のまわりの文字を読めませんでした', err);
+    return '';
   }
 }
 
@@ -565,6 +581,7 @@ function renderQueue() {
     }
     const text = el('span', 'admin-queue-text');
     text.append(el('b', null, item.name), el('small', null, item.message));
+    if (item.meta) text.append(el('small', 'admin-meta', item.meta));
     li.append(thumb, text);
     if (item.state === 'ok') li.append(el('span', 'admin-ok', '解けます'));
     if (item.blob && (item.state === 'ok' || item.state === 'warn')) {
@@ -648,7 +665,7 @@ async function addSolved() {
   try {
     const res = await api(`/api/admin/books/${current.book.id}/problems`, {
       method: 'POST',
-      body: { problems: ready.map((q) => ({ ...q.result, source: q.name, origin: q.generated ? 'generated' : 'scan' })) },
+      body: { problems: ready.map((q) => ({ ...q.result, source: q.name, origin: q.generated ? 'generated' : 'scan', meta: q.meta || undefined })) },
     });
     queue = queue.filter((q) => q.state !== 'ok');
     renderQueue();

@@ -399,6 +399,8 @@ function isAdmin(user, env) {
 }
 
 const MAX_BOOK_PROBLEMS = 1000;
+/** 取り込んだ問題の、盤のまわりの文字（meta）の長さの上限。 */
+const MAX_META = 1000;
 const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 function bookRow(r) {
@@ -448,7 +450,7 @@ async function admin(request, db, url) {
       problems: results.map((p) => ({
         id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols,
         difficulty: p.difficulty, clueCount: p.clue_count, source: p.source, createdAt: p.created_at,
-        origin: p.origin, generator: p.generator,
+        origin: p.origin, generator: p.generator, meta: p.meta,
         // 目安がそろっていないもの（行き渡り率・最大の空き地を足す前に入れた問題など）は、管理画面で計算し直して埋める
         stats: p.pattern_share == null || p.coverage == null || p.largest_gap == null ? null : {
           loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
@@ -502,11 +504,11 @@ async function admin(request, db, url) {
       pos += 1;
       statements.push(db.prepare(
         `INSERT INTO book_problems (book_id, position, code, rows, cols, difficulty, clue_count, source, created_at,
-           loop_length, pattern_share, free_share, assume_count, longest_steps, coverage, largest_gap, origin, generator)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
+           loop_length, pattern_share, free_share, assume_count, longest_steps, coverage, largest_gap, origin, generator, meta)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (book_id, code) DO NOTHING`,
       ).bind(id, pos, e.code, e.rows, e.cols, e.difficulty, e.clueCount, text(raw.source, 200) || null, now,
         st.loopLength, st.patternShare, st.freeShare, st.assumeCount, st.longestSteps, st.coverage, st.largestGap, cleanOrigin(raw.origin),
-        cleanOrigin(raw.origin) === 'generated' ? cleanGenerator(raw.generator) : null));
+        cleanOrigin(raw.origin) === 'generated' ? cleanGenerator(raw.generator) : null, text(raw.meta, MAX_META) || null));
     }
     statements.push(db.prepare('UPDATE books SET updated_at = ? WHERE id = ?').bind(now, id));
     await db.batch(statements);
@@ -593,7 +595,7 @@ async function compareOrigins(db) {
 const listedProblem = (p) => ({
   id: p.id, bookId: p.book_id, bookTitle: p.book_title, position: p.position, code: p.code,
   rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clue_count, origin: p.origin, source: p.source,
-  generator: p.generator,
+  generator: p.generator, meta: p.meta,
   loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
   assumeCount: p.assume_count, longestSteps: p.longest_steps, coverage: p.coverage, largestGap: p.largest_gap,
   createdAt: p.created_at,

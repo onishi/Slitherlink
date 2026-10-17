@@ -70,6 +70,7 @@ function renderFacts(p) {
     ['作り方', kindLabel(p)],
   ];
   if (p.source) items.push([p.origin === 'generated' ? '作ったとき' : '取り込んだもの', p.source]);
+  if (p.meta) items.push(['盤のまわりの文字', p.meta]);
   if (p.createdAt) items.push(['登録', new Date(p.createdAt).toLocaleString('ja-JP')]);
   items.push(['問題コード', p.code]);
   facts($('facts'), items);

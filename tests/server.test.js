@@ -8,7 +8,7 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql', '0007_generator.sql', '0008_patterns.sql']
+const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql', '0007_generator.sql', '0008_patterns.sql', '0009_problem_meta.sql']
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
@@ -246,7 +246,7 @@ test('問題集を作り、問題をまとめて足し、並べ替え・外し�
   const add = await call(`/api/admin/books/${id}/problems`, {
     method: 'POST', cookie, body: { problems: [
       { code: '5nAAA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, source: 'a.png' },
-      { code: '5eBBB', rows: 5, cols: 5, difficulty: 'easy', clueCount: 11, source: 'b.pdf p.2' },
+      { code: '5eBBB', rows: 5, cols: 5, difficulty: 'easy', clueCount: 11, source: 'b.pdf p.2', meta: '第 2 問\n作者 : 山田' },
       { code: '5nAAA', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9 },
     ] },
   });
@@ -258,6 +258,8 @@ test('問題集を作り、問題をまとめて足し、並べ替え・外し�
   let detail = (await call(`/api/admin/books/${id}`, { cookie })).data;
   assert.deepEqual(detail.problems.map((p) => [p.position, p.code]), [[1, '5nAAA'], [2, '5eBBB'], [3, '7hCCC']]);
   assert.equal(detail.problems[1].source, 'b.pdf p.2');
+  assert.equal(detail.problems[1].meta, '第 2 問\n作者 : 山田');
+  assert.equal(detail.problems[0].meta, null);
 
   // 3 番目を上へ
   await call(`/api/admin/books/${id}/problems/${detail.problems[2].id}`, { method: 'PATCH', cookie, body: { move: 'up' } });
