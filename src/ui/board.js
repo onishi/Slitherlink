@@ -7,7 +7,9 @@ import { getGrid, UNKNOWN, LINE, CROSS } from '../core/grid.js';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const PAD = 0.62;          // 盤面まわりの余白 (マス単位)
 const PICK_RADIUS = 0.46;  // これより遠いクリックは無視する
-const TAP_SLOP = 8;        // これ以上（px）指が動いたら、タップではなく移動とみなす
+const TAP_SLOP = 8;        // これ以上（px）指が動いたら、タップではなく「なぞる」とみなす
+const VERTEX_RADIUS = 0.36; // なぞっているとき、点（交点）にこれより近づいたら、その点を通ったとみなす（マス単位）
+const LONG_PRESS_MS = 450;  // 指を動かさずにこれだけ押し続けたら「長押し」（× を付け外し）
 
 export class Board {
   /**
@@ -276,9 +278,13 @@ export class Board {
     // 窓の外で ⌘ を離した・押したときも、盤面に戻ったところで合わせる
     svg.addEventListener('pointermove', (ev) => { if (ev.pointerType === 'mouse') setFlip(ev.metaKey); });
 
-    // 指 1 本で触って、ほとんど動かさずに離したら「タップ」として印を付ける。
-    // 動かしたら（拡大中なら）盤面を動かす。指 2 本ならピンチで拡大・縮小する。
-    // 印は指を離したときに付けるので、ピンチや移動のつもりが印になってしまうことはない。
+    // 指 1 本の操作：
+    //   タップ（ほとんど動かさずに離す）… モードどおりに印を切り替える（線 → × → 空白 など）
+    //   なぞる … 点から点へなぞった辺に、モードによらず線を引く。なぞり始めの辺が線なら、なぞった線を消す。
+    //            いくつもの辺を続けてなぞれる。右クリック（Ctrl+クリック）でなぞると × を付ける・消す
+    //   長押し … その辺に × を付ける（× なら消す）
+    // 指 2 本はピンチ。拡大・縮小しながら、指のまん中に合わせて盤面を動かす（拡大中の移動も 2 本指で）。
+    // タップの印は指を離したときに付けるので、ピンチのつもりが印になってしまうことはない。
     svg.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0 && ev.button !== 2) return;
       ev.preventDefault();
@@ -288,6 +294,8 @@ export class Board {
       svg.setPointerCapture(ev.pointerId);
       this._pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       if (this._pointers.size === 2) {
+        // なぞっている途中で 2 本目の指が触れたら、そこまでのなぞりは確定してピンチに移る
+        this._endGesture();
         const [p, q] = [...this._pointers.values()];
         this._gesture = {
           type: 'pinch',
@@ -298,15 +306,17 @@ export class Board {
         return;
       }
       if (this._pointers.size > 2) return;
-      this._gesture = {
+      const g = {
         type: 'tap',
         id: ev.pointerId,
         x: ev.clientX,
         y: ev.clientY,
         secondary: ev.button === 2 || ev.ctrlKey,
         flip: ev.metaKey,
-        center: { x: this.zoom.cx, y: this.zoom.cy },
       };
+      // 長押し：動かさずに押し続けたら × を付け外しする（指・ペンだけ。マウスは右クリックで ×）
+      if (!g.secondary && ev.pointerType !== 'mouse') g.timer = setTimeout(() => this._longPress(g), LONG_PRESS_MS);
+      this._gesture = g;
     });
 
     svg.addEventListener('pointermove', (ev) => {
@@ -322,14 +332,8 @@ export class Board {
         return;
       }
       if (g.id !== ev.pointerId) return;
-      const dx = ev.clientX - g.x;
-      const dy = ev.clientY - g.y;
-      if (g.type === 'tap' && Math.hypot(dx, dy) > TAP_SLOP) g.type = this.zoom.scale > 1 ? 'pan' : 'slide';
-      if (g.type === 'pan') {
-        const rect = this._drawnRect();
-        const unit = svg.viewBox.baseVal.width / (rect.width || 1);
-        this.setZoom(this.zoom.scale, g.center.x - dx * unit, g.center.y - dy * unit);
-      }
+      if (g.type === 'tap' && Math.hypot(ev.clientX - g.x, ev.clientY - g.y) > TAP_SLOP) this._startDraw(g);
+      if (g.type === 'draw') this._drawTo(g, ev.clientX, ev.clientY);
     });
 
     const end = (ev) => {
@@ -337,9 +341,13 @@ export class Board {
       const g = this._gesture;
       this._pointers.delete(ev.pointerId);
       if (svg.hasPointerCapture?.(ev.pointerId)) svg.releasePointerCapture(ev.pointerId);
-      // 拡大していないときになぞった場合は、最初に触れた 1 辺だけに印を付ける（これまでどおり）
-      const tapLike = g && (g.type === 'tap' || g.type === 'slide');
-      if (tapLike && g.id === ev.pointerId && ev.type === 'pointerup') this._tap(g);
+      if (g && g.id === ev.pointerId) {
+        clearTimeout(g.timer);
+        // ほとんど動かさなかった（なぞっても 1 辺も通らなかった）ときはタップとして扱う
+        const tapLike = g.type === 'tap' || (g.type === 'draw' && !g.painted.size && !g.moved);
+        if (tapLike && ev.type === 'pointerup') this._tap(g);
+        else if (g.type === 'draw' && g.painted.size) this.handlers.onStrokeEnd();
+      }
       // ピンチのあとに残った指を離しても、タップにはしない
       this._gesture = this._pointers.size === 0 ? null : { type: 'done' };
     };
@@ -365,6 +373,93 @@ export class Board {
       this.showCursor = false;
       this._drawCursor();
     });
+  }
+
+  /** いまの 1 本指の操作を終える（長押しの待ちをやめ、なぞった分を確定する）。 */
+  _endGesture() {
+    const g = this._gesture;
+    if (!g) return;
+    clearTimeout(g.timer);
+    if (g.type === 'draw' && g.painted.size) this.handlers.onStrokeEnd();
+    g.type = 'done';
+  }
+
+  /** 長押し：その辺に × を付ける（× なら消す）。 */
+  _longPress(g) {
+    if (this._gesture !== g || g.type !== 'tap') return;
+    const e = this._pickAt(g.x, g.y);
+    if (e < 0) return;
+    g.type = 'done'; // 指を離してもタップにしない
+    this.cursor = e;
+    this.showCursor = false;
+    this._drawCursor();
+    this.handlers.onPaint(e, this.state[e] === CROSS ? UNKNOWN : CROSS);
+    this.handlers.onStrokeEnd();
+    navigator.vibrate?.(15); // 付いたことが指で分かるように（使える端末だけ）
+  }
+
+  /** なぞり始め：触れた場所にいちばん近い点から始める。 */
+  _startDraw(g) {
+    clearTimeout(g.timer);
+    const p = this._toBoard(g.x, g.y);
+    g.type = 'draw';
+    g.vertex = this._nearestVertex(p.x, p.y);
+    g.last = p;
+    g.painted = new Set();
+    g.erase = null; // なぞり始めの辺で決める：その辺に印があれば「消す」、無ければ「付ける」
+    g.moved = false;
+  }
+
+  /** なぞって (clientX, clientY) まで来た。途中も細かくたどり、通った点と点の間の辺に印を付ける。 */
+  _drawTo(g, clientX, clientY) {
+    const p = this._toBoard(clientX, clientY);
+    const steps = Math.max(1, Math.ceil(Math.hypot(p.x - g.last.x, p.y - g.last.y) / 0.15));
+    for (let i = 1; i <= steps; i++) {
+      const x = g.last.x + ((p.x - g.last.x) * i) / steps;
+      const y = g.last.y + ((p.y - g.last.y) * i) / steps;
+      const v = this._nearestVertex(x, y);
+      if (Math.hypot(x - v.c, y - v.r) > VERTEX_RADIUS) continue;
+      if (v.c === g.vertex.c && v.r === g.vertex.r) continue;
+      // 隣の点（上下左右）へ進んだときだけ、その間の辺に印を付ける（斜めに切った分は数えない）
+      if (Math.abs(v.c - g.vertex.c) + Math.abs(v.r - g.vertex.r) === 1) this._drawEdge(g, this._edgeBetween(g.vertex, v));
+      g.vertex = v;
+      g.moved = true;
+    }
+    g.last = p;
+  }
+
+  /**
+   * なぞって通った 1 辺に印を付ける。ふつうは線（なぞり始めが線なら、線を消す）。
+   * 右クリック（Ctrl+クリック）でなぞったときは ×（なぞり始めが × なら、× を消す）。
+   */
+  _drawEdge(g, e) {
+    if (e < 0 || g.painted.has(e)) return;
+    const mark = g.secondary ? CROSS : LINE;
+    const cur = this.state[e];
+    if (g.erase === null) g.erase = cur === mark;
+    g.painted.add(e);
+    let value;
+    if (g.erase) value = cur === mark ? UNKNOWN : cur;
+    else if (g.secondary) value = cur === UNKNOWN ? CROSS : cur; // × は、空いている辺にだけ付ける
+    else value = LINE; // 線は、× の辺にも引く（× を線に置きかえる）
+    if (value !== cur) this.handlers.onPaint(e, value);
+  }
+
+  /** 盤面の座標にいちばん近い点（交点）。盤の外なら端の点。 */
+  _nearestVertex(x, y) {
+    const g = this.grid;
+    return {
+      c: Math.max(0, Math.min(g.cols, Math.round(x))),
+      r: Math.max(0, Math.min(g.rows, Math.round(y))),
+    };
+  }
+
+  /** 隣りあう 2 点のあいだの辺。 */
+  _edgeBetween(a, b) {
+    const g = this.grid;
+    if (a.r === b.r) return g.h(a.r, Math.min(a.c, b.c));
+    if (a.c === b.c) return g.v(Math.min(a.r, b.r), a.c);
+    return -1;
   }
 
   /** タップした場所の辺に印を付ける（右クリック・Ctrl+クリックは主役でない方の印）。 */
