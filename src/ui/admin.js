@@ -13,7 +13,7 @@ import { PhotoImport } from './photo-import.js';
 import { DIFFICULTIES, GENERATORS, LATEST_GENERATOR } from '../core/generator.js';
 import { problemStats } from '../core/difficulty-report.js';
 import { decodePuzzle } from '../core/puzzle.js';
-import { nikoliCheck } from '../core/nikoli.js';
+import { teacherCheck } from '../core/teacher.js';
 import { unzip } from './zip.js';
 import { pdfPages } from './pdf-pages.js';
 import { readPageText } from './page-text.js';
@@ -214,17 +214,17 @@ async function openCompare() {
 }
 
 /** 教師データの条件をすべて満たすか（点対称を見るのに、問題コードから数字の配置を読む）。 */
-function nikoliOk(p) {
+function teacherOk(p) {
   try {
-    return nikoliCheck({ ...p, clues: decodePuzzle(p.code).clues }).ok === true;
+    return teacherCheck({ ...p, clues: decodePuzzle(p.code).clues }).ok === true;
   } catch {
     return false;
   }
 }
 
 /** 何問のうち何問が教師データか。 */
-const nikoliShare = (rows) => {
-  const n = rows.filter((p) => p.nikoliOk).length;
+const teacherShare = (rows) => {
+  const n = rows.filter((p) => p.teacherOk).length;
   return `${n} / ${rows.length}（${Math.round((100 * n) / rows.length)}%）`;
 };
 
@@ -236,7 +236,7 @@ async function loadCompare() {
     size: `${p.rows}×${p.cols}`,
     clueDensity: (100 * p.clueCount) / (p.rows * p.cols),
     loopPerCell: p.loopLength == null ? null : (100 * p.loopLength) / (p.rows * p.cols),
-    nikoliOk: nikoliOk(p),
+    teacherOk: teacherOk(p),
   }));
   renderBookCompare();
 }
@@ -297,7 +297,7 @@ function renderBookCompare() {
     if (r.scans) parts.push(`スキャン ${r.scans}`);
     if (r.generated) parts.push(`自動 ${r.generated}`);
     tr.append(el('td', null, parts.join('・') || '—'));
-    tr.append(el('td', null, nikoliShare(allRows.filter((p) => p.bookId === r.bookId))));
+    tr.append(el('td', null, teacherShare(allRows.filter((p) => p.bookId === r.bookId))));
     for (const [key, , fmt] of COMPARE_COLS) tr.append(el('td', null, r[key] == null ? '—' : fmt(r[key])));
     table.append(tr);
   }
@@ -395,7 +395,7 @@ function groupTable(heads, groupOf) {
   for (const g of [...groups.values()].sort((a, b) => a.sort - b.sort)) {
     const tr = el('tr');
     g.labels.forEach((v, i) => tr.append(el('td', i === 0 ? 'admin-compare-origin' : null, v)));
-    tr.append(el('td', null, nikoliShare(g.rows)));
+    tr.append(el('td', null, teacherShare(g.rows)));
     for (const [key, , fmt] of COMPARE_COLS) {
       const v = key === 'count' ? g.rows.length : avg(g.rows, key);
       tr.append(el('td', null, v == null ? '—' : fmt(v)));
@@ -686,7 +686,7 @@ let genPending = null; // いま待っている 1 問（止めたときに、待
 /** 作る問題ごとの難易度。「いろいろ」なら 5 段階を同じくらいずつ、やさしい順に並べる。 */
 function plannedLevels(choice, count) {
   // 教師データの「いろいろ」は、教師データの問題集にならって ふつうを多めに（入門 1：やさしい 1：ふつう 3：むずかしい 1）
-  if (choice === 'nikoli-mix') {
+  if (choice === 'teacher-mix') {
     const weights = [['intro', 1], ['easy', 1], ['normal', 3], ['hard', 1]];
     const bag = weights.flatMap(([k, w]) => new Array(w).fill(k)); // やさしい順
     return Array.from({ length: count }, (_, i) => bag[Math.floor((i * bag.length) / count)]);
@@ -706,7 +706,7 @@ function generateOne(rows, cols, difficulty, generator) {
     genWorker.onerror = () => done({ ok: false, error: '作問中にエラーが起きました' });
     // 教師データの大きな盤は時間がかかる（36×20 で 30 秒ほど）ので、盤の大きさに合わせて待つ
     //   むずかしいはさらに時間がかかる（24×14 で 40〜55 秒かかることがある）ので、長めに待つ
-    const timeLimitMs = style === 'nikoli' ? Math.max(20000, rows * cols * (difficulty === 'hard' ? 180 : 80)) : 20000;
+    const timeLimitMs = style === 'teacher' ? Math.max(20000, rows * cols * (difficulty === 'hard' ? 180 : 80)) : 20000;
     genWorker.postMessage({ id, rows, cols, difficulty, style, version, withStats: true, timeLimitMs });
   });
 }
@@ -739,7 +739,7 @@ async function generateBatch(rows, cols, count, choice, generator) {
       item.state = 'ok';
       item.result = { code: p.code, rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clueCount, stats: p.stats ?? null, generator };
       let missed = p.difficulty !== item.level ? `（「${DIFFICULTIES[item.level].label}」は時間内に作れず）` : '';
-      if (p.style === 'nikoli' && !p.styleOk) {
+      if (p.style === 'teacher' && !p.styleOk) {
         missed += ['intro', 'easy'].includes(p.difficulty) && p.difficulty === item.level
           ? '（定石で解けるよう数字は多め）'
           : '（教師データの条件を満たすものは時間内に作れず）';
@@ -769,14 +769,14 @@ function bindGenerate() {
   kindSel.value = LATEST_GENERATOR;
   // 教師データに鬼は無い（仮定が多すぎる）。「いろいろ」は教師データにならって ふつう多め
   const syncLevels = () => {
-    const on = GENERATORS[kindSel.value].options.style === 'nikoli';
+    const on = GENERATORS[kindSel.value].options.style === 'teacher';
     const sel = $('gen-difficulty');
     for (const o of sel.options) {
-      const allowed = on ? o.value !== 'mix' && o.value !== 'expert' : o.value !== 'nikoli-mix';
+      const allowed = on ? o.value !== 'mix' && o.value !== 'expert' : o.value !== 'teacher-mix';
       o.hidden = !allowed;
       o.disabled = !allowed;
     }
-    if (sel.selectedOptions[0]?.disabled || (on && sel.value === 'mix') || (!on && sel.value === 'nikoli-mix')) sel.value = on ? 'nikoli-mix' : 'mix';
+    if (sel.selectedOptions[0]?.disabled || (on && sel.value === 'mix') || (!on && sel.value === 'teacher-mix')) sel.value = on ? 'teacher-mix' : 'mix';
   };
   kindSel.addEventListener('change', syncLevels);
   syncLevels();

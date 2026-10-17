@@ -19,7 +19,7 @@ export function isPointSymmetric(clues, rows, cols) {
  * info は { rows, cols, clues?, clueCount, loopLength, coverage, largestGap, patternShare, assumeCount }。
  * 値が分からない（null）ときは「分からない」として扱う（満たすとも満たさないとも言わない）。
  */
-export const NIKOLI_RULES = [
+export const TEACHER_RULES = [
   ['symmetric', '点対称', (p) => (p.clues ? isPointSymmetric(p.clues, p.rows, p.cols) : null), '数字の配置が点対称'],
   ['clues', '数字', (p) => (100 * p.clueCount) / (p.rows * p.cols) < 50, '数字の割合 50% 未満'],
   ['loop', '線', (p) => (p.loopLength == null ? null : p.loopLength / (p.rows * p.cols) >= 0.8), '線／マス 0.80 以上'],
@@ -34,8 +34,8 @@ export const NIKOLI_RULES = [
  * @returns {{ok: boolean|null, results: {key:string, label:string, about:string, pass:boolean|null}[], failed: string[]}}
  *   ok は全部満たせば true、どれか外れれば false、外れは無いが分からないものがあれば null。
  */
-export function nikoliCheck(info) {
-  const results = NIKOLI_RULES.map(([key, label, test, about]) => ({ key, label, about, pass: test(info) }));
+export function teacherCheck(info) {
+  const results = TEACHER_RULES.map(([key, label, test, about]) => ({ key, label, about, pass: test(info) }));
   const failed = results.filter((r) => r.pass === false).map((r) => r.label);
   const ok = failed.length ? false : results.some((r) => r.pass == null) ? null : true;
   return { ok, results, failed };

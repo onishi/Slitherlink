@@ -1629,12 +1629,12 @@ a.admin-compare-btn:hover { background: var(--accent-soft); }
 .admin-facts dd small { display: block; color: var(--ink-faint); font-size: .74rem; }
 .admin-detail-report { margin-top: 18px; }
 .admin-guide { margin: 6px 0 10px; font-size: .84rem; }
-.admin-nikoli { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: .84rem; }
-.admin-nikoli li { display: flex; gap: 6px; }
-.admin-nikoli .admin-nikoli-mark { width: 1.2em; text-align: center; font-weight: 700; }
-.admin-nikoli .is-ok .admin-nikoli-mark { color: var(--accent); }
-.admin-nikoli .is-ng { color: var(--danger); }
-.admin-nikoli .is-unknown { color: var(--ink-faint); }
+.admin-teacher { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: .84rem; }
+.admin-teacher li { display: flex; gap: 6px; }
+.admin-teacher .admin-teacher-mark { width: 1.2em; text-align: center; font-weight: 700; }
+.admin-teacher .is-ok .admin-teacher-mark { color: var(--accent); }
+.admin-teacher .is-ng { color: var(--danger); }
+.admin-teacher .is-unknown { color: var(--ink-faint); }
 .admin-detail-info h3 small { font-weight: 400; color: var(--ink-soft); margin-left: 6px; }
 .admin-guide summary { cursor: pointer; color: var(--accent); width: max-content; }
 .admin-guide .admin-facts { margin-top: 8px; padding: 10px 12px; background: var(--surface-2); border-radius: 8px; font-size: .82rem; }

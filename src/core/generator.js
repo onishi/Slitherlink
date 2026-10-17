@@ -13,7 +13,7 @@ import { getGrid, boundaryEdges, isSingleLoop, cluesFromEdges, LINE } from './gr
 import { solveLogical } from './solver.js';
 import { solveWithProofs } from './proof.js';
 import { difficultyReport, levelOf, LEVELS, problemStats } from './difficulty-report.js';
-import { nikoliCheck } from './nikoli.js';
+import { teacherCheck } from './teacher.js';
 import { thinkMoves, feelProfile, workRun } from './feel.js';
 
 /** xorshift32 による決定的な乱数生成器。 */
@@ -43,38 +43,38 @@ export const DIFFICULTIES = {
  * 作問のやり方の版。問題集に入れる問題には、どの版で作ったかを残す（あとで版どうしをくらべるため）。
  * 版を変えるときは、古い版もそのまま作れるように残し、ここに足す。
  *   random-1  最初の作り方。ランダムな輪から、数字をランダムな順に削る
- *   nikoli-1  教師データの初版。輪を盤いっぱいにくねらせ、数字を点対称の組で削り、教師データの条件で合格を決める
- *   nikoli-2  教師データの 2 版。数字をむらなく置く（密なところ・1 や 0 から削る、空の行・列や数字のない 3×3 を作らない、
+ *   teacher-1  教師データの初版。輪を盤いっぱいにくねらせ、数字を点対称の組で削り、教師データの条件で合格を決める
+ *   teacher-2  教師データの 2 版。数字をむらなく置く（密なところ・1 や 0 から削る、空の行・列や数字のない 3×3 を作らない、
  *             詰まった行・列を間引く）。入門・やさしいも少し先を読む深さまで削り、考える手が 3 回以上あるものだけにする
- *   nikoli-3  教師データの 3 版。2 版に加えて、数字の内訳（0／1／2／3）を教師データに寄せ、考える手が多すぎれば
+ *   teacher-3  教師データの 3 版。2 版に加えて、数字の内訳（0／1／2／3）を教師データに寄せ、考える手が多すぎれば
  *             難易度を保って数字を戻し（入り口が広く、息つける区間ができる）、山場が後半にある問題を選ぶ
- *   nikoli-4  教師データの 4 版。3 版に加えて、考える手の多さの目安をむずかしさごとに教師データに合わせ（入門・やさしいを軽く）、
+ *   teacher-4  教師データの 4 版。3 版に加えて、考える手の多さの目安をむずかしさごとに教師データに合わせ（入門・やさしいを軽く）、
  *             数字を戻すときは考えさせられた場所の近くから戻す（少ない数字で手触りを作る）
- *   nikoli-5  教師データの 5 版。3 版を元に（4 版の工夫は使わない）、0 を固めずに離して置き（固まった 0 は × を付けるだけの
+ *   teacher-5  教師データの 5 版。3 版を元に（4 版の工夫は使わない）、0 を固めずに離して置き（固まった 0 は × を付けるだけの
  *             作業が続く。教師データの 0 は 8 割がまわり 2 歩以内にほかの 0 が無い）、数字を戻すときは 3・2 から戻し、
  *             候補を選ぶときに作業の続く区間の長さも見る
- *   nikoli-6  教師データの 6 版。5 版に加えて、数字を戻すときは考えさせられた場所の近くの 3・2 から戻し（4 版と 5 版の
+ *   teacher-6  教師データの 6 版。5 版に加えて、数字を戻すときは考えさせられた場所の近くの 3・2 から戻し（4 版と 5 版の
  *             戻し方を合わせる。少ない数字で考える手を減らせる）、ふつうの考える手の上限を 12 から 11 に下げる
- *   nikoli-7  教師データの 7 版。5 版を元に（6 版の工夫は使わない）、輪を曲がりの多い形にし（輪を伸ばすとき、曲がる点を
+ *   teacher-7  教師データの 7 版。5 版を元に（6 版の工夫は使わない）、輪を曲がりの多い形にし（輪を伸ばすとき、曲がる点を
  *             減らす変更はしない。教師データの輪は曲がりが多く、少ない数字で決まる）、削る順で隣り合う 2 と 2 を先に削り、
  *             0 と 3 の隣り合いと、ぽつんとした数字は残す
- *   nikoli-8  教師データの 8 版。7 版のふつうを軽く（考える手の上限を 12 から 11 に。遊び比べで 7 版のふつうは
+ *   teacher-8  教師データの 8 版。7 版のふつうを軽く（考える手の上限を 12 から 11 に。遊び比べで 7 版のふつうは
  *             教師データより考える手が多かった。数字は 1.5 ポイントほど増える）
  */
 export const GENERATORS = {
   'random-1': { label: 'ランダム v1', options: {} },
-  'nikoli-1': { label: '教師データ v1', options: { style: 'nikoli', version: 1 } },
-  'nikoli-2': { label: '教師データ v2', options: { style: 'nikoli', version: 2 } },
-  'nikoli-3': { label: '教師データ v3', options: { style: 'nikoli', version: 3 } },
-  'nikoli-4': { label: '教師データ v4', options: { style: 'nikoli', version: 4 } },
-  'nikoli-5': { label: '教師データ v5', options: { style: 'nikoli', version: 5 } },
-  'nikoli-6': { label: '教師データ v6', options: { style: 'nikoli', version: 6 } },
-  'nikoli-7': { label: '教師データ v7', options: { style: 'nikoli', version: 7 } },
-  'nikoli-8': { label: '教師データ v8', options: { style: 'nikoli', version: 8 } },
+  'teacher-1': { label: '教師データ v1', options: { style: 'teacher', version: 1 } },
+  'teacher-2': { label: '教師データ v2', options: { style: 'teacher', version: 2 } },
+  'teacher-3': { label: '教師データ v3', options: { style: 'teacher', version: 3 } },
+  'teacher-4': { label: '教師データ v4', options: { style: 'teacher', version: 4 } },
+  'teacher-5': { label: '教師データ v5', options: { style: 'teacher', version: 5 } },
+  'teacher-6': { label: '教師データ v6', options: { style: 'teacher', version: 6 } },
+  'teacher-7': { label: '教師データ v7', options: { style: 'teacher', version: 7 } },
+  'teacher-8': { label: '教師データ v8', options: { style: 'teacher', version: 8 } },
 };
 // 最初に選ばれる作り方（管理画面の「ランダムに作る」と、ゲームの「作る」）。7 版は遊び比べで、数字・入り口・作業の続く区間・
 // 山場の位置のどれも 5 版より教師データに近かった。8 版はそのふつうを軽くして、考える手の多さも教師データ並みにした
-export const LATEST_GENERATOR = 'nikoli-8';
+export const LATEST_GENERATOR = 'teacher-8';
 
 /**
  * ゲームの「作る」で使う作り方の options。入門・やさしい・ふつうは最初に選ばれる作り方（教師データ）で作る。
@@ -224,8 +224,8 @@ function validRegion(grid, inside) {
  * @param {number} options.rows
  * @param {number} options.cols
  * @param {'intro'|'easy'|'normal'|'hard'|'expert'} [options.difficulty]
- * @param {'nikoli'} [options.style] 'nikoli' なら、輪を盤いっぱいにくねらせ、数字を点対称の組で削り、
- *   教師データの条件（src/core/nikoli.js）を満たすものだけを合格にする。入門・やさしいだけは数字の割合を問わない
+ * @param {'teacher'} [options.style] 'teacher' なら、輪を盤いっぱいにくねらせ、数字を点対称の組で削り、
+ *   教師データの条件（src/core/teacher.js）を満たすものだけを合格にする。入門・やさしいだけは数字の割合を問わない
  * @param {number} [options.version] 教師データの版（1 か 2。省略すると最新）。GENERATORS を参照
  * @param {number} [options.seed]
  * @returns {{rows:number, cols:number, difficulty:string, clues:Int8Array, solution:Int8Array, seed:number, clueCount:number}}
@@ -238,27 +238,27 @@ export function generatePuzzle(options = {}) {
   const rank = LEVELS.indexOf(target);
   const seed = options.seed ?? (Math.floor(Math.random() * 0xffffffff) >>> 0);
   const deadline = options.deadline ?? (Date.now() + (options.timeLimitMs ?? 20000));
-  const nikoli = options.style === 'nikoli';
+  const teacher = options.style === 'teacher';
   // 教師データ 2 版の工夫（数字をむらなく・3 を残す・入門にも考える手）。1 版はそれ無しで作る
   const version = options.version ?? 8; // 省くと、最初に選ばれる作り方（LATEST_GENERATOR）と同じ版
-  const v2 = nikoli && version >= 2;
+  const v2 = teacher && version >= 2;
   // 3 版：数字の内訳を教師データに寄せ、手触り（考える手の多さ・入り口・山場）を合わせる
-  const v3 = nikoli && version >= 3;
+  const v3 = teacher && version >= 3;
   // 4 版：むずかしさごとの手触りの目安と、考えさせられた場所の近くから数字を戻す（5 版は使わない）
-  const v4 = nikoli && version === 4;
+  const v4 = teacher && version === 4;
   // 5 版：0 を離して置き、3・2 から数字を戻し、作業の続く区間も見て候補を選ぶ
-  const v5 = nikoli && version >= 5;
+  const v5 = teacher && version >= 5;
   // 6 版：考えさせられた場所の近くの 3・2 から数字を戻し（少ない数字で軽くする）、ふつうの考える手の上限を少し下げる
-  const v6 = nikoli && version === 6; // 7 版は 6 版の工夫を使わない（遊び比べで 5 版より良くなかった）
+  const v6 = teacher && version === 6; // 7 版は 6 版の工夫を使わない（遊び比べで 5 版より良くなかった）
   // 7 版：5 版を元に、輪を曲がりの多い形にし、数字を少なく済む並べ方に寄せる
-  const v7 = nikoli && version >= 7;
+  const v7 = teacher && version >= 7;
   // 8 版：7 版のふつうを軽く（考える手の上限を 12 から 11 に。遊び比べで 7 版のふつうは 12.0、教師データは 10.7）
-  const v8 = nikoli && version >= 8;
+  const v8 = teacher && version >= 8;
   const rateRange = (level) => (v4 ? FEEL_RATE_V4[level] : [0, (v6 || v8 ? FEEL_MAX_RATE_V6 : FEEL_MAX_RATE)[level]]);
   let best = null; // 時間切れのときに返す、狙いにいちばん近いもの
   let bestScore = Infinity;
   // 教師データの入門・やさしいは数字が多めになるので、少しのあいだ作り直して数字のいちばん少ないものを選ぶ
-  const relaxClues = nikoli && rank < LEVELS.indexOf('normal');
+  const relaxClues = teacher && rank < LEVELS.indexOf('normal');
   // 入門・やさしい（数字が多め）や 3 版の手触りは、少しのあいだ作り直して、いちばん良いものを選ぶ
   //   5 版は作業の続く区間を測る分、長めに選ぶ
   const softMs = v5 ? Math.max(5000, rows * cols * 40) : v3 ? Math.max(3000, rows * cols * 25) : Math.max(2000, rows * cols * 15);
@@ -270,15 +270,15 @@ export function generatePuzzle(options = {}) {
     const rng = makeRng(attemptSeed);
     let loop = randomLoop(rows, cols, rng);
     if (!loop) continue;
-    if (nikoli) loop = stretchLoop(loop, rng, { bend: v7 });
+    if (teacher) loop = stretchLoop(loop, rng, { bend: v7 });
     const { grid, edges } = loop;
 
     const solution = new Int8Array(grid.edgeCount);
     for (let e = 0; e < grid.edgeCount; e++) solution[e] = edges[e] === 1 ? 1 : 2;
     // 教師データは、輪の形（線の長さ・行き渡り・最大の空き地）が条件に合わなければ数字を削る前に作り直す
-    if (nikoli) {
+    if (teacher) {
       const shape = problemStats({ decided: { plain: 0, search: 0 }, total: 1, beforeAssume: 1, assumeCount: 0, longest: 0 }, solution, { rows, cols });
-      const check = nikoliCheck({ rows, cols, clueCount: 0, ...shape, patternShare: null, assumeCount: null });
+      const check = teacherCheck({ rows, cols, clueCount: 0, ...shape, patternShare: null, assumeCount: null });
       if (check.ok === false) continue;
     }
 
@@ -298,7 +298,7 @@ export function generatePuzzle(options = {}) {
     const n = grid.cellCount;
     const cutDepth = v2 ? Math.max(conf.depth, 1) : conf.depth;
     // 教師データは盤が大きいことが多いので、まず安い推論（深さ 0）で削れるだけ削ってから深くする
-    for (let depth = nikoli ? 0 : Math.min(conf.depth, 1); depth <= cutDepth; depth++) {
+    for (let depth = teacher ? 0 : Math.min(conf.depth, 1); depth <= cutDepth; depth++) {
       const deep = depth >= 2;
       // 教師データは、数字が密なところ・1 や 0 から先に削る（数字をむらなく置き、3 を残しやすくする）
       // 3 版は数字の内訳を見ながら削るので、何組か試すごとに削る順を作り直す
@@ -313,8 +313,8 @@ export function generatePuzzle(options = {}) {
         if (v3 && used >= refreshEvery) break;
         tried.add(cell);
         used++;
-        if (nikoli && cell > n - 1 - cell) continue; // 組は小さい方のマスで 1 回だけ
-        const group = nikoli && cell !== n - 1 - cell ? [cell, n - 1 - cell] : [cell];
+        if (teacher && cell > n - 1 - cell) continue; // 組は小さい方のマスで 1 回だけ
+        const group = teacher && cell !== n - 1 - cell ? [cell, n - 1 - cell] : [cell];
         if (clues[group[0]] < 0) continue;
         // 教師データは、空の行・列や数字のない 3×3 ができる削り方はしない
         if (v2 && leavesHole(grid, clues, group)) continue;
@@ -353,7 +353,7 @@ export function generatePuzzle(options = {}) {
     }
     let finalClues = k === removedOrder.length ? clues : withRemoved(k);
     // 教師データ：戻したあとも、狙いの難易度を超えない組はもう一度削ってみる（数字を少なくする）
-    if (nikoli && k < removedOrder.length) {
+    if (teacher && k < removedOrder.length) {
       finalClues = Int8Array.from(finalClues);
       for (let i = k + 1; i < removedOrder.length; i++) {
         if (Date.now() > deadline) break;
@@ -395,13 +395,13 @@ export function generatePuzzle(options = {}) {
     //    入門・やさしいは定石だけで解けるよう数字を多めに残すので、「数字 50% 未満」だけは合格の条件から外す
     //    （点対称と輪の形は守る）。styleOk はゆるめずに、全部満たしたかを正直に返す
     let missed = 0;
-    if (nikoli) {
+    if (teacher) {
       const st = problemStats(difficultyReport({ rows, cols, clues: finalClues, solution }), solution, { rows, cols });
-      const failed = nikoliCheck({ rows, cols, clues: finalClues, clueCount, ...st }).failed;
+      const failed = teacherCheck({ rows, cols, clues: finalClues, clueCount, ...st }).failed;
       missed = failed.filter((f) => !(f === '数字' && rank < LEVELS.indexOf('normal'))).length;
       // 入門・やさしいでも、少し先を読む手が 3 回はある問題にする（作業だけで終わらないように）
       if (v2 && rank < LEVELS.indexOf('normal') && thinkMoves({ rows, cols, clues: finalClues, solution }, 3) < 3) missed++;
-      puzzle.style = 'nikoli';
+      puzzle.style = 'teacher';
       puzzle.styleOk = failed.length === 0;
     }
     // 3 版は手触り（考える手の多さ・入り口・山場）も見る。合わなければ少しのあいだ作り直して、近いものを選ぶ

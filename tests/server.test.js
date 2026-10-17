@@ -494,14 +494,14 @@ test('自動作問の問題に、作問ロジックの版を持つ', async () =>
   const { cookie } = await loginAs({ sub: 'admin-1' });
   const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: '版' } })).data.book.id;
   await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
-    { code: '5nV1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'nikoli-2' },
+    { code: '5nV1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'teacher-2' },
     { code: '5nV2', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'whatever' },
     { code: '5nV3', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'scan', generator: 'random-1' },
   ] } });
   const { problems } = (await call(`/api/admin/books/${id}`, { cookie })).data;
-  assert.deepEqual(problems.map((p) => p.generator), ['nikoli-2', null, null]);
+  assert.deepEqual(problems.map((p) => p.generator), ['teacher-2', null, null]);
   const all = (await call('/api/admin/problems', { cookie })).data.problems.filter((p) => p.bookId === id);
-  assert.equal(all[0].generator, 'nikoli-2');
+  assert.equal(all[0].generator, 'teacher-2');
 });
 
 test('すでにある自動作問の問題には、名前から版を付ける（0007）', () => {
@@ -513,5 +513,19 @@ test('すでにある自動作問の問題には、名前から版を付ける�
   add.run(2, 'b', '教師データ 5×5（2 / 3）', 'generated');
   add.run(3, 'c', 'p1.png', 'scan');
   db.exec(readFileSync(new URL('../migrations/0007_generator.sql', import.meta.url), 'utf8'));
-  assert.deepEqual(db.prepare('SELECT generator FROM book_problems ORDER BY position').all().map((r) => r.generator), ['random-1', 'nikoli-1', null]);
+  assert.deepEqual(db.prepare('SELECT generator FROM book_problems ORDER BY position').all().map((r) => r.generator), ['random-1', 'teacher-1', null]);
+});
+
+test('id の名前を変える前に保存した教師データの版も、版の番号から読み直して返す', async () => {
+  const { cookie } = await loginAs({ sub: 'admin-1' });
+  const id = (await call('/api/admin/books', { method: 'POST', cookie, body: { title: '旧い id' } })).data.book.id;
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie, body: { problems: [
+    { code: '5nOLD', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'teacher-8' },
+    { code: '5nRND', rows: 5, cols: 5, difficulty: 'normal', clueCount: 9, origin: 'generated', generator: 'random-1' },
+  ] } });
+  env.DB.raw.prepare("UPDATE book_problems SET generator = 'old-5' WHERE code = '5nOLD'").run();
+  const { problems } = (await call(`/api/admin/books/${id}`, { cookie })).data;
+  assert.deepEqual(problems.map((p) => p.generator), ['teacher-5', 'random-1']);
+  const one = (await call(`/api/admin/problems/${problems[0].id}`, { cookie })).data.problem;
+  assert.equal(one.generator, 'teacher-5');
 });

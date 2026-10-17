@@ -450,7 +450,7 @@ async function admin(request, db, url) {
       problems: results.map((p) => ({
         id: p.id, position: p.position, code: p.code, rows: p.rows, cols: p.cols,
         difficulty: p.difficulty, clueCount: p.clue_count, source: p.source, createdAt: p.created_at,
-        origin: p.origin, generator: p.generator, meta: p.meta,
+        origin: p.origin, generator: storedGenerator(p.generator), meta: p.meta,
         // 目安がそろっていないもの（行き渡り率・最大の空き地を足す前に入れた問題など）は、管理画面で計算し直して埋める
         stats: p.pattern_share == null || p.coverage == null || p.largest_gap == null ? null : {
           loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
@@ -595,7 +595,7 @@ async function compareOrigins(db) {
 const listedProblem = (p) => ({
   id: p.id, bookId: p.book_id, bookTitle: p.book_title, position: p.position, code: p.code,
   rows: p.rows, cols: p.cols, difficulty: p.difficulty, clueCount: p.clue_count, origin: p.origin, source: p.source,
-  generator: p.generator, meta: p.meta,
+  generator: storedGenerator(p.generator), meta: p.meta,
   loopLength: p.loop_length, patternShare: p.pattern_share, freeShare: p.free_share,
   assumeCount: p.assume_count, longestSteps: p.longest_steps, coverage: p.coverage, largestGap: p.largest_gap,
   createdAt: p.created_at,
@@ -632,8 +632,12 @@ async function oneProblem(db, id) {
 /** 問題の出どころ。決まった値のほかは入れない。 */
 const ORIGINS = ['scan', 'generated'];
 /** 作問ロジックの版（src/core/generator.js の GENERATORS）。知らない値は入れない。 */
-const GENERATOR_IDS = ['random-1', 'nikoli-1', 'nikoli-2', 'nikoli-3', 'nikoli-4', 'nikoli-5', 'nikoli-6', 'nikoli-7', 'nikoli-8'];
+const GENERATOR_IDS = ['random-1', 'teacher-1', 'teacher-2', 'teacher-3', 'teacher-4', 'teacher-5', 'teacher-6', 'teacher-7', 'teacher-8'];
 const cleanGenerator = (v) => (GENERATOR_IDS.includes(v) ? v : null);
+/** 保存された版の id。教師データの版は、id の名前を変える前に作った問題もあるので、版の番号から読み直す。 */
+const storedGenerator = (v) => (typeof v === 'string' && !v.startsWith('random-')
+  ? cleanGenerator(`teacher-${v.slice(v.indexOf('-') + 1)}`)
+  : v ?? null);
 const cleanOrigin = (v) => (ORIGINS.includes(v) ? v : null);
 
 /** 難易度のほかの目安。おかしな値は入れない（無いものは NULL）。 */

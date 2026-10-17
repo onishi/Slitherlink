@@ -4,7 +4,7 @@ import { getGrid, isSingleLoop, cluesFromEdges, LINE } from '../src/core/grid.js
 import { solveLogical, countSolutions } from '../src/core/solver.js';
 import { generatePuzzle, randomLoop, stretchLoop, makeRng, DIFFICULTIES, GENERATORS, LATEST_GENERATOR, gameGeneratorOptions } from '../src/core/generator.js';
 import { difficultyReport, levelOf, problemStats } from '../src/core/difficulty-report.js';
-import { nikoliCheck, isPointSymmetric } from '../src/core/nikoli.js';
+import { teacherCheck, isPointSymmetric } from '../src/core/teacher.js';
 import { thinkMoves, feelProfile, workRun } from '../src/core/feel.js';
 
 test('randomLoop は必ず単一ループを返す', () => {
@@ -78,12 +78,12 @@ test('同じ seed からは同じ問題ができる', () => {
 });
 
 test('教師データ：輪を盤いっぱいにくねらせ、数字を点対称に削り、教師データの条件を満たす', () => {
-  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', seed: 4242, timeLimitMs: 30000 });
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'teacher', seed: 4242, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.equal(p.styleOk, true);
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   const st = problemStats(difficultyReport(p), p.solution, p);
-  const check = nikoliCheck({ rows: 10, cols: 10, clues: p.clues, clueCount: p.clueCount, ...st });
+  const check = teacherCheck({ rows: 10, cols: 10, clues: p.clues, clueCount: p.clueCount, ...st });
   assert.deepEqual(check.failed, []);
   assert.equal(check.ok, true);
   // 論理だけで解けて、解は 1 つ
@@ -93,13 +93,13 @@ test('教師データ：輪を盤いっぱいにくねらせ、数字を点対�
 
 test('教師データの条件：外れたものと、分からないものを分けて返す', () => {
   const base = { rows: 10, cols: 10, clueCount: 40, loopLength: 90, coverage: 90, largestGap: 1, patternShare: 99, assumeCount: 0 };
-  assert.equal(nikoliCheck(base).ok, null); // 数字の配置が分からないので、点対称かは分からない
+  assert.equal(teacherCheck(base).ok, null); // 数字の配置が分からないので、点対称かは分からない
   const clues = new Int8Array(100).fill(-1);
   clues[0] = 1; clues[99] = 2;
-  assert.equal(nikoliCheck({ ...base, clues }).ok, true);
+  assert.equal(teacherCheck({ ...base, clues }).ok, true);
   clues[1] = 3; // 対になる 98 番に数字が無い
-  assert.deepEqual(nikoliCheck({ ...base, clues }).failed, ['点対称']);
-  assert.deepEqual(nikoliCheck({ ...base, clues: undefined, clueCount: 60, largestGap: 9 }).failed, ['数字', '最大の空き地']);
+  assert.deepEqual(teacherCheck({ ...base, clues }).failed, ['点対称']);
+  assert.deepEqual(teacherCheck({ ...base, clues: undefined, clueCount: 60, largestGap: 9 }).failed, ['数字', '最大の空き地']);
 });
 
 test('stretchLoop：輪は 1 本のまま、マス数の 0.85 倍くらいまで長くなる', () => {
@@ -116,7 +116,7 @@ test('stretchLoop：輪は 1 本のまま、マス数の 0.85 倍くらいまで
 });
 
 test('教師データの入門：少し先を読む手があり、空の行・列や数字のない 3×3 が無い', () => {
-  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'nikoli', seed: 7000, timeLimitMs: 30000 });
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'teacher', seed: 7000, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'intro');
   assert.ok(thinkMoves(p) >= 3, '考える手が少ない');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
@@ -142,7 +142,7 @@ test('考える手：盤面を見ただけで解ける問題は 0、少し先を
 });
 
 test('教師データ v3：手触り（考える手の多さ・入り口・山場）と数字の内訳を教師データに寄せる', () => {
-  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 3, seed: 321, timeLimitMs: 30000 });
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'teacher', version: 3, seed: 321, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   const f = feelProfile(p);
@@ -154,17 +154,17 @@ test('教師データ v3：手触り（考える手の多さ・入り口・山�
 });
 
 test('作問ロジックの版：教師データ v8 が最新で、版を省くと最新で作る', () => {
-  assert.equal(LATEST_GENERATOR, 'nikoli-8');
-  assert.deepEqual(GENERATORS['nikoli-3'].options, { style: 'nikoli', version: 3 });
-  assert.deepEqual(GENERATORS['nikoli-4'].options, { style: 'nikoli', version: 4 });
-  assert.deepEqual(GENERATORS['nikoli-5'].options, { style: 'nikoli', version: 5 });
-  assert.deepEqual(GENERATORS['nikoli-6'].options, { style: 'nikoli', version: 6 });
-  assert.deepEqual(GENERATORS['nikoli-7'].options, { style: 'nikoli', version: 7 });
-  assert.deepEqual(GENERATORS['nikoli-8'].options, { style: 'nikoli', version: 8 });
+  assert.equal(LATEST_GENERATOR, 'teacher-8');
+  assert.deepEqual(GENERATORS['teacher-3'].options, { style: 'teacher', version: 3 });
+  assert.deepEqual(GENERATORS['teacher-4'].options, { style: 'teacher', version: 4 });
+  assert.deepEqual(GENERATORS['teacher-5'].options, { style: 'teacher', version: 5 });
+  assert.deepEqual(GENERATORS['teacher-6'].options, { style: 'teacher', version: 6 });
+  assert.deepEqual(GENERATORS['teacher-7'].options, { style: 'teacher', version: 7 });
+  assert.deepEqual(GENERATORS['teacher-8'].options, { style: 'teacher', version: 8 });
 });
 
 test('教師データ v5：0 を固めずに置く（まわり 2 歩以内にほかの 0 がある 0 を残さない）', () => {
-  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 5, seed: 321, timeLimitMs: 30000 });
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'teacher', version: 5, seed: 321, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   const zero = (r, c) => r >= 0 && r < 10 && c >= 0 && c < 10 && p.clues[r * 10 + c] === 0;
@@ -182,15 +182,15 @@ test('教師データ v5：0 を固めずに置く（まわり 2 歩以内にほ
 });
 
 test('教師データ v6：ふつうは考える手を 100 本あたり 11 回までにする', () => {
-  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'nikoli', version: 6, seed: 321, timeLimitMs: 30000 });
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'normal', style: 'teacher', version: 6, seed: 321, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'normal');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   assert.ok(feelProfile(p).thinkRate <= 11 + 1e-9, `考える手 ${feelProfile(p).thinkRate}`);
 });
 
 test('ゲームの「作る」は入門〜ふつうが教師データ 8 版。むずかしい・鬼はランダム', () => {
-  assert.deepEqual(gameGeneratorOptions(7, 7, 'normal'), { style: 'nikoli', version: 8 });
-  assert.deepEqual(gameGeneratorOptions(5, 5, 'intro'), { style: 'nikoli', version: 8 });
+  assert.deepEqual(gameGeneratorOptions(7, 7, 'normal'), { style: 'teacher', version: 8 });
+  assert.deepEqual(gameGeneratorOptions(5, 5, 'intro'), { style: 'teacher', version: 8 });
   assert.deepEqual(gameGeneratorOptions(15, 15, 'hard'), {});
   assert.deepEqual(gameGeneratorOptions(10, 10, 'expert'), {});
 });
@@ -228,7 +228,7 @@ test('作業の続く区間：盤面を見ただけで × が続く手数を数�
 });
 
 test('教師データ v4：入門は考える手を軽めに（決まる辺 100 本あたり 8 回くらいまで）', () => {
-  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'nikoli', version: 4, seed: 77, timeLimitMs: 30000 });
+  const p = generatePuzzle({ rows: 10, cols: 10, difficulty: 'intro', style: 'teacher', version: 4, seed: 77, timeLimitMs: 30000 });
   assert.equal(p.difficulty, 'intro');
   assert.ok(isPointSymmetric(p.clues, 10, 10));
   const f = feelProfile(p);
