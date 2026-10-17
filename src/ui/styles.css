@@ -14,6 +14,7 @@
   --border: #ded7c9;
   --radius: 14px;
   --shadow: 0 1px 2px rgba(35, 32, 28, .07), 0 6px 20px rgba(35, 32, 28, .07);
+  --focus-bg: #fff; /* 集中モードの背景（ライトは真っ白） */
   color-scheme: light;
 }
 
@@ -32,6 +33,7 @@
   --dot: #737c88;
   --border: #323840;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .35);
+  --focus-bg: #15171a;
   color-scheme: dark;
 }
 
@@ -51,6 +53,7 @@
     --dot: #737c88;
     --border: #323840;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .35);
+    --focus-bg: #15171a;
     color-scheme: dark;
   }
 }
@@ -316,7 +319,7 @@ button.primary:hover:not(:disabled) { filter: brightness(1.07); background: var(
 #board.zoomed { cursor: grab; }
 
 /* ---------- 集中モード：盤面だけを画面いっぱいに（拡大・縮小と、やめるボタンだけ残す） ---------- */
-body.focus-mode { overflow: hidden; }
+body.focus-mode { overflow: hidden; background: var(--focus-bg); }
 body.focus-mode .app,
 body.focus-mode .app:not(.doc) {
   position: fixed;
@@ -328,7 +331,7 @@ body.focus-mode .app:not(.doc) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  background: var(--bg);
+  background: var(--focus-bg);
 }
 body.focus-mode .app > :not(.board-area) { display: none !important; }
 body.focus-mode .app > .board-area { flex: 1; min-height: 0; width: 100%; height: auto; position: static; align-items: stretch; }
