@@ -8,7 +8,7 @@ import { verifyGoogleIdToken, resetKeyCache } from '../server/google.js';
 
 const CLIENT_ID = 'test-client.apps.googleusercontent.com';
 const ORIGIN = 'https://gridloop.example';
-const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql', '0007_generator.sql']
+const SCHEMA = ['0001_init.sql', '0002_books.sql', '0003_problem_stats.sql', '0004_coverage_origin.sql', '0005_largest_gap.sql', '0006_book_solved.sql', '0007_generator.sql', '0008_patterns.sql']
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8')).join('\n');
 
 /** D1 と同じ呼び方（prepare → bind → run/first/all、batch）ができる薄い入れ物。 */
@@ -418,6 +418,44 @@ test('公開した問題集を、ログインした人が遊べて、解いた�
   const p2 = detail.problems[1].id;
   await call(`/api/admin/books/${open}/problems/${p2}`, { method: 'DELETE', cookie: admin });
   assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM book_solved').get().n, 0);
+});
+
+test('解いた履歴と問題集の印に、ヒントと定石を使った回数が残る（いちばん速いときの回数）', async () => {
+  const admin = (await loginAs({ sub: 'admin-1' })).cookie;
+  const id = (await call('/api/admin/books', { method: 'POST', cookie: admin, body: { title: '定石' } })).data.book.id;
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie: admin, body: { problems: [{ code: '5nPT1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 10 }] } });
+  await call(`/api/admin/books/${id}`, { method: 'PATCH', cookie: admin, body: { visibility: 'public' } });
+  const { cookie } = await loginAs({ sub: 'pattern-1' });
+  const solve = (seconds, hints, patterns) => call('/api/history', { method: 'POST', cookie, body: { code: '5nPT1', rows: 5, cols: 5, difficulty: 'normal', seconds, hints, patterns } });
+  await solve(90, 2, 3);
+  await solve(60, 1, 0);
+  await solve(120, 0, 5);
+  const { history } = (await call('/api/data', { cookie })).data;
+  assert.deepEqual(history.map((h) => [h.seconds, h.hints, h.patterns]), [[120, 0, 5], [60, 1, 0], [90, 2, 3]]);
+  const p = (await call(`/api/books/${id}`, { cookie })).data.problems[0];
+  assert.deepEqual([p.seconds, p.hints, p.patterns], [60, 1, 0]);
+});
+
+test('問題集の 1 問の、自分の解いた印を消せる', async () => {
+  const admin = (await loginAs({ sub: 'admin-1' })).cookie;
+  const id = (await call('/api/admin/books', { method: 'POST', cookie: admin, body: { title: '消す' } })).data.book.id;
+  await call(`/api/admin/books/${id}/problems`, { method: 'POST', cookie: admin, body: { problems: [{ code: '5nF1', rows: 5, cols: 5, difficulty: 'normal', clueCount: 10 }] } });
+  await call(`/api/admin/books/${id}`, { method: 'PATCH', cookie: admin, body: { visibility: 'public' } });
+  const { cookie } = await loginAs({ sub: 'forget-1' });
+  const other = (await loginAs({ sub: 'forget-2' })).cookie;
+  for (const c of [cookie, other]) {
+    await call('/api/history', { method: 'POST', cookie: c, body: { code: '5nF1', rows: 5, cols: 5, difficulty: 'normal', seconds: 50, hints: 0 } });
+  }
+  const pid = (await call(`/api/books/${id}`, { cookie })).data.problems[0].id;
+  assert.equal((await call(`/api/books/${id}/problems/${pid}/solved`, { method: 'DELETE', cookie })).status, 200);
+  assert.equal((await call(`/api/books/${id}`, { cookie })).data.problems[0].solved, false);
+  // ほかの人の印は残る
+  assert.equal((await call(`/api/books/${id}`, { cookie: other })).data.problems[0].solved, true);
+  // 別の問題集の番号や、無い問題は 404
+  assert.equal((await call(`/api/books/${id + 999}/problems/${pid}/solved`, { method: 'DELETE', cookie })).status, 404);
+  assert.equal((await call(`/api/books/${id}/problems/${pid}`, { method: 'DELETE', cookie })).status, 404);
+  // ゲストは消せない
+  assert.equal((await call(`/api/books/${id}/problems/${pid}/solved`, { method: 'DELETE' })).status, 401);
 });
 
 test('管理者のみの問題集は、管理者だけがメニューで遊べる', async () => {

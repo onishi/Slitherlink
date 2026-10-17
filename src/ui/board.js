@@ -283,7 +283,8 @@ export class Board {
     //   なぞる … 点から点へなぞった辺に、モードによらず線を引く。なぞり始めの辺が線なら、なぞった線を消す。
     //            いくつもの辺を続けてなぞれる。右クリック（Ctrl+クリック）でなぞると × を付ける・消す
     //   長押し … その辺に × を付ける（× なら消す）
-    // 指 2 本はピンチ。拡大・縮小しながら、指のまん中に合わせて盤面を動かす（拡大中の移動も 2 本指で）。
+    //   拡大中に、マスの真ん中（辺から離れたところ）から動かす … 盤面を動かす（スクロール）
+    // 指 2 本はピンチ。拡大・縮小しながら、指のまん中に合わせて盤面を動かす。
     // タップの印は指を離したときに付けるので、ピンチのつもりが印になってしまうことはない。
     svg.addEventListener('pointerdown', (ev) => {
       if (ev.button !== 0 && ev.button !== 2) return;
@@ -313,6 +314,8 @@ export class Board {
         y: ev.clientY,
         secondary: ev.button === 2 || ev.ctrlKey,
         flip: ev.metaKey,
+        // 拡大中に、辺から離れたところ（マスの真ん中）から動かしたら、なぞるのではなく盤面を動かす
+        panFrom: this.zoom.scale > 1 && this._inCellMiddle(ev.clientX, ev.clientY) ? { x: this.zoom.cx, y: this.zoom.cy } : null,
       };
       // 長押し：動かさずに押し続けたら × を付け外しする（指・ペンだけ。マウスは右クリックで ×）
       if (!g.secondary && ev.pointerType !== 'mouse') g.timer = setTimeout(() => this._longPress(g), LONG_PRESS_MS);
@@ -332,7 +335,14 @@ export class Board {
         return;
       }
       if (g.id !== ev.pointerId) return;
-      if (g.type === 'tap' && Math.hypot(ev.clientX - g.x, ev.clientY - g.y) > TAP_SLOP) this._startDraw(g);
+      if (g.type === 'tap' && Math.hypot(ev.clientX - g.x, ev.clientY - g.y) > TAP_SLOP) {
+        if (g.panFrom) { clearTimeout(g.timer); g.type = 'pan'; } else this._startDraw(g);
+      }
+      if (g.type === 'pan') {
+        const rect = this._drawnRect();
+        const unit = svg.viewBox.baseVal.width / (rect.width || 1);
+        this.setZoom(this.zoom.scale, g.panFrom.x - (ev.clientX - g.x) * unit, g.panFrom.y - (ev.clientY - g.y) * unit);
+      }
       if (g.type === 'draw') this._drawTo(g, ev.clientX, ev.clientY);
     });
 
@@ -426,6 +436,17 @@ export class Board {
       g.moved = true;
     }
     g.last = p;
+    this._edgeScroll(clientX, clientY);
+  }
+
+  /** 拡大中になぞって画面の端まで来たら、その向きへ少し盤面を動かす（長い線を引きやすく）。 */
+  _edgeScroll(clientX, clientY) {
+    if (this.zoom.scale <= 1) return;
+    const rect = this.svg.getBoundingClientRect();
+    const margin = 28;
+    const dx = clientX < rect.left + margin ? -1 : clientX > rect.right - margin ? 1 : 0;
+    const dy = clientY < rect.top + margin ? -1 : clientY > rect.bottom - margin ? 1 : 0;
+    if (dx || dy) this.setZoom(this.zoom.scale, this.zoom.cx + dx * 0.25, this.zoom.cy + dy * 0.25);
   }
 
   /**
@@ -443,6 +464,15 @@ export class Board {
     else if (g.secondary) value = cur === UNKNOWN ? CROSS : cur; // × は、空いている辺にだけ付ける
     else value = LINE; // 線は、× の辺にも引く（× を線に置きかえる）
     if (value !== cur) this.handlers.onPaint(e, value);
+  }
+
+  /** マスの真ん中あたり（点からも辺からも離れたところ）か。ここから動かすと、拡大中は盤面を動かす。 */
+  _inCellMiddle(clientX, clientY) {
+    const g = this.grid;
+    if (!g) return false;
+    const { x, y } = this._toBoard(clientX, clientY);
+    if (x < 0 || y < 0 || x > g.cols || y > g.rows) return false;
+    return Math.abs(x - Math.floor(x) - 0.5) < 0.3 && Math.abs(y - Math.floor(y) - 0.5) < 0.3;
   }
 
   /** 盤面の座標にいちばん近い点（交点）。盤の外なら端の点。 */

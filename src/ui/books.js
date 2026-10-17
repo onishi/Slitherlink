@@ -93,7 +93,7 @@ export class BookShelf {
     if (this.current?.book.id === id) {
       for (const p of this.opened.problems) {
         const mine = this.current.problems.find((x) => x.id === p.id);
-        if (mine?.solved && !p.solved) Object.assign(p, { solved: true, seconds: mine.seconds, hints: mine.hints, solvedAt: mine.solvedAt });
+        if (mine?.solved && !p.solved) Object.assign(p, { solved: true, seconds: mine.seconds, hints: mine.hints, patterns: mine.patterns, solvedAt: mine.solvedAt });
       }
     }
     this.renderBook();
@@ -123,6 +123,7 @@ export class BookShelf {
         time.append(icon('check_circle'), p.seconds != null ? formatTime(p.seconds) : '解いた');
         const notes = [];
         if (p.hints) notes.push(`ヒント ${p.hints}`);
+        if (p.patterns) notes.push(`定石 ${p.patterns}`);
         if (p.solvedAt) { const d = new Date(p.solvedAt); notes.push(`${d.getMonth() + 1}/${d.getDate()}`); }
         result.append(time);
         if (notes.length) result.append(el('small', null, notes.join('・')));
@@ -131,10 +132,30 @@ export class BookShelf {
       }
       btn.append(el('b', 'book-problem-no', String(p.position)), what, result);
       btn.setAttribute('aria-label', `${p.position} 番 ${p.rows}×${p.cols} ${level}${p.solved ? ` 解いた${p.seconds != null ? ` ${formatTime(p.seconds)}` : ''}` : ''}`);
-      btn.addEventListener('click', () => this.playAt(this.opened, i));
+      // 長押し（PC は右クリック）で、解いた印（クリアの記録）を消す
+      const pressed = onLongPress(btn, () => this.forget(p));
+      btn.addEventListener('click', () => { if (!pressed()) this.playAt(this.opened, i); });
       li.append(btn);
       grid.append(li);
     });
+  }
+
+  /** 解いた印（クリアの記録）を、確かめてから消す。 */
+  async forget(p) {
+    if (!p.solved) return;
+    if (!confirm(`${p.position} 番のクリアの記録を消しますか？`)) return;
+    try {
+      await api(`/api/books/${this.opened.book.id}/problems/${p.id}/solved`, { method: 'DELETE' });
+    } catch (err) {
+      alert(err.message || '消せませんでした');
+      return;
+    }
+    const clear = (x) => Object.assign(x, { solved: false, seconds: null, hints: null, patterns: null, solvedAt: null });
+    clear(p);
+    // 遊んでいる問題集なら、手元で覚えている印も消す（「次の問題へ」の行き先に入るように）
+    const mine = this.current?.problems.find((x) => x.id === p.id);
+    if (mine) clear(mine);
+    this.renderBook();
   }
 
   isPlaying(p) {
@@ -216,12 +237,12 @@ export class BookShelf {
   }
 
   /** 解いたとき：印（時間・ヒントの回数）を付けて、次に遊ぶ問題（まだ解いていない、後ろの問題。無ければ前から）を返す。 */
-  onSolved({ seconds, hints } = {}) {
+  onSolved({ seconds, hints, patterns } = {}) {
     if (!this.current) return null;
     const { problems, index } = this.current;
     const p = problems[index];
     if (!p.solved || (seconds != null && (p.seconds == null || seconds < p.seconds))) {
-      if (seconds != null) { p.seconds = seconds; p.hints = hints ?? 0; }
+      if (seconds != null) { p.seconds = seconds; p.hints = hints ?? 0; p.patterns = patterns ?? 0; }
     }
     if (!p.solved) p.solvedAt = Date.now();
     p.solved = true;
@@ -242,6 +263,45 @@ export class BookShelf {
   openCurrent() {
     if (this.current) this.open(this.current.book.id);
   }
+}
+
+/**
+ * 長押し（指・ペンで 0.5 秒）か右クリックで fn を呼ぶ。
+ * 返す関数は、直前の操作が長押しだったか（そのあとの click で遊び始めないように）を答える。
+ */
+// 長押しのあとに来る click は、遊び始めに使わない。記録を消すと一覧を描き直すので、
+// click が描き直した別のボタンに届くこともある。ボタンごとではなく、ここで 1 つだけ持つ
+let swallowClick = false;
+
+function onLongPress(target, fn) {
+  let timer = 0;
+  let start = null;
+  const fire = () => { swallowClick = true; fn(); };
+  const cancel = () => { clearTimeout(timer); timer = 0; };
+  target.addEventListener('pointerdown', (ev) => {
+    swallowClick = false;
+    if (ev.pointerType === 'mouse') return;
+    start = { x: ev.clientX, y: ev.clientY };
+    cancel();
+    timer = setTimeout(() => { timer = 0; fire(); }, 500);
+  });
+  target.addEventListener('pointermove', (ev) => {
+    // 一覧を送るつもりで指が動いたら、長押しにしない
+    if (timer && start && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > 10) cancel();
+  });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) target.addEventListener(type, cancel);
+  // 右クリック、または Android の長押し（contextmenu が来る）。長押しと二重にならないようにする
+  target.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault();
+    if (swallowClick) return;
+    cancel();
+    fire();
+  });
+  return () => {
+    const was = swallowClick;
+    swallowClick = false;
+    return was;
+  };
 }
 
 /** 「解いた 3 / 10」と帯。 */
